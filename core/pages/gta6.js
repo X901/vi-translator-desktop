@@ -1,4 +1,4 @@
-// pages-version: 3
+// pages-version: 4
 // requires-app: 1.0.0
 // Grand Theft Auto VI: the game's own pages the app translates (see src/pagescript.rs for the API).
 // The pages' switch names and descriptions in the app's other interface languages (English and Arabic are with each).
@@ -5328,10 +5328,13 @@ function hubBar(f) {
   return pink.count >= 12 && white.count >= 30 && pink.box ? pink.box : null;
 }
 
-/** The VI logo top left (the menu's first page). */
+/** The VI logo top left (the menu's first page). In a smaller picture (720p: the phone app's PS5 stream,
+ *  PS Remote Play's default) the shrunk logo matches less closely: looked for at every pixel, and taken
+ *  from 0.5 (the first page also needs the Back icon and the selected row's white bar). */
 function homeLogo(f) {
   const s = f.h / 1080;
-  return f.find(pxRect(f, { x: 0, y: 0, w: 0.12, h: 0.16 }), "vilogo", { scales: [s * 0.95, s, s * 1.05], step: 2, min: 0.6 });
+  const small = s < 0.9;
+  return f.find(pxRect(f, { x: 0, y: 0, w: 0.12, h: 0.16 }), "vilogo", { scales: [s * 0.95, s, s * 1.05], step: small ? 1 : 2, min: small ? 0.5 : 0.6 });
 }
 
 /** Which page of the menu is up: {kind, ...} or null. */
