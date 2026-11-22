@@ -348,12 +348,33 @@ pub fn save_png(f: &FrameData, path: &std::path::Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A Mac nobody touches goes to sleep, and with a console the player never touches it: the picture,
+/// the reading and the translations on the TV or the phone all stop. So while a picture is coming
+/// in, macOS's own `caffeinate` holds idle sleep off (-i). It ends with the app (-w), however the
+/// app ends. (The screen still turns off, which does no harm; a closed lid still sleeps the Mac.
+/// A card with its console off still sends a picture, "No Signal": the Mac stays awake then too.)
+#[cfg(target_os = "macos")]
+fn keep_awake(on: bool, held: &mut Option<std::process::Child>) {
+    // (one that was ended from outside is started again)
+    let running = held.as_mut().is_some_and(|c| matches!(c.try_wait(), Ok(None)));
+    if on && !running {
+        *held = std::process::Command::new("caffeinate").args(["-i", "-w", &std::process::id().to_string()]).spawn().ok();
+    } else if !on {
+        if let Some(mut c) = held.take() {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+    }
+}
+
 /// Keeps a capture running on the window named in the config; restarts it when the title changes
 /// or the window is closed and reopened.
 pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
     let mut active: Option<(String, platform::WindowCapture)> = None;
     let mut device: Option<(String, crate::device::DeviceCapture)> = None;
     let mut obs: Option<(String, crate::obs::ObsCapture)> = None;
+    #[cfg(target_os = "macos")]
+    let (mut awake, mut pictured) = (None, (0u64, None::<Instant>));
     loop {
         let (want, obs_port, obs_password, source_crop, overlay_window, overlay_crop, picture_4k) = {
             let c = cfg.lock().unwrap();
@@ -362,6 +383,15 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
             PREVIEW_MAX.store(if c.picture_4k { PREVIEW_W_4K } else { PREVIEW_W }, Ordering::Relaxed);
             (c.window_title.clone(), c.obs_port, c.obs_password.clone(), c.source_crop, c.overlay_window.clone(), c.overlay_crop, c.picture_4k)
         };
+        #[cfg(target_os = "macos")]
+        {
+            let seq = shared.seq.load(Ordering::Relaxed);
+            if seq != pictured.0 {
+                pictured = (seq, Some(Instant::now()));
+            }
+            // (a frame in the last minute: a short gap in the picture doesn't let the Mac sleep)
+            keep_awake(pictured.1.is_some_and(|t| t.elapsed() < Duration::from_secs(60)), &mut awake);
+        }
         let screen = want.strip_prefix(SCREEN_PREFIX).map(str::to_string);
         let is_window = !want.starts_with(crate::obs::PREFIX) && !want.starts_with(crate::device::PREFIX);
         shared.reading_screen.store(screen.is_some(), Ordering::Relaxed);
@@ -578,5 +608,27 @@ mod preview_size_tests {
         let f = shrink(&px(1920, 1080), 1920, 1080, 1920 * 4, false);
         assert_eq!((f.w, f.h), (1920, 1080), "1080p as it is");
         PREVIEW_MAX.store(PREVIEW_W, Ordering::Relaxed);
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod awake_tests {
+    use super::keep_awake;
+
+    #[test]
+    fn idle_sleep_is_held_off_while_a_picture_comes_in() {
+        let mut held = None;
+        keep_awake(true, &mut held);
+        let first = held.as_ref().expect("caffeinate starts").id();
+        keep_awake(true, &mut held);
+        assert_eq!(held.as_ref().unwrap().id(), first, "one is enough");
+        // ended from outside (`pkill caffeinate`): started again
+        let c = held.as_mut().unwrap();
+        c.kill().unwrap();
+        c.wait().unwrap();
+        keep_awake(true, &mut held);
+        assert_ne!(held.as_ref().unwrap().id(), first);
+        keep_awake(false, &mut held);
+        assert!(held.is_none(), "no picture: the Mac may sleep again");
     }
 }
