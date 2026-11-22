@@ -385,4 +385,6 @@ I18N.add("ja", {
   "TVs showing the translation now: {n} of {m}": "今翻訳を表示しているテレビ: {m}台中{n}台",
   "Translation memory only": "翻訳メモリのみ",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "確認済みの翻訳だけを表示します（ダウンロードもアカウントも不要）。ほかの行には下のサービスのいずれかを選んでください。",
+  "4K picture": "4K 映像",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K キャプチャカードが 4K で動作し、このアプリの映像を 4K で表示します（4K のゲームウィンドウも）。4K 画面でこのアプリの映像を見ながら遊ぶ場合に。高性能な PC が必要です。文字の読み取りはどちらでも行われます。",
 });

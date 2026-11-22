@@ -385,4 +385,6 @@ I18N.add("ko", {
   "TVs showing the translation now: {n} of {m}": "지금 번역을 표시 중인 TV: {m}대 중 {n}대",
   "Translation memory only": "번역 메모리만",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "검토된 번역만 표시합니다. 다운로드나 계정이 필요 없습니다. 다른 줄은 아래 서비스 중 하나를 선택하세요.",
+  "4K picture": "4K 화면",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K 캡처 카드가 4K로 동작하고, 이 앱의 화면이 4K로 표시됩니다(4K 게임 창도). 4K 화면에서 이 앱의 화면으로 플레이할 때 사용하세요. 고성능 PC가 필요하며, 텍스트는 어느 쪽이든 읽힙니다.",
 });

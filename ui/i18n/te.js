@@ -385,4 +385,6 @@ I18N.add("te", {
   "TVs showing the translation now: {n} of {m}": "ఇప్పుడు అనువాదం చూపిస్తున్న టీవీలు: {m}లో {n}",
   "Translation memory only": "అనువాద మెమరీ మాత్రమే",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "సమీక్షించిన అనువాదాలను మాత్రమే చూపిస్తుంది: డౌన్‌లోడ్ లేదు, ఖాతా లేదు. ఇతర లైన్‌ల కోసం కింది సేవల్లో ఒకదాన్ని ఎంచుకోండి.",
+  "4K picture": "4K చిత్రం",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K క్యాప్చర్ కార్డ్ 4Kలో నడుస్తుంది, ఈ యాప్‌లోని చిత్రం 4Kలో కనిపిస్తుంది (4K గేమ్ విండో కూడా). 4K స్క్రీన్‌పై ఈ యాప్ చిత్రంపై ఆడటానికి. శక్తివంతమైన పీసీ అవసరం; టెక్స్ట్ ఎలాగైనా చదవబడుతుంది.",
 });

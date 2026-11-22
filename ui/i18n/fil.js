@@ -385,4 +385,6 @@ I18N.add("fil", {
   "TVs showing the translation now: {n} of {m}": "Mga TV na nagpapakita ng salin ngayon: {n} sa {m}",
   "Translation memory only": "Translation memory lang",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Ipinapakita lang ang mga nasuring salin: walang download, walang account. Para sa ibang linya, pumili ng isa sa mga serbisyo sa ibaba.",
+  "4K picture": "4K na larawan",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Tatakbo sa 4K ang 4K capture card, at ipapakita sa 4K ang larawan sa app na ito (pati 4K na window ng laro). Para sa paglalaro sa larawan ng app na ito sa 4K na screen. Kailangan ng malakas na PC; nababasa pa rin ang text.",
 });

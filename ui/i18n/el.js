@@ -385,4 +385,6 @@ I18N.add("el", {
   "TVs showing the translation now: {n} of {m}": "Τηλεοράσεις που δείχνουν τώρα τη μετάφραση: {n} από {m}",
   "Translation memory only": "Μόνο μνήμη μεταφράσεων",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Δείχνει μόνο τις ελεγμένες μεταφράσεις: χωρίς λήψη, χωρίς λογαριασμό. Για άλλες γραμμές επιλέξτε μία από τις υπηρεσίες παρακάτω.",
+  "4K picture": "Εικόνα 4K",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Μια κάρτα σύλληψης 4K λειτουργεί σε 4K και η εικόνα σε αυτή την εφαρμογή εμφανίζεται σε 4K (και ένα παράθυρο παιχνιδιού 4K). Για παιχνίδι στην εικόνα της εφαρμογής σε οθόνη 4K. Χρειάζεται ισχυρό PC· το κείμενο διαβάζεται έτσι κι αλλιώς.",
 });

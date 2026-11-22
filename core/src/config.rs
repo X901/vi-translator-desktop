@@ -317,6 +317,10 @@ pub struct Config {
     pub capture_fps: u32,
     /// Frames per second of the live preview in the app (small frames, only while it's visible).
     pub preview_fps: u32,
+    /// 4K picture: a capture card runs at its largest size up to 3840×2160 (else 1920×1080 is
+    /// preferred), and the app's picture is shown up to 3840 wide (else 1920). For players with a
+    /// 4K card or a 4K Remote Play window who play on the app's picture; it costs more CPU and GPU.
+    pub picture_4k: bool,
     /// Snapshots (the whole picture translated at once): the service ("" = the live translations'
     /// one; an engine id; "azure-image" = Azure's image translation, with its own endpoint and key).
     pub snap_service: String,
@@ -645,6 +649,7 @@ impl Default for Config {
             obs_page_port: 8790,
             capture_fps: 12,
             preview_fps: 60,
+            picture_4k: false,
             snap_service: String::new(),
             snap_azure_endpoint: String::new(),
             snap_azure_key: String::new(),

@@ -385,4 +385,6 @@ I18N.add("bn", {
   "TVs showing the translation now: {n} of {m}": "এখন অনুবাদ দেখাচ্ছে এমন টিভি: {m}টির মধ্যে {n}টি",
   "Translation memory only": "শুধু অনুবাদ মেমরি",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "শুধু পর্যালোচিত অনুবাদ দেখায়: কোনো ডাউনলোড বা অ্যাকাউন্ট লাগে না। অন্য লাইনের জন্য নিচের কোনো একটি পরিষেবা বেছে নিন।",
+  "4K picture": "4K ছবি",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K ক্যাপচার কার্ড 4K-তে চলে, আর এই অ্যাপের ছবি 4K-তে দেখায় (4K গেম উইন্ডোও)। 4K স্ক্রিনে এই অ্যাপের ছবিতে খেলার জন্য। শক্তিশালী পিসি লাগে; লেখা পড়া দুই ক্ষেত্রেই হয়।",
 });

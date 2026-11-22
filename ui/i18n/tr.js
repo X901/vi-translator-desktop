@@ -385,4 +385,6 @@ I18N.add("tr", {
   "TVs showing the translation now: {n} of {m}": "Şu anda çeviriyi gösteren TV'ler: {m} TV'den {n}",
   "Translation memory only": "Yalnızca çeviri belleği",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Yalnızca incelenmiş çevirileri gösterir: indirme yok, hesap yok. Diğer satırlar için aşağıdaki hizmetlerden birini seçin.",
+  "4K picture": "4K görüntü",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K yakalama kartı 4K'da çalışır ve bu uygulamadaki görüntü 4K gösterilir (4K oyun penceresi de). 4K ekranda bu uygulamanın görüntüsünde oynamak için. Güçlü bir bilgisayar gerekir; metin her iki durumda da okunur.",
 });

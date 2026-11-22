@@ -385,4 +385,6 @@ I18N.add("ta", {
   "TVs showing the translation now: {n} of {m}": "இப்போது மொழிபெயர்ப்பைக் காட்டும் டிவிகள்: {m}-இல் {n}",
   "Translation memory only": "மொழிபெயர்ப்பு நினைவகம் மட்டும்",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "சரிபார்க்கப்பட்ட மொழிபெயர்ப்புகளை மட்டும் காட்டும்: பதிவிறக்கமோ கணக்கோ தேவையில்லை. மற்ற வரிகளுக்கு கீழே உள்ள சேவைகளில் ஒன்றைத் தேர்ந்தெடுக்கவும்.",
+  "4K picture": "4K படம்",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K கேப்சர் கார்டு 4K-இல் இயங்கும், இந்த செயலியில் உள்ள படம் 4K-இல் காட்டப்படும் (4K விளையாட்டுச் சாளரமும்). 4K திரையில் இந்த செயலியின் படத்தில் விளையாட. சக்திவாய்ந்த கணினி தேவை; உரை எப்படியும் படிக்கப்படும்.",
 });

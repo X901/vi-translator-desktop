@@ -120,7 +120,7 @@ impl Obs {
 
     /// A small JPEG of the source for the live preview (≤ PREVIEW_W wide).
     pub fn preview_jpeg(&mut self, source: &str) -> Result<Vec<u8>> {
-        self.image(source, json!({ "imageFormat": "jpg", "imageWidth": crate::capture::PREVIEW_W, "imageCompressionQuality": 80 }))
+        self.image(source, json!({ "imageFormat": "jpg", "imageWidth": crate::capture::preview_w(), "imageCompressionQuality": 80 }))
     }
 
     /// The source's current picture, as OBS renders it (full size).

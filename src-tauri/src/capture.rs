@@ -89,8 +89,17 @@ impl std::ops::Deref for Shared {
     }
 }
 
-/// Preview frames are at most this wide: a 1080p game is shown at full size, a 4K one at half.
+/// Preview frames are at most this wide: a 1080p game is shown at full size, a 4K one at half
+/// (unless the 4K picture is on: `preview_w`).
 pub const PREVIEW_W: u32 = 1920;
+/// The 4K picture's limit (Config::picture_4k).
+pub const PREVIEW_W_4K: u32 = 3840;
+static PREVIEW_MAX: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(PREVIEW_W);
+
+/// How wide the app's picture may be now (PREVIEW_W, or PREVIEW_W_4K with the 4K picture on).
+pub fn preview_w() -> u32 {
+    PREVIEW_MAX.load(Ordering::Relaxed)
+}
 
 /// How a card's YUV numbers map to colour: which standard, and whether black is 16 or 0.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -293,7 +302,7 @@ pub fn overlay_rect(shared: &Shared, front_only: bool) -> Option<(i32, i32, i32,
 /// Shrink a 4-byte-per-pixel image (rows `pitch` bytes apart) to ≤ PREVIEW_W wide, averaging 2×2
 /// samples per output pixel. `bgr`: the source is BGRA/BGRX (output is always RGBA).
 pub fn shrink(src: &[u8], w: u32, h: u32, pitch: usize, bgr: bool) -> FrameData {
-    let f = w.div_ceil(PREVIEW_W).max(1);
+    let f = w.div_ceil(preview_w()).max(1);
     if f == 1 {
         // already small enough: copy the rows as they are (RGBA out)
         let row = (w * 4) as usize;
@@ -346,11 +355,12 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
     let mut device: Option<(String, crate::device::DeviceCapture)> = None;
     let mut obs: Option<(String, crate::obs::ObsCapture)> = None;
     loop {
-        let (want, obs_port, obs_password, source_crop, overlay_window, overlay_crop) = {
+        let (want, obs_port, obs_password, source_crop, overlay_window, overlay_crop, picture_4k) = {
             let c = cfg.lock().unwrap();
             shared.capture_ms.store(1000 / c.capture_fps.clamp(1, 30) as u64, Ordering::Relaxed);
             shared.preview_ms.store(1000 / c.preview_fps.clamp(1, 60) as u64, Ordering::Relaxed);
-            (c.window_title.clone(), c.obs_port, c.obs_password.clone(), c.source_crop, c.overlay_window.clone(), c.overlay_crop)
+            PREVIEW_MAX.store(if c.picture_4k { PREVIEW_W_4K } else { PREVIEW_W }, Ordering::Relaxed);
+            (c.window_title.clone(), c.obs_port, c.obs_password.clone(), c.source_crop, c.overlay_window.clone(), c.overlay_crop, c.picture_4k)
         };
         let screen = want.strip_prefix(SCREEN_PREFIX).map(str::to_string);
         let is_window = !want.starts_with(crate::obs::PREFIX) && !want.starts_with(crate::device::PREFIX);
@@ -402,7 +412,9 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
             if let Some((_, c)) = active.take() {
                 let _ = c.stop();
             }
-            let restart = device.as_ref().is_none_or(|(n, d)| n != name || d.is_finished());
+            // (the 4K picture switched on or off: the card is opened again at its new size)
+            let key = format!("{name}|{picture_4k}");
+            let restart = device.as_ref().is_none_or(|(k, d)| *k != key || d.is_finished());
             if restart {
                 if let Some((_, d)) = device.take() {
                     d.stop();
@@ -410,7 +422,7 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
                 shared.hwnd.store(0, Ordering::Relaxed); // no window: the Arabic goes to OBS / the preview
                 *shared.frame.lock().unwrap() = None;
                 shared.set_status(format!("Opening capture device \"{name}\" ..."));
-                device = Some((name.to_string(), crate::device::start(name.to_string(), shared.clone())));
+                device = Some((key, crate::device::start(name.to_string(), shared.clone(), picture_4k)));
             }
             std::thread::sleep(Duration::from_secs(1));
             continue;
@@ -547,5 +559,24 @@ mod yuv_tests {
         assert_eq!(px(16, 128, 128), [0, 0, 0, 255]);
         let r = px(63, 102, 240);
         assert!(r[0] > 245 && r[1] < 10 && r[2] < 10, "red came out as {r:?}");
+    }
+}
+
+#[cfg(test)]
+mod preview_size_tests {
+    use super::*;
+
+    #[test]
+    fn the_4k_picture_lifts_the_preview_to_3840_wide() {
+        let px = |w: u32, h: u32| vec![0u8; (w * h * 4) as usize];
+        PREVIEW_MAX.store(PREVIEW_W, Ordering::Relaxed);
+        let f = shrink(&px(3840, 2160), 3840, 2160, 3840 * 4, false);
+        assert_eq!((f.w, f.h), (1920, 1080), "4K at half without it");
+        PREVIEW_MAX.store(PREVIEW_W_4K, Ordering::Relaxed);
+        let f = shrink(&px(3840, 2160), 3840, 2160, 3840 * 4, false);
+        assert_eq!((f.w, f.h), (3840, 2160), "4K at full size with it");
+        let f = shrink(&px(1920, 1080), 1920, 1080, 1920 * 4, false);
+        assert_eq!((f.w, f.h), (1920, 1080), "1080p as it is");
+        PREVIEW_MAX.store(PREVIEW_W, Ordering::Relaxed);
     }
 }

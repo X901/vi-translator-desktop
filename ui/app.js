@@ -1142,6 +1142,14 @@ function renderPreviewForm() {
 function renderTiming() {
   const form = $("timing-form");
   form.innerHTML = "";
+  // the 4K picture: a 4K capture card runs at 4K, and the app's picture is shown at up to 3840 wide
+  const k4 = document.createElement("div");
+  k4.className = "field";
+  // (flex: a form's labels are blocks, which would leave the box at the top of the line, above the words)
+  k4.innerHTML = `<label class="check" style="display:flex;color:var(--text);font-weight:600"><input type="checkbox" ${cfg.picture_4k === true ? "checked" : ""}/> ${t("4K picture")}</label>
+    <div class="muted small" style="margin:4px 0 0">${t("A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.")}</div>`;
+  k4.querySelector("input").addEventListener("change", (e) => { cfg.picture_4k = e.target.checked; save(false); });
+  form.appendChild(k4);
   const fields = [
     ["capture_fps", "Frames captured for reading text (per second)", 1, 30, 1, "Full-size frames used for reading text, game pages and saved frames. Also how often the pause menu checks whether its text changed. 12 is plenty; more costs CPU, especially at 4K. From OBS, about 12 is the most it can deliver."],
     ["preview_fps", "Live preview frame rate (per second)", 5, 60, 5, "Only the picture in this app (small frames, made only while it's visible). Doesn't change how text is read."],

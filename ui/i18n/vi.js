@@ -385,4 +385,6 @@ I18N.add("vi", {
   "TVs showing the translation now: {n} of {m}": "TV đang hiển thị bản dịch: {n} trên {m}",
   "Translation memory only": "Chỉ bộ nhớ bản dịch",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Chỉ hiển thị các bản dịch đã duyệt: không cần tải xuống, không cần tài khoản. Với các dòng khác, hãy chọn một trong các dịch vụ bên dưới.",
+  "4K picture": "Hình ảnh 4K",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Card capture 4K chạy ở 4K, và hình trong ứng dụng này hiển thị ở 4K (cả cửa sổ game 4K). Dành cho việc chơi trên hình của ứng dụng này trên màn hình 4K. Cần máy tính mạnh; chữ vẫn được đọc như thường.",
 });

@@ -385,4 +385,6 @@ I18N.add("zh-Hant", {
   "TVs showing the translation now: {n} of {m}": "正在顯示翻譯的電視：{n}/{m} 台",
   "Translation memory only": "僅翻譯記憶",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "只顯示經過審核的翻譯：無需下載，無需帳號。其他句子請選擇下面的某項服務。",
+  "4K picture": "4K 畫面",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K 擷取卡以 4K 運作，本應用程式中的畫面以 4K 顯示（4K 遊戲視窗也一樣）。適合在 4K 螢幕上用本應用程式的畫面玩遊戲。需要效能強的電腦；文字辨識不受影響。",
 });

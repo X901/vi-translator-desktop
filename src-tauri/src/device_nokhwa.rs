@@ -81,7 +81,9 @@ impl DeviceCapture {
 }
 
 /// Read the device in the background until stopped (or it fails: the manager then restarts it).
-pub fn start(name: String, shared: Arc<Shared>) -> DeviceCapture {
+/// (`_big`, the 4K picture: here the card always runs at its highest resolution; the picture's size
+/// is the preview's limit, `capture::preview_w`)
+pub fn start(name: String, shared: Arc<Shared>, _big: bool) -> DeviceCapture {
     let stop = Arc::new(AtomicBool::new(false));
     let flag = stop.clone();
     let thread = std::thread::spawn(move || {

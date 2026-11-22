@@ -95,10 +95,20 @@ unsafe fn yuv_color(t: &IMFMediaType, h: u32) -> crate::capture::YuvColor {
     }
 }
 
+/// How much a format of the card is wanted: its size first (up to 1920×1080, or 3840×2160 with `big`;
+/// a larger one counts less the larger it is), then its frame rate (up to 60), then uncompressed.
+fn format_score(w: u32, h: u32, fps: f64, compressed: bool, big: bool) -> i64 {
+    let area = (w as i64) * (h as i64);
+    let most: i64 = if big { 3840 * 2160 } else { 1920 * 1080 };
+    let size_score = if area <= most { area } else { most - (area - most) / 4 };
+    size_score * 1000 + (fps.min(60.0) * 10.0) as i64 + if compressed { 0 } else { 5 }
+}
+
 /// Open the device: YUY2 frames as the card sends them, or else RGB32. Prefers 1920×1080 (plenty for
-/// reading text, and what most cards stream), then the highest frame rate, then uncompressed formats.
-/// `pick = false` keeps the card's current format (needed while another app is streaming it).
-fn open(name: &str, pick: bool) -> Result<(IMFSourceReader, u32, u32, Out)> {
+/// reading text, and what most cards stream), or with `big` (the 4K picture) its largest size up to
+/// 3840×2160; then the highest frame rate, then uncompressed formats. `pick = false` keeps the card's
+/// current format (needed while another app is streaming it).
+fn open(name: &str, pick: bool, big: bool) -> Result<(IMFSourceReader, u32, u32, Out)> {
     let act = devices()?
         .into_iter()
         .find(|(n, _)| n == name)
@@ -121,9 +131,7 @@ fn open(name: &str, pick: bool) -> Result<(IMFSourceReader, u32, u32, Out)> {
             let (w, h) = size_of(&t);
             let fps = fps_of(&t).min(60.0);
             let compressed = t.GetGUID(&MF_MT_SUBTYPE).is_ok_and(|g| g == MFVideoFormat_MJPG);
-            let area = (w as i64) * (h as i64);
-            let size_score = if area <= 1920 * 1080 { area } else { 1920 * 1080 - (area - 1920 * 1080) / 4 };
-            let score = size_score * 1000 + (fps * 10.0) as i64 + if compressed { 0 } else { 5 };
+            let score = format_score(w, h, fps, compressed, big);
             if best.as_ref().is_none_or(|(s, _)| score > *s) {
                 best = Some((score, t));
             }
@@ -230,7 +238,7 @@ impl DeviceCapture {
 }
 
 /// Start reading `name` into `shared`. Its status gets "Capturing …" or the error.
-pub fn start(name: String, shared: Arc<Shared>) -> DeviceCapture {
+pub fn start(name: String, shared: Arc<Shared>, big: bool) -> DeviceCapture {
     let stop = Arc::new(AtomicBool::new(false));
     let s2 = stop.clone();
     let handle = std::thread::spawn(move || {
@@ -241,7 +249,7 @@ pub fn start(name: String, shared: Arc<Shared>) -> DeviceCapture {
         let mut opened = None;
         let mut why = String::new();
         for pick in [true, false] {
-            match open(&name, pick) {
+            match open(&name, pick, big) {
                 Ok((reader, w, h, out)) => {
                     let (mut flags, mut sample) = (0u32, None);
                     match unsafe { reader.ReadSample(STREAM, 0, None, Some(&mut flags), None, Some(&mut sample)) } {
@@ -423,7 +431,7 @@ impl DebugStats {
 /// One frame from a device (for `--grab-device`).
 pub fn grab_once(name: &str) -> Result<Arc<FrameData>> {
     let shared = Arc::new(Shared::default());
-    let cap = start(name.to_string(), shared.clone());
+    let cap = start(name.to_string(), shared.clone(), false);
     let t = Instant::now();
     let f = loop {
         if let Some(f) = shared.latest() {
@@ -437,4 +445,35 @@ pub fn grab_once(name: &str) -> Result<Arc<FrameData>> {
     };
     cap.stop();
     f
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_score;
+
+    /// The best of a 4K card's usual formats.
+    fn pick(big: bool) -> (u32, u32, f64, bool) {
+        let formats = [(3840, 2160, 30.0, false), (3840, 2160, 60.0, true), (2560, 1440, 60.0, false), (1920, 1080, 60.0, false), (1920, 1080, 60.0, true), (1280, 720, 60.0, false)];
+        *formats.iter().max_by_key(|(w, h, fps, c)| format_score(*w, *h, *fps, *c, big)).unwrap()
+    }
+
+    #[test]
+    fn a_4k_card_runs_at_1080p_unless_the_4k_picture_is_on() {
+        assert_eq!(pick(false), (1920, 1080, 60.0, false), "1080p60, uncompressed");
+        assert_eq!(pick(true), (3840, 2160, 60.0, true), "4K60 (MJPEG) over 4K30");
+    }
+
+    #[test]
+    fn a_1080p_card_is_the_same_either_way() {
+        let formats = [(1920, 1080, 60.0, false), (1280, 720, 60.0, false)];
+        for big in [false, true] {
+            let best = formats.iter().max_by_key(|(w, h, fps, c)| format_score(*w, *h, *fps, *c, big)).unwrap();
+            assert_eq!(best.0, 1920);
+        }
+    }
+
+    #[test]
+    fn nothing_above_4k_is_preferred() {
+        assert!(format_score(3840, 2160, 60.0, false, true) > format_score(7680, 4320, 60.0, false, true));
+    }
 }

@@ -385,4 +385,6 @@ I18N.add("pl", {
   "TVs showing the translation now: {n} of {m}": "Telewizory pokazujące teraz tłumaczenie: {n} z {m}",
   "Translation memory only": "Tylko pamięć tłumaczeń",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Pokazuje tylko sprawdzone tłumaczenia: bez pobierania i bez konta. Dla innych linii wybierz jedną z usług poniżej.",
+  "4K picture": "Obraz 4K",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Karta przechwytująca 4K działa w 4K, a obraz w tej aplikacji jest pokazywany w 4K (także okno gry w 4K). Do grania na obrazie tej aplikacji na ekranie 4K. Wymaga mocnego komputera; tekst jest czytany w obu przypadkach.",
 });

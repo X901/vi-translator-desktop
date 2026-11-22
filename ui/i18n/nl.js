@@ -385,4 +385,6 @@ I18N.add("nl", {
   "TVs showing the translation now: {n} of {m}": "Tv's die nu de vertaling tonen: {n} van {m}",
   "Translation memory only": "Alleen vertaalgeheugen",
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Toont alleen de gecontroleerde vertalingen: geen download, geen account. Kies voor andere regels een van de diensten hieronder.",
+  "4K picture": "4K-beeld",
+  "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Een 4K-capturekaart draait in 4K en het beeld in deze app wordt in 4K getoond (ook een 4K-gamevenster). Om te spelen op het beeld van deze app op een 4K-scherm. Vraagt een krachtige pc; tekst wordt hoe dan ook gelezen.",
 });
