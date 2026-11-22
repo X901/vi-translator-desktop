@@ -1,0 +1,14 @@
+[package]
+name = "vi-translator-ps"
+description = "PS5 Remote Play for VI Translator: chiaki-ng's library (home network only), built from source"
+version.workspace = true
+edition = "2024"
+license = "AGPL-3.0-only"
+links = "chiaki"
+
+[dependencies]
+# the networks' broadcast addresses, to find the PS5
+if-addrs = "0.13"
+
+[build-dependencies]
+cc = "1"
