@@ -390,4 +390,8 @@ I18N.add("th", {
   "Download": "ดาวน์โหลด",
   "The download page is open: install the new version from its .dmg.": "เปิดหน้าดาวน์โหลดแล้ว ติดตั้งเวอร์ชันใหม่จากไฟล์ .dmg",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "ใช้ขนาดตามข้อความในเกม เปลี่ยนได้ด้วย “ปรับละเอียด” ด้านบน หรือเอาเครื่องหมายที่ “ใช้ขนาดตัวอักษรเท่ากับเกม” ออก",
+  "Remote Play in VI Translator": "เล่นระยะไกลใน VI Translator",
+  "Xbox (in VI Translator)": "Xbox (ใน VI Translator)",
+  "Open the Xbox player": "เปิดตัวเล่น Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "ลงชื่อเข้าใช้ด้วยบัญชี Microsoft ในหน้าต่างของตัวเล่น เลือกคอนโซลของคุณแล้วเล่นที่นั่น จอยที่ต่อกับพีซีเครื่องนี้ใช้เล่นในนั้นได้",
 });

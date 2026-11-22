@@ -390,4 +390,8 @@ I18N.add("ta", {
   "Download": "பதிவிறக்கு",
   "The download page is open: install the new version from its .dmg.": "பதிவிறக்கப் பக்கம் திறந்துள்ளது: அதன் .dmg இலிருந்து புதிய பதிப்பை நிறுவவும்.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "விளையாட்டின் உரை அளவைப் பின்பற்றுகிறது. மேலே உள்ள “நுண் சரிசெய்தல்” மூலம் மாற்றவும், அல்லது “கேமின் உரை அளவுக்குப் பொருத்தவும்” என்பதைத் தேர்வுநீக்கவும்.",
+  "Remote Play in VI Translator": "VI Translator-இல் ரிமோட் பிளே",
+  "Xbox (in VI Translator)": "Xbox (VI Translator-இல்)",
+  "Open the Xbox player": "Xbox பிளேயரைத் திற",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "பிளேயரின் சாளரத்தில் உங்கள் Microsoft கணக்கில் உள்நுழைந்து, உங்கள் கன்சோலைத் தேர்ந்தெடுத்து அங்கேயே விளையாடுங்கள். இந்த PC-யுடன் இணைந்த கன்ட்ரோலர் அதில் வேலை செய்யும்.",
 });

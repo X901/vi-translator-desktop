@@ -390,4 +390,8 @@ I18N.add("bn", {
   "Download": "ডাউনলোড",
   "The download page is open: install the new version from its .dmg.": "ডাউনলোডের পেজ খোলা হয়েছে: এর .dmg থেকে নতুন সংস্করণ ইনস্টল করুন।",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "গেমের লেখার আকার অনুসরণ করে। উপরের “সূক্ষ্ম সমন্বয়” দিয়ে বদলান, অথবা “গেমের টেক্সটের আকারের সাথে মেলান” থেকে টিক সরান।",
+  "Remote Play in VI Translator": "VI Translator-এ রিমোট প্লে",
+  "Xbox (in VI Translator)": "Xbox (VI Translator-এ)",
+  "Open the Xbox player": "Xbox প্লেয়ার খুলুন",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "প্লেয়ারের উইন্ডোতে আপনার Microsoft অ্যাকাউন্ট দিয়ে সাইন ইন করুন, আপনার কনসোল বেছে নিন এবং সেখানেই খেলুন। এই PC-তে লাগানো কন্ট্রোলার সেখানে কাজ করে।",
 });

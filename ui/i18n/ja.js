@@ -390,4 +390,8 @@ I18N.add("ja", {
   "Download": "ダウンロード",
   "The download page is open: install the new version from its .dmg.": "ダウンロードページを開きました。その .dmg から新しいバージョンをインストールしてください。",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "ゲームの文字サイズに合わせます。上の「微調整」で変えるか、「ゲームの文字サイズに合わせる」のチェックを外してください。",
+  "Remote Play in VI Translator": "VI Translator 内のリモートプレイ",
+  "Xbox (in VI Translator)": "Xbox（VI Translator 内）",
+  "Open the Xbox player": "Xbox プレーヤーを開く",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "プレーヤーのウィンドウで Microsoft アカウントにサインインし、本体を選んでそこでプレイします。この PC につないだコントローラーがそのまま使えます。",
 });

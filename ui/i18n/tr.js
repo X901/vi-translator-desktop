@@ -390,4 +390,8 @@ I18N.add("tr", {
   "Download": "İndir",
   "The download page is open: install the new version from its .dmg.": "İndirme sayfası açıldı: yeni sürümü .dmg dosyasından yükleyin.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Oyunun yazı boyutunu izler. Yukarıdaki “İnce ayar” ile değiştirin ya da “Oyunun metin boyutuna uydur” işaretini kaldırın.",
+  "Remote Play in VI Translator": "VI Translator içinde Uzaktan Oynatma",
+  "Xbox (in VI Translator)": "Xbox (VI Translator içinde)",
+  "Open the Xbox player": "Xbox oynatıcısını aç",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Oynatıcının penceresinde Microsoft hesabınla oturum aç, konsolunu seç ve orada oyna. Bu PC'ye bağlı bir kumanda onda çalışır.",
 });

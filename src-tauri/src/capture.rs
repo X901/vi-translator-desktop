@@ -507,6 +507,8 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
                     });
                     active = Some((want, c));
                 }
+                // (the Xbox player is the app's own window: it isn't open)
+                Err(_) if want == crate::xbox::TITLE => shared.set_status("The Xbox player is closed: open it in Source (Open the Xbox player)."),
                 Err(e) => shared.set_status(e.to_string()),
             }
         }

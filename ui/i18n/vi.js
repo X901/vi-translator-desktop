@@ -390,4 +390,8 @@ I18N.add("vi", {
   "Download": "Tải xuống",
   "The download page is open: install the new version from its .dmg.": "Trang tải xuống đã mở: hãy cài phiên bản mới từ tệp .dmg của nó.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Theo cỡ chữ của game. Thay đổi bằng “Tinh chỉnh” ở trên, hoặc bỏ chọn “Khớp cỡ chữ của game”.",
+  "Remote Play in VI Translator": "Chơi từ xa trong VI Translator",
+  "Xbox (in VI Translator)": "Xbox (trong VI Translator)",
+  "Open the Xbox player": "Mở trình phát Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Đăng nhập bằng tài khoản Microsoft trong cửa sổ trình phát, chọn máy console của bạn và chơi ở đó. Tay cầm kết nối với PC này dùng được trong đó.",
 });

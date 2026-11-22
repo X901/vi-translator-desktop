@@ -390,4 +390,8 @@ I18N.add("ko", {
   "Download": "다운로드",
   "The download page is open: install the new version from its .dmg.": "다운로드 페이지가 열렸습니다. 해당 .dmg로 새 버전을 설치하세요.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "게임의 글자 크기를 따릅니다. 위의 “미세 조정”(으)로 바꾸거나 “게임 텍스트 크기에 맞추기” 체크를 해제하세요.",
+  "Remote Play in VI Translator": "VI Translator 안의 리모트 플레이",
+  "Xbox (in VI Translator)": "Xbox (VI Translator 안에서)",
+  "Open the Xbox player": "Xbox 플레이어 열기",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "플레이어 창에서 Microsoft 계정으로 로그인하고 콘솔을 고른 뒤 그곳에서 플레이하세요. 이 PC에 연결한 컨트롤러가 그 안에서 작동합니다.",
 });

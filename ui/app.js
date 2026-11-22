@@ -292,8 +292,9 @@ async function loadWindows() {
   const sel = $("window_title");
   sel.innerHTML = "";
   sel.add(new Option(t("Looking for sources ..."), cfg.window_title));
-  const { windows, devices, obs, screens = [] } = await invoke("list_sources");
+  const { windows, devices, obs, screens = [], xbox = null } = await invoke("list_sources");
   knownScreens = screens;
+  xboxTitle = xbox;
   sel.innerHTML = "";
   const group = (label) => {
     const g = document.createElement("optgroup");
@@ -310,6 +311,8 @@ async function loadWindows() {
   const iso = (s) => `⁨${s}⁩`;
   const opt = (text, value, full = text) => Object.assign(new Option(text, value), { title: full });
   const add = (g, text, value, full) => { g.appendChild(opt(text, value, full)); values.push(value); };
+  // remote play in a window of the app (its window's title is the source)
+  if (xbox) add(group(t("Remote Play in VI Translator")), `🎮 ${t("Xbox (in VI Translator)")}`, xbox);
   if (devices.length) {
     const g = group(t("Capture cards and cameras"));
     for (const d of devices) add(g, `🎥 ${iso(short(d))}`, `device:${d}`, d);
@@ -343,7 +346,17 @@ async function loadWindows() {
                          t("{title}  (not available now)", { title: cfg.window_title })), sel.firstChild);
   }
   sel.value = cfg.window_title;
+  renderXbox();
 }
+// Xbox in the app: the source is its player's window, opened from here (and with the app)
+let xboxTitle = null;
+const renderXbox = (v = cfg.window_title) => { $("xbox-row").hidden = !xboxTitle || v !== xboxTitle; };
+const openXbox = () => invoke("open_xbox").catch((e) => { $("source-status").textContent = String(e); });
+$("xbox-open").addEventListener("click", openXbox);
+$("window_title").addEventListener("change", (e) => {
+  if (xboxTitle && e.target.value === xboxTitle) openXbox();
+  renderXbox(e.target.value);
+});
 function renderObs() {
   $("obs_port").value = cfg.obs_port;
   $("obs_password").value = cfg.obs_password;

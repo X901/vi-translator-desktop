@@ -390,4 +390,8 @@ I18N.add("ar", {
   "Download": "تنزيل",
   "The download page is open: install the new version from its .dmg.": "فُتحت صفحة التنزيل: ثبّت الإصدار الجديد من ملف ‎.dmg‎.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "يتبع حجم نص اللعبة. غيّره من «ضبط دقيق» أعلاه، أو ألغِ تحديد «مطابقة حجم نص اللعبة».",
+  "Remote Play in VI Translator": "اللعب عن بُعد داخل VI Translator",
+  "Xbox (in VI Translator)": "Xbox (داخل VI Translator)",
+  "Open the Xbox player": "فتح مشغّل Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "سجّل الدخول بحساب Microsoft في نافذة المشغّل، واختر جهازك والعب هناك. يد التحكم الموصولة بهذا الحاسوب تعمل فيه.",
 });

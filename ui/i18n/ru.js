@@ -390,4 +390,8 @@ I18N.add("ru", {
   "Download": "Скачать",
   "The download page is open: install the new version from its .dmg.": "Страница загрузки открыта: установите новую версию из её .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Следует размеру текста игры. Измените его с помощью «Точная настройка» выше или снимите флажок «Подгонять под размер текста игры».",
+  "Remote Play in VI Translator": "Удалённая игра в VI Translator",
+  "Xbox (in VI Translator)": "Xbox (в VI Translator)",
+  "Open the Xbox player": "Открыть плеер Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Войдите в учётную запись Microsoft в окне плеера, выберите свою консоль и играйте там. Контроллер, подключённый к этому ПК, работает в нём.",
 });

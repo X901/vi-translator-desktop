@@ -390,4 +390,8 @@ I18N.add("uk", {
   "Download": "Завантажити",
   "The download page is open: install the new version from its .dmg.": "Сторінка завантаження відкрита: установіть нову версію з її .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Дорівнює розміру тексту гри. Змініть його за допомогою «Точне налаштування» вище або зніміть позначку «Підганяти під розмір тексту гри».",
+  "Remote Play in VI Translator": "Віддалена гра у VI Translator",
+  "Xbox (in VI Translator)": "Xbox (у VI Translator)",
+  "Open the Xbox player": "Відкрити плеєр Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Увійдіть в обліковий запис Microsoft у вікні плеєра, виберіть свою консоль і грайте там. Контролер, під'єднаний до цього ПК, працює в ньому.",
 });

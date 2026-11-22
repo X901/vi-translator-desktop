@@ -390,4 +390,8 @@ I18N.add("fa", {
   "Download": "دانلود",
   "The download page is open: install the new version from its .dmg.": "صفحهٔ دانلود باز شد: نسخهٔ جدید را از فایل ‎.dmg‎ آن نصب کنید.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "از اندازهٔ متن بازی پیروی می‌کند. آن را با «تنظیم دقیق» در بالا تغییر دهید یا تیک «هم‌اندازه با متن بازی» را بردارید.",
+  "Remote Play in VI Translator": "بازی از راه دور در VI Translator",
+  "Xbox (in VI Translator)": "Xbox (در VI Translator)",
+  "Open the Xbox player": "باز کردن پخش‌کنندهٔ Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "در پنجرهٔ پخش‌کننده با حساب Microsoft خود وارد شوید، کنسولتان را انتخاب کنید و همان‌جا بازی کنید. دسته‌ای که به این رایانه وصل است در آن کار می‌کند.",
 });

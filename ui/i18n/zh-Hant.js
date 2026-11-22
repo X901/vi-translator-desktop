@@ -390,4 +390,8 @@ I18N.add("zh-Hant", {
   "Download": "下載",
   "The download page is open: install the new version from its .dmg.": "下載頁面已開啟：請用其中的 .dmg 安裝新版本。",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "跟隨遊戲的文字大小。請用上面的「微調」來改，或取消勾選「符合遊戲文字大小」。",
+  "Remote Play in VI Translator": "VI Translator 內的遠端遊玩",
+  "Xbox (in VI Translator)": "Xbox（在 VI Translator 內）",
+  "Open the Xbox player": "開啟 Xbox 播放器",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "在播放器視窗中以你的 Microsoft 帳戶登入，選擇你的主機並在那裡遊玩。連接到這台電腦的控制器可以在其中使用。",
 });

@@ -390,4 +390,8 @@ I18N.add("ro", {
   "Download": "Descarcă",
   "The download page is open: install the new version from its .dmg.": "Pagina de descărcare e deschisă: instalează noua versiune din fișierul .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Urmează mărimea textului din joc. Schimb-o cu „Reglaj fin” de mai sus sau debifează „Potrivește mărimea textului jocului”.",
+  "Remote Play in VI Translator": "Joc la distanță în VI Translator",
+  "Xbox (in VI Translator)": "Xbox (în VI Translator)",
+  "Open the Xbox player": "Deschide playerul Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Conectează-te cu contul Microsoft în fereastra playerului, alege-ți consola și joacă acolo. Un controller conectat la acest PC funcționează în ea.",
 });

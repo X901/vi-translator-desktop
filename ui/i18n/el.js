@@ -390,4 +390,8 @@ I18N.add("el", {
   "Download": "Λήψη",
   "The download page is open: install the new version from its .dmg.": "Η σελίδα λήψης άνοιξε: εγκαταστήστε τη νέα έκδοση από το .dmg της.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Ακολουθεί το μέγεθος του κειμένου του παιχνιδιού. Αλλάξτε το με «Λεπτομερής ρύθμιση» παραπάνω ή αποεπιλέξτε «Ίδιο μέγεθος κειμένου με το παιχνίδι».",
+  "Remote Play in VI Translator": "Απομακρυσμένο παιχνίδι στο VI Translator",
+  "Xbox (in VI Translator)": "Xbox (στο VI Translator)",
+  "Open the Xbox player": "Άνοιγμα του Xbox player",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Συνδεθείτε με τον λογαριασμό Microsoft στο παράθυρο του player, επιλέξτε την κονσόλα σας και παίξτε εκεί. Ένα χειριστήριο συνδεδεμένο σε αυτόν τον υπολογιστή λειτουργεί σε αυτό.",
 });

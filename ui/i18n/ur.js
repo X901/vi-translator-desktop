@@ -390,4 +390,8 @@ I18N.add("ur", {
   "Download": "ڈاؤن لوڈ",
   "The download page is open: install the new version from its .dmg.": "ڈاؤن لوڈ کا صفحہ کھل گیا ہے: اس کی ‎.dmg‎ سے نیا ورژن انسٹال کریں۔",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "گیم کے متن کے سائز کے مطابق ہے۔ اسے اوپر “باریک ترتیب” سے بدلیں، یا “گیم کے متن کے سائز سے ملائیں” سے نشان ہٹائیں۔",
+  "Remote Play in VI Translator": "VI Translator میں ریموٹ پلے",
+  "Xbox (in VI Translator)": "Xbox (VI Translator میں)",
+  "Open the Xbox player": "Xbox پلیئر کھولیں",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "پلیئر کی ونڈو میں اپنے Microsoft اکاؤنٹ سے سائن اِن کریں، اپنا کنسول چنیں اور وہیں کھیلیں۔ اس PC سے جڑا کنٹرولر اس میں کام کرتا ہے۔",
 });

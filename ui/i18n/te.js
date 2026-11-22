@@ -390,4 +390,8 @@ I18N.add("te", {
   "Download": "డౌన్‌లోడ్",
   "The download page is open: install the new version from its .dmg.": "డౌన్‌లోడ్ పేజీ తెరిచింది: దాని .dmg నుండి కొత్త వెర్షన్‌ను ఇన్‌స్టాల్ చేయండి.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "గేమ్ టెక్స్ట్ పరిమాణాన్ని అనుసరిస్తుంది. పైన ఉన్న “సూక్ష్మ సర్దుబాటు”తో మార్చండి, లేదా “గేమ్ టెక్స్ట్ పరిమాణానికి సరిపోల్చండి” టిక్ తీసేయండి.",
+  "Remote Play in VI Translator": "VI Translator‌లో రిమోట్ ప్లే",
+  "Xbox (in VI Translator)": "Xbox (VI Translator‌లో)",
+  "Open the Xbox player": "Xbox ప్లేయర్‌ను తెరవండి",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "ప్లేయర్ విండోలో మీ Microsoft ఖాతాతో సైన్ ఇన్ చేసి, మీ కన్సోల్‌ను ఎంచుకుని అక్కడే ఆడండి. ఈ PC‌కి కలిపిన కంట్రోలర్ అందులో పనిచేస్తుంది.",
 });

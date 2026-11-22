@@ -390,4 +390,8 @@ I18N.add("zh-Hans", {
   "Download": "下载",
   "The download page is open: install the new version from its .dmg.": "下载页面已打开：请用其中的 .dmg 安装新版本。",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "跟随游戏的文字大小。请用上面的“微调”来改，或取消勾选“匹配游戏文字大小”。",
+  "Remote Play in VI Translator": "VI Translator 内的远程游玩",
+  "Xbox (in VI Translator)": "Xbox（在 VI Translator 内）",
+  "Open the Xbox player": "打开 Xbox 播放器",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "在播放器窗口中用你的 Microsoft 账户登录，选择你的主机并在那里游玩。连接到这台电脑的手柄可以在其中使用。",
 });

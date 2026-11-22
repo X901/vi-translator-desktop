@@ -390,4 +390,8 @@ I18N.add("it", {
   "Download": "Scarica",
   "The download page is open: install the new version from its .dmg.": "La pagina di download è aperta: installa la nuova versione dal suo .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Segue la dimensione del testo del gioco. Cambiala con “Regolazione fine” qui sopra, o togli la spunta a “Adatta alla dimensione del testo del gioco”.",
+  "Remote Play in VI Translator": "Riproduzione remota in VI Translator",
+  "Xbox (in VI Translator)": "Xbox (in VI Translator)",
+  "Open the Xbox player": "Apri il player Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Accedi con il tuo account Microsoft nella finestra del player, scegli la tua console e gioca lì. Un controller collegato a questo PC funziona al suo interno.",
 });

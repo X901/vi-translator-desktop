@@ -14,6 +14,8 @@
 - Translates **game screens** too (menus, mission results, captions), as support for each one arrives
   through automatic updates.
 - Works with a **game window**, a **capture card**, or an **OBS source**. It never touches the game.
+- Plays **Xbox remote play inside the app** (Windows and macOS): Microsoft's own web player in a window of
+  VI Translator, signed in on Microsoft's page, with a controller on the PC. It keeps playing while the app is in front.
 - Reads just the **game's part of another app's window** (a streaming or upscaling app with its own panels),
   and draws the translations over **the window you watch**, even when the picture is read elsewhere.
 - Sends the game with its translations as a **webcam** to other apps (Discord, Zoom, a streaming app), through
@@ -51,7 +53,7 @@ It's portable, so there's nothing to install:
 ## Getting started
 
 1. Run the app.
-2. **Source** tab: pick the game window, capture card or OBS source.
+2. **Source** tab: pick the game window, capture card or OBS source, or *Xbox (in VI Translator)*.
 3. **Translator** tab: pick your language and a translation service.
 4. **Game profile** tab: choose *Grand Theft Auto VI*.
 

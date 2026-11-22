@@ -390,4 +390,8 @@ I18N.add("fil", {
   "Download": "I-download",
   "The download page is open: install the new version from its .dmg.": "Bukas na ang download page: i-install ang bagong bersyon mula sa .dmg nito.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Sumusunod sa laki ng text ng laro. Baguhin ito gamit ang “Pinong pag-aayos” sa itaas, o alisin ang tsek sa “Itugma sa laki ng teksto ng laro”.",
+  "Remote Play in VI Translator": "Remote Play sa VI Translator",
+  "Xbox (in VI Translator)": "Xbox (sa VI Translator)",
+  "Open the Xbox player": "Buksan ang Xbox player",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Mag-sign in gamit ang iyong Microsoft account sa window ng player, piliin ang iyong console at doon maglaro. Gumagana roon ang controller na nakakonekta sa PC na ito.",
 });

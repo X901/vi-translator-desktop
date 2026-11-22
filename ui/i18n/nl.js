@@ -390,4 +390,8 @@ I18N.add("nl", {
   "Download": "Downloaden",
   "The download page is open: install the new version from its .dmg.": "De downloadpagina is open: installeer de nieuwe versie uit de .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Volgt de tekstgrootte van de game. Wijzig die met ‘Fijnafstelling’ hierboven, of vink ‘Tekstgrootte van de game volgen’ uit.",
+  "Remote Play in VI Translator": "Remote Play in VI Translator",
+  "Xbox (in VI Translator)": "Xbox (in VI Translator)",
+  "Open the Xbox player": "Xbox-speler openen",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Meld je aan met je Microsoft-account in het venster van de speler, kies je console en speel daar. Een controller die op deze pc is aangesloten, werkt erin.",
 });

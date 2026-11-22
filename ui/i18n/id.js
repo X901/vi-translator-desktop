@@ -390,4 +390,8 @@ I18N.add("id", {
   "Download": "Unduh",
   "The download page is open: install the new version from its .dmg.": "Halaman unduhan terbuka: pasang versi baru dari .dmg-nya.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Mengikuti ukuran teks game. Ubah dengan “Penyesuaian halus” di atas, atau hapus centang “Samakan dengan ukuran teks game”.",
+  "Remote Play in VI Translator": "Remote Play di VI Translator",
+  "Xbox (in VI Translator)": "Xbox (di VI Translator)",
+  "Open the Xbox player": "Buka pemutar Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Masuk dengan akun Microsoft di jendela pemutar, pilih konsolmu, lalu main di sana. Kontroler yang terhubung ke PC ini bisa dipakai di dalamnya.",
 });

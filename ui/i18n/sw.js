@@ -390,4 +390,8 @@ I18N.add("sw", {
   "Download": "Pakua",
   "The download page is open: install the new version from its .dmg.": "Ukurasa wa kupakua umefunguliwa: sakinisha toleo jipya kutoka kwa .dmg yake.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Hufuata ukubwa wa maandishi ya mchezo. Ubadilishe kwa “Rekebisha kwa kina” hapo juu, au ondoa alama kwenye “Linganisha na ukubwa wa maandishi ya mchezo”.",
+  "Remote Play in VI Translator": "Kucheza kwa Mbali ndani ya VI Translator",
+  "Xbox (in VI Translator)": "Xbox (ndani ya VI Translator)",
+  "Open the Xbox player": "Fungua kicheza Xbox",
+  "Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.": "Ingia kwa akaunti yako ya Microsoft kwenye dirisha la kicheza, chagua konsoli yako na ucheze hapo. Kidhibiti kilichounganishwa na PC hii kinafanya kazi humo.",
 });
