@@ -80,6 +80,19 @@ impl DeviceCapture {
     }
 }
 
+/// One frame as RGBA: width, height, pixels.
+type Frame = (u32, u32, Vec<u8>);
+/// What the card's reader hands over: `None` once the card is open, then its frames.
+type FromReader = Result<Option<Frame>>;
+
+/// A card that was sending frames and sends nothing for this long has stopped (they send 25 frames
+/// a second or more). Before its first frame a card is waited for as long as it takes: one that
+/// sends nothing while the console is off would otherwise be opened again every few seconds.
+const STALL: Duration = Duration::from_secs(5);
+/// How often a wait for the card looks whether the capture was stopped (the player chose another
+/// source): a card that sends nothing (console off) must not keep the switch waiting.
+const STOP_CHECK: Duration = Duration::from_millis(250);
+
 /// Read the device in the background until stopped (or it fails: the manager then restarts it).
 /// (`_big`, the 4K picture: here the card always runs at its highest resolution; the picture's size
 /// is the preview's limit, `capture::preview_w`)
@@ -87,39 +100,110 @@ pub fn start(name: String, shared: Arc<Shared>, _big: bool) -> DeviceCapture {
     let stop = Arc::new(AtomicBool::new(false));
     let flag = stop.clone();
     let thread = std::thread::spawn(move || {
-        let mut cam = match open(&name) {
-            Ok(c) => c,
-            Err(e) => {
+        // The card is read on a thread of its own, which hands its frames over here. nokhwa waits
+        // for the next frame with no time limit, and on macOS a card can stop sending with no error
+        // (seen with a USB card: other apps still got its picture). Waited for here, that frame
+        // would never come: this thread would never end, the manager would never open the card
+        // again, and the last frame would stay as the picture, under "Capturing".
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(1);
+        let card = name.clone();
+        let reader = std::thread::spawn(move || {
+            let mut cam = match open(&card) {
+                Ok(cam) => cam,
+                Err(e) => {
+                    let _ = tx.send(Err(e));
+                    return;
+                }
+            };
+            let _ = tx.send(Ok(None));
+            // (ends with the capture: nobody takes the frames any more)
+            loop {
+                let frame = read(&mut cam).map(Some);
+                let failed = frame.is_err();
+                if tx.send(frame).is_err() || failed {
+                    break;
+                }
+            }
+            let _ = cam.stop_stream();
+        });
+        take_frames(&rx, &name, &shared, &flag, STALL);
+        drop(rx);
+        // The card is closed before this capture counts as finished (the manager may open it again
+        // at once), but a reader that is stuck isn't waited for.
+        // (A known limit: a stuck reader keeps its thread and its hold on the card until a frame
+        // comes again. Doing better needs a way to close nokhwa's camera from another thread.)
+        let until = Instant::now() + Duration::from_secs(2);
+        while !reader.is_finished() && Instant::now() < until {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    });
+    DeviceCapture { stop, thread: Some(thread) }
+}
+
+/// Put the reader's frames in the shared slots until stopped, the card fails, or it stops sending:
+/// nothing for `stall` after its first frame.
+fn take_frames(rx: &std::sync::mpsc::Receiver<FromReader>, name: &str, shared: &Shared, stop: &AtomicBool, stall: Duration) {
+    use std::sync::mpsc::RecvTimeoutError;
+    // The next thing from the reader, waited for at most `limit` (none: as long as it takes), in short
+    // steps that notice a stop (then Disconnected: the capture ends; a reader stuck on the card
+    // doesn't hold up the switch to another source).
+    let wait = |limit: Option<Duration>| -> Result<FromReader, RecvTimeoutError> {
+        let start = Instant::now();
+        loop {
+            let step = limit.map_or(STOP_CHECK, |l| l.saturating_sub(start.elapsed()).min(STOP_CHECK));
+            match rx.recv_timeout(step) {
+                Err(RecvTimeoutError::Timeout) => {
+                    if stop.load(Ordering::Relaxed) {
+                        return Err(RecvTimeoutError::Disconnected);
+                    }
+                    if limit.is_some_and(|l| start.elapsed() >= l) {
+                        return Err(RecvTimeoutError::Timeout);
+                    }
+                }
+                r => return r,
+            }
+        }
+    };
+    // (opening has no time limit: the first time, macOS asks for camera access and waits for the answer)
+    let mut next = wait(None);
+    let (mut open, mut sending) = (false, false);
+    let ago = Instant::now() - Duration::from_secs(1);
+    let (mut last, mut last_preview) = (ago, ago);
+    while !stop.load(Ordering::Relaxed) {
+        match next {
+            Ok(Ok(None)) => {
+                open = true;
+                shared.set_status(format!("Capturing \"{name}\""));
+            }
+            // devices push frames at their own rate: every one is read, what's due is kept
+            Ok(Ok(Some((w, h, rgba)))) => {
+                sending = true;
+                if shared.preview_due(last_preview) {
+                    last_preview = Instant::now();
+                    shared.put_preview(shrink(&rgba, w, h, (w * 4) as usize, false));
+                }
+                if shared.full_due(last) {
+                    last = Instant::now();
+                    shared.put_full(w, h, rgba);
+                }
+            }
+            Ok(Err(e)) if open => {
+                shared.set_status(format!("Capture device \"{name}\" stopped: {e}"));
+                return;
+            }
+            Ok(Err(e)) => {
                 shared.set_status(format!("{e}"));
                 std::thread::sleep(Duration::from_secs(3));
                 return;
             }
-        };
-        shared.set_status(format!("Capturing \"{name}\""));
-        let ago = Instant::now() - Duration::from_secs(1);
-        let (mut last, mut last_preview) = (ago, ago);
-        while !flag.load(Ordering::Relaxed) {
-            // devices push frames at their own rate: read every one, keep what's due
-            match read(&mut cam) {
-                Ok((w, h, rgba)) => {
-                    if shared.preview_due(last_preview) {
-                        last_preview = Instant::now();
-                        shared.put_preview(shrink(&rgba, w, h, (w * 4) as usize, false));
-                    }
-                    if shared.full_due(last) {
-                        last = Instant::now();
-                        shared.put_full(w, h, rgba);
-                    }
-                }
-                Err(e) => {
-                    shared.set_status(format!("Capture device \"{name}\" stopped: {e}"));
-                    break;
-                }
+            Err(RecvTimeoutError::Timeout) => {
+                shared.set_status(format!("Capture device \"{name}\" stopped sending frames (none for {} s)", stall.as_secs()));
+                return;
             }
+            Err(RecvTimeoutError::Disconnected) => return,
         }
-        let _ = cam.stop_stream();
-    });
-    DeviceCapture { stop, thread: Some(thread) }
+        next = wait(sending.then_some(stall));
+    }
 }
 
 /// Capture a single frame from a device (used by `--grab-device`).
@@ -132,4 +216,68 @@ pub fn grab_once(name: &str) -> Result<Arc<FrameData>> {
     }
     let _ = cam.stop_stream();
     Ok(Arc::new(FrameData { w: frame.0, h: frame.1, rgba: frame.2, seq: 1 }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_card_that_goes_quiet_ends_the_capture() {
+        // the card opens, sends a frame, then nothing more (and no error): unplugged on macOS
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(2);
+        tx.send(Ok(None)).unwrap();
+        tx.send(Ok(Some((2, 1, vec![7; 8])))).unwrap();
+        let shared = Shared::default();
+        let t = Instant::now();
+        take_frames(&rx, "Card", &shared, &AtomicBool::new(false), Duration::from_millis(100));
+        assert!(t.elapsed() < Duration::from_secs(2), "it waited for a frame that never comes");
+        assert_eq!(shared.latest().map(|f| (f.w, f.h)), Some((2, 1)), "the frame it did send is kept");
+        assert_eq!(*shared.status.lock().unwrap(), "Capture device \"Card\" stopped sending frames (none for 0 s)");
+        drop(tx);
+    }
+
+    #[test]
+    fn a_card_is_waited_for_until_its_first_frame() {
+        // open, but its first frame comes later than `stall` (no signal yet): not a stopped card
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(2);
+        tx.send(Ok(None)).unwrap();
+        let late = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(400));
+            tx.send(Ok(Some((2, 1, vec![7; 8])))).unwrap();
+            std::thread::sleep(Duration::from_secs(1)); // (kept open: what ends the capture is the silence)
+        });
+        let shared = Shared::default();
+        take_frames(&rx, "Card", &shared, &AtomicBool::new(false), Duration::from_millis(100));
+        assert!(shared.latest().is_some(), "it gave up before the first frame");
+        late.join().unwrap();
+    }
+
+    #[test]
+    fn a_card_that_sends_nothing_lets_the_capture_stop() {
+        // open, then nothing (console off): stopping (another source chosen) ends the wait at once
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(2);
+        tx.send(Ok(None)).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let s2 = stop.clone();
+        let stopper = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            s2.store(true, Ordering::Relaxed);
+        });
+        let t = Instant::now();
+        take_frames(&rx, "Card", &Shared::default(), &stop, Duration::from_secs(5));
+        assert!(t.elapsed() < Duration::from_secs(2), "the stop wasn't noticed");
+        stopper.join().unwrap();
+        drop(tx);
+    }
+
+    #[test]
+    fn a_card_that_fails_says_why() {
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(2);
+        tx.send(Ok(None)).unwrap();
+        tx.send(Err(anyhow!("gone"))).unwrap();
+        let shared = Shared::default();
+        take_frames(&rx, "Card", &shared, &AtomicBool::new(false), Duration::from_secs(5));
+        assert_eq!(*shared.status.lock().unwrap(), "Capture device \"Card\" stopped: gone");
+    }
 }
