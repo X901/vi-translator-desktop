@@ -199,6 +199,11 @@ impl LocalMt {
     }
 }
 
+/// Whether this build has the free offline translator (the phone apps and the Intel Mac app don't:
+/// ONNX Runtime is big, and has no Intel Mac build). Without it "local" means the reviewed
+/// translations only.
+pub const HAS_OFFLINE: bool = cfg!(feature = "offline");
+
 /// This build has no offline translator (the phone apps leave it out: the ONNX Runtime it needs is
 /// big). Choosing "local" says so.
 #[cfg(not(feature = "offline"))]

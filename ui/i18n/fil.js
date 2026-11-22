@@ -383,4 +383,6 @@ I18N.add("fil", {
   "Offline": "Offline",
   "The TV app isn't open, or the TV can't reach this PC": "Hindi bukas ang app sa TV, o hindi maabot ng TV ang PC na ito",
   "TVs showing the translation now: {n} of {m}": "Mga TV na nagpapakita ng salin ngayon: {n} sa {m}",
+  "Translation memory only": "Translation memory lang",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Ipinapakita lang ang mga nasuring salin: walang download, walang account. Para sa ibang linya, pumili ng isa sa mga serbisyo sa ibaba.",
 });

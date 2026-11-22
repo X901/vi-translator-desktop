@@ -383,4 +383,6 @@ I18N.add("fa", {
   "Offline": "آفلاین",
   "The TV app isn't open, or the TV can't reach this PC": "برنامهٔ تلویزیون باز نیست، یا تلویزیون به این رایانه دسترسی ندارد",
   "TVs showing the translation now: {n} of {m}": "تلویزیون‌هایی که اکنون ترجمه را نشان می‌دهند: {n} از {m}",
+  "Translation memory only": "فقط حافظهٔ ترجمه",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "فقط ترجمه‌های بازبینی‌شده را نشان می‌دهد: بدون دانلود و بدون حساب. برای خط‌های دیگر یکی از سرویس‌های زیر را انتخاب کنید.",
 });

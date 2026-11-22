@@ -211,6 +211,12 @@ fn dev_build() -> bool {
     cfg!(debug_assertions)
 }
 
+/// Whether this build has the free offline translator (not on Intel Macs: see Cargo.toml).
+#[tauri::command]
+fn has_offline() -> bool {
+    vi_translator_core::translate::HAS_OFFLINE
+}
+
 /// A newer version of the app, if one was found.
 #[tauri::command]
 fn update_status(state: tauri::State<AppState>) -> Option<updater::Update> {
@@ -1347,7 +1353,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(hotkey::plugin())
         .manage(AppState { cfg: cfg.clone(), shared: shared.clone(), saver: saver.clone(), memory: memory.clone(), update: update.clone() })
-        .invoke_handler(tauri::generate_handler![app_version, dev_build, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear])
+        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_title(&format!("VI Translator {}", env!("CARGO_PKG_VERSION")));

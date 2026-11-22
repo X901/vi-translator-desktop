@@ -383,4 +383,6 @@ I18N.add("mr", {
   "Offline": "ऑफलाइन",
   "The TV app isn't open, or the TV can't reach this PC": "टीव्ही अ‍ॅप उघडलेले नाही, किंवा टीव्ही या पीसीपर्यंत पोहोचू शकत नाही",
   "TVs showing the translation now: {n} of {m}": "आता भाषांतर दाखवणारे टीव्ही: {m} पैकी {n}",
+  "Translation memory only": "फक्त भाषांतर स्मृती",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "फक्त तपासलेली भाषांतरे दाखवते: डाउनलोड नाही, खाते नाही. इतर ओळींसाठी खालीलपैकी एक सेवा निवडा.",
 });

@@ -383,4 +383,6 @@ I18N.add("zh-Hant", {
   "Offline": "離線",
   "The TV app isn't open, or the TV can't reach this PC": "電視上的應用程式未開啟，或電視無法連線到這台電腦",
   "TVs showing the translation now: {n} of {m}": "正在顯示翻譯的電視：{n}/{m} 台",
+  "Translation memory only": "僅翻譯記憶",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "只顯示經過審核的翻譯：無需下載，無需帳號。其他句子請選擇下面的某項服務。",
 });

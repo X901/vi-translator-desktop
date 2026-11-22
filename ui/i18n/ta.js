@@ -383,4 +383,6 @@ I18N.add("ta", {
   "Offline": "ஆஃப்லைன்",
   "The TV app isn't open, or the TV can't reach this PC": "டிவி செயலி திறக்கப்படவில்லை, அல்லது டிவி இந்த கணினியை அடைய முடியவில்லை",
   "TVs showing the translation now: {n} of {m}": "இப்போது மொழிபெயர்ப்பைக் காட்டும் டிவிகள்: {m}-இல் {n}",
+  "Translation memory only": "மொழிபெயர்ப்பு நினைவகம் மட்டும்",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "சரிபார்க்கப்பட்ட மொழிபெயர்ப்புகளை மட்டும் காட்டும்: பதிவிறக்கமோ கணக்கோ தேவையில்லை. மற்ற வரிகளுக்கு கீழே உள்ள சேவைகளில் ஒன்றைத் தேர்ந்தெடுக்கவும்.",
 });

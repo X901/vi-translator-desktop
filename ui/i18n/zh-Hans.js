@@ -383,4 +383,6 @@ I18N.add("zh-Hans", {
   "Offline": "离线",
   "The TV app isn't open, or the TV can't reach this PC": "电视上的应用未打开，或电视无法连接到这台电脑",
   "TVs showing the translation now: {n} of {m}": "正在显示翻译的电视：{n}/{m} 台",
+  "Translation memory only": "仅翻译记忆",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "只显示经过审核的翻译：无需下载，无需账号。其他句子请选择下面的某项服务。",
 });

@@ -383,4 +383,6 @@ I18N.add("ro", {
   "Offline": "Offline",
   "The TV app isn't open, or the TV can't reach this PC": "Aplicația de pe televizor nu e deschisă sau televizorul nu ajunge la acest PC",
   "TVs showing the translation now: {n} of {m}": "Televizoare care arată acum traducerea: {n} din {m}",
+  "Translation memory only": "Doar memoria de traduceri",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Arată doar traducerile verificate: fără descărcare, fără cont. Pentru alte rânduri alege unul dintre serviciile de mai jos.",
 });

@@ -383,4 +383,6 @@ I18N.add("de", {
   "Offline": "Offline",
   "The TV app isn't open, or the TV can't reach this PC": "Die TV-App ist nicht geöffnet, oder der Fernseher erreicht diesen PC nicht",
   "TVs showing the translation now: {n} of {m}": "Fernseher, die jetzt die Übersetzung zeigen: {n} von {m}",
+  "Translation memory only": "Nur Übersetzungsspeicher",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Zeigt nur die geprüften Übersetzungen: kein Download, kein Konto. Für andere Zeilen wähle unten einen der Dienste.",
 });

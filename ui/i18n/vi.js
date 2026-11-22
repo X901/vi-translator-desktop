@@ -383,4 +383,6 @@ I18N.add("vi", {
   "Offline": "Ngoại tuyến",
   "The TV app isn't open, or the TV can't reach this PC": "Ứng dụng trên TV chưa mở, hoặc TV không kết nối được với máy tính này",
   "TVs showing the translation now: {n} of {m}": "TV đang hiển thị bản dịch: {n} trên {m}",
+  "Translation memory only": "Chỉ bộ nhớ bản dịch",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Chỉ hiển thị các bản dịch đã duyệt: không cần tải xuống, không cần tài khoản. Với các dòng khác, hãy chọn một trong các dịch vụ bên dưới.",
 });

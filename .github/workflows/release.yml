@@ -1,5 +1,5 @@
 # Pushing a tag vX.Y.Z releases version X.Y.Z of the app: portable executables for Windows and
-# Linux (x64 and arm64) and macOS (Apple silicon), each with an Ed25519 signature (.sig) that the app's auto-update
+# Linux (x64 and arm64) and macOS (Apple silicon and Intel), each with an Ed25519 signature (.sig) that the app's auto-update
 # checks against its built-in public key, attached to a GitHub Release.
 #
 # Same tag rules as the backend: the tag must look like v1.2.3 and be newer than the latest release.
@@ -57,7 +57,9 @@ jobs:
           - { os: linux,   arch: x64,   runner: ubuntu-24.04,     target: x86_64-unknown-linux-gnu,  test: true }
           - { os: linux,   arch: arm64, runner: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, test: true }
           - { os: macos,   arch: arm64, runner: macos-latest,     target: aarch64-apple-darwin,      test: true }
-          # no macOS x64 (Intel Macs): the ONNX Runtime the translator links has no build for it
+          # Intel Macs: without the free offline translator (ONNX Runtime has no Intel Mac build; see
+          # src-tauri/Cargo.toml): the reviewed translations and the online services
+          - { os: macos,   arch: x64,   runner: macos-15-intel,   target: x86_64-apple-darwin,       test: true }
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     defaults:

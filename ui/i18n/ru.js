@@ -383,4 +383,6 @@ I18N.add("ru", {
   "Offline": "Не в сети",
   "The TV app isn't open, or the TV can't reach this PC": "Приложение на телевизоре не открыто, или телевизор не может связаться с этим ПК",
   "TVs showing the translation now: {n} of {m}": "Телевизоры, показывающие перевод сейчас: {n} из {m}",
+  "Translation memory only": "Только память переводов",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Показывает только проверенные переводы: без загрузки и без аккаунта. Для других строк выберите один из сервисов ниже.",
 });

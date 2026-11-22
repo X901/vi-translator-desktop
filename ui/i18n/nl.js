@@ -383,4 +383,6 @@ I18N.add("nl", {
   "Offline": "Offline",
   "The TV app isn't open, or the TV can't reach this PC": "De tv-app is niet geopend, of de tv kan deze pc niet bereiken",
   "TVs showing the translation now: {n} of {m}": "Tv's die nu de vertaling tonen: {n} van {m}",
+  "Translation memory only": "Alleen vertaalgeheugen",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Toont alleen de gecontroleerde vertalingen: geen download, geen account. Kies voor andere regels een van de diensten hieronder.",
 });

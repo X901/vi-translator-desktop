@@ -383,4 +383,6 @@ I18N.add("tr", {
   "Offline": "Çevrimdışı",
   "The TV app isn't open, or the TV can't reach this PC": "TV uygulaması açık değil ya da TV bu bilgisayara ulaşamıyor",
   "TVs showing the translation now: {n} of {m}": "Şu anda çeviriyi gösteren TV'ler: {m} TV'den {n}",
+  "Translation memory only": "Yalnızca çeviri belleği",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Yalnızca incelenmiş çevirileri gösterir: indirme yok, hesap yok. Diğer satırlar için aşağıdaki hizmetlerden birini seçin.",
 });

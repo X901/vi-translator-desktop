@@ -383,4 +383,6 @@ I18N.add("ur", {
   "Offline": "آف لائن",
   "The TV app isn't open, or the TV can't reach this PC": "ٹی وی ایپ کھلی نہیں ہے، یا ٹی وی اس پی سی تک نہیں پہنچ پا رہا",
   "TVs showing the translation now: {n} of {m}": "ابھی ترجمہ دکھانے والے ٹی وی: {m} میں سے {n}",
+  "Translation memory only": "صرف ترجمہ میموری",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "صرف جانچے ہوئے ترجمے دکھاتا ہے: نہ ڈاؤن لوڈ، نہ اکاؤنٹ۔ باقی سطروں کے لیے نیچے دی گئی خدمات میں سے ایک چنیں۔",
 });

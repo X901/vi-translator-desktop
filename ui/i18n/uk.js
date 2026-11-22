@@ -383,4 +383,6 @@ I18N.add("uk", {
   "Offline": "Офлайн",
   "The TV app isn't open, or the TV can't reach this PC": "Застосунок на телевізорі не відкрито, або телевізор не може зв'язатися з цим ПК",
   "TVs showing the translation now: {n} of {m}": "Телевізори, що показують переклад зараз: {n} з {m}",
+  "Translation memory only": "Лише пам’ять перекладів",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Показує лише перевірені переклади: без завантаження й без облікового запису. Для інших рядків виберіть один зі сервісів нижче.",
 });

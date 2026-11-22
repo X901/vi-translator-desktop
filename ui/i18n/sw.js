@@ -383,4 +383,6 @@ I18N.add("sw", {
   "Offline": "Nje ya mtandao",
   "The TV app isn't open, or the TV can't reach this PC": "Programu ya TV haijafunguliwa, au TV haiwezi kufikia kompyuta hii",
   "TVs showing the translation now: {n} of {m}": "TV zinazoonyesha tafsiri sasa: {n} kati ya {m}",
+  "Translation memory only": "Kumbukumbu ya tafsiri pekee",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Inaonyesha tafsiri zilizokaguliwa pekee: hakuna kupakua, hakuna akaunti. Kwa mistari mingine chagua mojawapo ya huduma zilizo hapa chini.",
 });

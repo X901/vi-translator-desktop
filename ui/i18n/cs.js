@@ -383,4 +383,6 @@ I18N.add("cs", {
   "Offline": "Offline",
   "The TV app isn't open, or the TV can't reach this PC": "Aplikace na televizi není otevřená nebo se televize k tomuto počítači nedostane",
   "TVs showing the translation now: {n} of {m}": "Televize, které teď zobrazují překlad: {n} z {m}",
+  "Translation memory only": "Pouze paměť překladů",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Zobrazuje jen zkontrolované překlady: bez stahování a bez účtu. Pro ostatní řádky zvolte jednu ze služeb níže.",
 });

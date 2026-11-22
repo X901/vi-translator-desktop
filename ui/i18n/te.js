@@ -383,4 +383,6 @@ I18N.add("te", {
   "Offline": "ఆఫ్‌లైన్",
   "The TV app isn't open, or the TV can't reach this PC": "టీవీ యాప్ తెరవలేదు, లేదా టీవీ ఈ పీసీని చేరుకోలేకపోతోంది",
   "TVs showing the translation now: {n} of {m}": "ఇప్పుడు అనువాదం చూపిస్తున్న టీవీలు: {m}లో {n}",
+  "Translation memory only": "అనువాద మెమరీ మాత్రమే",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "సమీక్షించిన అనువాదాలను మాత్రమే చూపిస్తుంది: డౌన్‌లోడ్ లేదు, ఖాతా లేదు. ఇతర లైన్‌ల కోసం కింది సేవల్లో ఒకదాన్ని ఎంచుకోండి.",
 });

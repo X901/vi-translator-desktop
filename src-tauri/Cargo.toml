@@ -5,8 +5,8 @@ edition = "2024"
 license = "MIT"
 
 [dependencies]
-# the reading and translating (shared with the phone apps), with the free offline translator
-vi-translator-core = { path = "../core", features = ["offline"] }
+# the reading and translating (shared with the phone apps)
+vi-translator-core = { path = "../core" }
 anyhow = "1.0.104"
 base64 = "0.23.1"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "bmp"] }
@@ -21,6 +21,11 @@ ed25519-dalek = "2"
 uuid = { version = "1", features = ["v4"] }
 tungstenite = { version = "0.26", default-features = false, features = ["handshake"] }
 jpeg-encoder = { version = "0.7.1", features = ["simd"] }
+
+# the free offline translator (OPUS-MT on ONNX Runtime), wherever ONNX Runtime has a build: not on
+# Intel Macs, whose app translates with the reviewed translations and the online services
+[target.'cfg(not(all(target_os = "macos", target_arch = "x86_64")))'.dependencies]
+vi-translator-core = { path = "../core", features = ["offline"] }
 
 # Windows: OCR, window capture, capture cards and fonts through the system's own APIs
 [target.'cfg(windows)'.dependencies]

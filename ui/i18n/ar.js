@@ -383,4 +383,6 @@ I18N.add("ar", {
   "Offline": "غير متصل",
   "The TV app isn't open, or the TV can't reach this PC": "تطبيق التلفاز غير مفتوح، أو لا يستطيع التلفاز الوصول إلى هذا الكمبيوتر",
   "TVs showing the translation now: {n} of {m}": "أجهزة التلفاز التي تعرض الترجمة الآن: {n} من {m}",
+  "Translation memory only": "ذاكرة الترجمة فقط",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "يعرض الترجمات المراجَعة فقط: بلا تنزيل ولا حساب. للأسطر الأخرى اختر إحدى الخدمات أدناه.",
 });

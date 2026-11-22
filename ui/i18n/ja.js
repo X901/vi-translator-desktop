@@ -383,4 +383,6 @@ I18N.add("ja", {
   "Offline": "オフライン",
   "The TV app isn't open, or the TV can't reach this PC": "テレビのアプリが開いていないか、テレビがこのPCに接続できません",
   "TVs showing the translation now: {n} of {m}": "今翻訳を表示しているテレビ: {m}台中{n}台",
+  "Translation memory only": "翻訳メモリのみ",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "確認済みの翻訳だけを表示します（ダウンロードもアカウントも不要）。ほかの行には下のサービスのいずれかを選んでください。",
 });

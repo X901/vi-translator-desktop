@@ -383,4 +383,6 @@ I18N.add("ko", {
   "Offline": "오프라인",
   "The TV app isn't open, or the TV can't reach this PC": "TV 앱이 열려 있지 않거나 TV가 이 PC에 연결할 수 없습니다",
   "TVs showing the translation now: {n} of {m}": "지금 번역을 표시 중인 TV: {m}대 중 {n}대",
+  "Translation memory only": "번역 메모리만",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "검토된 번역만 표시합니다. 다운로드나 계정이 필요 없습니다. 다른 줄은 아래 서비스 중 하나를 선택하세요.",
 });

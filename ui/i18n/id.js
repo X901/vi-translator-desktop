@@ -383,4 +383,6 @@ I18N.add("id", {
   "Offline": "Offline",
   "The TV app isn't open, or the TV can't reach this PC": "Aplikasi TV tidak terbuka, atau TV tidak bisa menjangkau PC ini",
   "TVs showing the translation now: {n} of {m}": "TV yang menampilkan terjemahan sekarang: {n} dari {m}",
+  "Translation memory only": "Hanya memori terjemahan",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Hanya menampilkan terjemahan yang sudah ditinjau: tanpa unduhan, tanpa akun. Untuk baris lain, pilih salah satu layanan di bawah.",
 });

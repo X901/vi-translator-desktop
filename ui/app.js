@@ -750,6 +750,9 @@ setInterval(() => { if (cfg && document.body.dataset.tab === "show") updateVcam(
 
 // ------------------------------------------------------------------------------------- translator
 
+// (false on a build without the free offline translator, the Intel Mac app's: "local" then means the
+// reviewed translations only, as on the phone apps)
+let hasOffline = true;
 const ENGINES = [
   { id: "local", name: "Local (offline)", badge: "Free", d: "Runs on this PC. No account or internet after a one-time ~110 MB download per language. Basic, literal quality. Not every language has one." },
   { id: "deepl", name: "DeepL", badge: "Free tier", d: "Very good quality. The free API plan includes 500,000 characters a month." },
@@ -797,7 +800,7 @@ function renderLang() {
   }
   sel.value = cfg.target_lang || "ar";
   const l = LANGS.find((x) => x.code === sel.value);
-  $("lang-note").textContent = !l ? "" : l.local
+  $("lang-note").textContent = !l ? "" : l.local && hasOffline
     ? t("All translation services work with {name}, including the free offline one.", { name: l.name })
     : t("{name} has no free offline model: choose DeepL, Azure, Google, LibreTranslate or Claude.", { name: l.name });
 }
@@ -2132,6 +2135,16 @@ function lockControls() {
   invoke("app_version").then((v) => { $("app-version").textContent = "v" + v; document.title = "VI Translator " + v; }).catch(() => {});
   // the tools for developing the app: development builds only
   invoke("dev_build").then((dev) => { $("debug-section").hidden = !dev; }).catch(() => {});
+  invoke("has_offline").then((has) => {
+    if (has) return;
+    hasOffline = false;
+    Object.assign(ENGINES.find((e) => e.id === "local"), {
+      name: "Translation memory only",
+      d: "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.",
+    });
+    renderEngines();
+    updateGlance();
+  }).catch(() => {});
   invoke("update_status").then(showUpdate).catch(() => {});
   $("log").dataset.empty = t("Translations appear here as the game shows text.");
   let mode = "setup";

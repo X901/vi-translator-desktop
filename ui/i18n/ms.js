@@ -383,4 +383,6 @@ I18N.add("ms", {
   "Offline": "Luar talian",
   "The TV app isn't open, or the TV can't reach this PC": "Aplikasi TV tidak dibuka, atau TV tidak dapat mencapai PC ini",
   "TVs showing the translation now: {n} of {m}": "TV yang memaparkan terjemahan sekarang: {n} daripada {m}",
+  "Translation memory only": "Memori terjemahan sahaja",
+  "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Hanya memaparkan terjemahan yang telah disemak: tiada muat turun, tiada akaun. Untuk baris lain, pilih salah satu perkhidmatan di bawah.",
 });
