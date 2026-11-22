@@ -94,6 +94,12 @@ Releases are built by GitHub Actions when a `vX.Y.Z` tag is pushed (the version 
 the latest release). Each executable is signed for the auto-update with the `UPDATE_SIGNING_KEY_PEM`
 secret.
 
+## Licence
+
+GNU Affero General Public License v3.0 ([LICENSE](LICENSE)), for the app and its core: PS5 remote play
+comes from [chiaki-ng](https://github.com/streetpea/chiaki-ng), which is under the same licence.
+Versions up to 1.3.9 were released under the MIT License.
+
 ## Credits
 
 - Included fonts (Lalezar, Changa, Cairo, Tajawal, Noto Sans Arabic) are under the SIL Open Font License.

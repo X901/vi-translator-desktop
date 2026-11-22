@@ -1,0 +1,6 @@
+[submodule "third-party/chiaki-ng"]
+	path = third-party/chiaki-ng
+	url = https://github.com/streetpea/chiaki-ng.git
+[submodule "third-party/mbedtls"]
+	path = third-party/mbedtls
+	url = https://github.com/Mbed-TLS/mbedtls.git

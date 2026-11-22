@@ -2,7 +2,7 @@
 name = "vi-translator"
 version.workspace = true
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-only"
 
 [dependencies]
 # the reading and translating (shared with the phone apps)
