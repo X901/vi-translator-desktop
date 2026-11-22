@@ -389,4 +389,5 @@ I18N.add("ta", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K கேப்சர் கார்டு 4K-இல் இயங்கும், இந்த செயலியில் உள்ள படம் 4K-இல் காட்டப்படும் (4K விளையாட்டுச் சாளரமும்). 4K திரையில் இந்த செயலியின் படத்தில் விளையாட. சக்திவாய்ந்த கணினி தேவை; உரை எப்படியும் படிக்கப்படும்.",
   "Download": "பதிவிறக்கு",
   "The download page is open: install the new version from its .dmg.": "பதிவிறக்கப் பக்கம் திறந்துள்ளது: அதன் .dmg இலிருந்து புதிய பதிப்பை நிறுவவும்.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "விளையாட்டின் உரை அளவைப் பின்பற்றுகிறது. மேலே உள்ள “நுண் சரிசெய்தல்” மூலம் மாற்றவும், அல்லது “கேமின் உரை அளவுக்குப் பொருத்தவும்” என்பதைத் தேர்வுநீக்கவும்.",
 });

@@ -389,4 +389,5 @@ I18N.add("ja", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K キャプチャカードが 4K で動作し、このアプリの映像を 4K で表示します（4K のゲームウィンドウも）。4K 画面でこのアプリの映像を見ながら遊ぶ場合に。高性能な PC が必要です。文字の読み取りはどちらでも行われます。",
   "Download": "ダウンロード",
   "The download page is open: install the new version from its .dmg.": "ダウンロードページを開きました。その .dmg から新しいバージョンをインストールしてください。",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "ゲームの文字サイズに合わせます。上の「微調整」で変えるか、「ゲームの文字サイズに合わせる」のチェックを外してください。",
 });

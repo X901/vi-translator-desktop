@@ -389,4 +389,5 @@ I18N.add("pt-BR", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Uma placa de captura 4K funciona em 4K, e a imagem neste app é mostrada em 4K (também uma janela de jogo 4K). Para jogar pela imagem deste app em uma tela 4K. Exige um PC potente; o texto é lido de qualquer forma.",
   "Download": "Baixar",
   "The download page is open: install the new version from its .dmg.": "A página de download está aberta: instale a nova versão pelo .dmg dela.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Segue o tamanho do texto do jogo. Mude com “Ajuste fino” acima ou desmarque “Igualar o tamanho do texto do jogo”.",
 });

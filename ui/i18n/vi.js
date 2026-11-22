@@ -389,4 +389,5 @@ I18N.add("vi", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Card capture 4K chạy ở 4K, và hình trong ứng dụng này hiển thị ở 4K (cả cửa sổ game 4K). Dành cho việc chơi trên hình của ứng dụng này trên màn hình 4K. Cần máy tính mạnh; chữ vẫn được đọc như thường.",
   "Download": "Tải xuống",
   "The download page is open: install the new version from its .dmg.": "Trang tải xuống đã mở: hãy cài phiên bản mới từ tệp .dmg của nó.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Theo cỡ chữ của game. Thay đổi bằng “Tinh chỉnh” ở trên, hoặc bỏ chọn “Khớp cỡ chữ của game”.",
 });

@@ -389,4 +389,5 @@ I18N.add("bn", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K ক্যাপচার কার্ড 4K-তে চলে, আর এই অ্যাপের ছবি 4K-তে দেখায় (4K গেম উইন্ডোও)। 4K স্ক্রিনে এই অ্যাপের ছবিতে খেলার জন্য। শক্তিশালী পিসি লাগে; লেখা পড়া দুই ক্ষেত্রেই হয়।",
   "Download": "ডাউনলোড",
   "The download page is open: install the new version from its .dmg.": "ডাউনলোডের পেজ খোলা হয়েছে: এর .dmg থেকে নতুন সংস্করণ ইনস্টল করুন।",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "গেমের লেখার আকার অনুসরণ করে। উপরের “সূক্ষ্ম সমন্বয়” দিয়ে বদলান, অথবা “গেমের টেক্সটের আকারের সাথে মেলান” থেকে টিক সরান।",
 });

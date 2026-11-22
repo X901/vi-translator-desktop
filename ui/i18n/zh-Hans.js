@@ -389,4 +389,5 @@ I18N.add("zh-Hans", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K 采集卡以 4K 运行，本应用中的画面以 4K 显示（4K 游戏窗口也一样）。适合在 4K 屏幕上用本应用的画面玩游戏。需要性能强的电脑；文字识别不受影响。",
   "Download": "下载",
   "The download page is open: install the new version from its .dmg.": "下载页面已打开：请用其中的 .dmg 安装新版本。",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "跟随游戏的文字大小。请用上面的“微调”来改，或取消勾选“匹配游戏文字大小”。",
 });

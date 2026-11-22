@@ -389,4 +389,5 @@ I18N.add("ro", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "O placă de captură 4K rulează în 4K, iar imaginea din această aplicație e afișată în 4K (și o fereastră de joc 4K). Pentru a juca pe imaginea acestei aplicații pe un ecran 4K. Are nevoie de un PC puternic; textul e citit oricum.",
   "Download": "Descarcă",
   "The download page is open: install the new version from its .dmg.": "Pagina de descărcare e deschisă: instalează noua versiune din fișierul .dmg.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Urmează mărimea textului din joc. Schimb-o cu „Reglaj fin” de mai sus sau debifează „Potrivește mărimea textului jocului”.",
 });

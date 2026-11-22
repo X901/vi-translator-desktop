@@ -389,4 +389,5 @@ I18N.add("tr", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K yakalama kartı 4K'da çalışır ve bu uygulamadaki görüntü 4K gösterilir (4K oyun penceresi de). 4K ekranda bu uygulamanın görüntüsünde oynamak için. Güçlü bir bilgisayar gerekir; metin her iki durumda da okunur.",
   "Download": "İndir",
   "The download page is open: install the new version from its .dmg.": "İndirme sayfası açıldı: yeni sürümü .dmg dosyasından yükleyin.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Oyunun yazı boyutunu izler. Yukarıdaki “İnce ayar” ile değiştirin ya da “Oyunun metin boyutuna uydur” işaretini kaldırın.",
 });

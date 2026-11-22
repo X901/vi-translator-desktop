@@ -389,4 +389,5 @@ I18N.add("ru", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Карта захвата 4K работает в 4K, а картинка в этом приложении показывается в 4K (и окно игры в 4K). Для игры на картинке этого приложения на экране 4K. Нужен мощный ПК; текст читается в любом случае.",
   "Download": "Скачать",
   "The download page is open: install the new version from its .dmg.": "Страница загрузки открыта: установите новую версию из её .dmg.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Следует размеру текста игры. Измените его с помощью «Точная настройка» выше или снимите флажок «Подгонять под размер текста игры».",
 });

@@ -389,4 +389,5 @@ I18N.add("fa", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "کارت کپچر 4K با کیفیت 4K کار می‌کند و تصویر این برنامه با کیفیت 4K نمایش داده می‌شود (پنجرهٔ بازی 4K هم). برای بازی روی تصویر این برنامه در صفحهٔ 4K. رایانهٔ قوی لازم دارد؛ متن در هر حال خوانده می‌شود.",
   "Download": "دانلود",
   "The download page is open: install the new version from its .dmg.": "صفحهٔ دانلود باز شد: نسخهٔ جدید را از فایل ‎.dmg‎ آن نصب کنید.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "از اندازهٔ متن بازی پیروی می‌کند. آن را با «تنظیم دقیق» در بالا تغییر دهید یا تیک «هم‌اندازه با متن بازی» را بردارید.",
 });

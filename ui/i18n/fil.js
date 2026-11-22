@@ -389,4 +389,5 @@ I18N.add("fil", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Tatakbo sa 4K ang 4K capture card, at ipapakita sa 4K ang larawan sa app na ito (pati 4K na window ng laro). Para sa paglalaro sa larawan ng app na ito sa 4K na screen. Kailangan ng malakas na PC; nababasa pa rin ang text.",
   "Download": "I-download",
   "The download page is open: install the new version from its .dmg.": "Bukas na ang download page: i-install ang bagong bersyon mula sa .dmg nito.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Sumusunod sa laki ng text ng laro. Baguhin ito gamit ang “Pinong pag-aayos” sa itaas, o alisin ang tsek sa “Itugma sa laki ng teksto ng laro”.",
 });

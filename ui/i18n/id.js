@@ -389,4 +389,5 @@ I18N.add("id", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Capture card 4K berjalan di 4K, dan gambar di aplikasi ini ditampilkan dalam 4K (juga jendela game 4K). Untuk bermain di gambar aplikasi ini pada layar 4K. Butuh PC yang kuat; teks tetap dibaca.",
   "Download": "Unduh",
   "The download page is open: install the new version from its .dmg.": "Halaman unduhan terbuka: pasang versi baru dari .dmg-nya.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Mengikuti ukuran teks game. Ubah dengan “Penyesuaian halus” di atas, atau hapus centang “Samakan dengan ukuran teks game”.",
 });

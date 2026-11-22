@@ -389,4 +389,5 @@ I18N.add("te", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K క్యాప్చర్ కార్డ్ 4Kలో నడుస్తుంది, ఈ యాప్‌లోని చిత్రం 4Kలో కనిపిస్తుంది (4K గేమ్ విండో కూడా). 4K స్క్రీన్‌పై ఈ యాప్ చిత్రంపై ఆడటానికి. శక్తివంతమైన పీసీ అవసరం; టెక్స్ట్ ఎలాగైనా చదవబడుతుంది.",
   "Download": "డౌన్‌లోడ్",
   "The download page is open: install the new version from its .dmg.": "డౌన్‌లోడ్ పేజీ తెరిచింది: దాని .dmg నుండి కొత్త వెర్షన్‌ను ఇన్‌స్టాల్ చేయండి.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "గేమ్ టెక్స్ట్ పరిమాణాన్ని అనుసరిస్తుంది. పైన ఉన్న “సూక్ష్మ సర్దుబాటు”తో మార్చండి, లేదా “గేమ్ టెక్స్ట్ పరిమాణానికి సరిపోల్చండి” టిక్ తీసేయండి.",
 });

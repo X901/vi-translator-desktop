@@ -389,4 +389,5 @@ I18N.add("el", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Μια κάρτα σύλληψης 4K λειτουργεί σε 4K και η εικόνα σε αυτή την εφαρμογή εμφανίζεται σε 4K (και ένα παράθυρο παιχνιδιού 4K). Για παιχνίδι στην εικόνα της εφαρμογής σε οθόνη 4K. Χρειάζεται ισχυρό PC· το κείμενο διαβάζεται έτσι κι αλλιώς.",
   "Download": "Λήψη",
   "The download page is open: install the new version from its .dmg.": "Η σελίδα λήψης άνοιξε: εγκαταστήστε τη νέα έκδοση από το .dmg της.",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Ακολουθεί το μέγεθος του κειμένου του παιχνιδιού. Αλλάξτε το με «Λεπτομερής ρύθμιση» παραπάνω ή αποεπιλέξτε «Ίδιο μέγεθος κειμένου με το παιχνίδι».",
 });

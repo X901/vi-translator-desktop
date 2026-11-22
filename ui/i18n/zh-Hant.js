@@ -389,4 +389,5 @@ I18N.add("zh-Hant", {
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K 擷取卡以 4K 運作，本應用程式中的畫面以 4K 顯示（4K 遊戲視窗也一樣）。適合在 4K 螢幕上用本應用程式的畫面玩遊戲。需要效能強的電腦；文字辨識不受影響。",
   "Download": "下載",
   "The download page is open: install the new version from its .dmg.": "下載頁面已開啟：請用其中的 .dmg 安裝新版本。",
+  "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "跟隨遊戲的文字大小。請用上面的「微調」來改，或取消勾選「符合遊戲文字大小」。",
 });

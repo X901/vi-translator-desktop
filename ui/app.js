@@ -1092,6 +1092,14 @@ function renderStyleForm(form, a) {
       f.innerHTML = `<label>${t(label)}</label><div class="inline"><input type="range" min="${min}" max="${max}" step="${step}" value="${AS.esc(s[key])}" />
         <input type="number" min="${min}" max="${max}" step="${step}" value="${AS.esc(s[key])}" style="width:72px" /><span class="val" style="min-width:18px">px</span></div>`;
       const [range, num] = f.querySelectorAll("input");
+      // the text size, while the area matches the game's: the game's size is used (its Fine-tune
+      // changes it), so this one is greyed out and says so
+      if (key === "font_size" && a.match_size !== false) {
+        range.disabled = num.disabled = true;
+        range.dataset.matched = num.dataset.matched = "1"; // (lockControls keeps them off)
+        f.style.opacity = "0.55";
+        f.insertAdjacentHTML("beforeend", `<div class="muted small" style="margin:4px 0 0">${t("Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.")}</div>`);
+      }
       range.addEventListener("input", () => { num.value = range.value; setStyle(key, Number(range.value)); });
       num.addEventListener("change", () => {
         const v = Math.min(Math.max(Number(num.value) || s[key], min), max);
@@ -2086,7 +2094,7 @@ function applyTheme() {
 function lockControls() {
   const on = locked();
   document.querySelectorAll("#tab-areas, #tab-pages").forEach((tab) =>
-    tab.querySelectorAll("input:not(.en):not([data-more]), select, textarea, button:not([data-copy])").forEach((el) => { el.disabled = on; }));
+    tab.querySelectorAll("input:not(.en):not([data-more]), select, textarea, button:not([data-copy])").forEach((el) => { el.disabled = on || el.dataset.matched === "1"; }));
   $("add-area").disabled = on;
   // (its boxes can't be moved or resized, so the hint about doing that is gone too)
   $("drag-hint").hidden = on;
