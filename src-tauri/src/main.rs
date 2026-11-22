@@ -228,6 +228,10 @@ fn update_status(state: tauri::State<AppState>) -> Option<updater::Update> {
 async fn install_update(app: AppHandle, webview: tauri::Webview, state: tauri::State<'_, AppState>) -> Result<(), String> {
     main_only(&webview)?;
     let u = state.update.lock().unwrap().clone().ok_or("no update available")?;
+    // VI Translator.app (the .dmg's): its update is the new .dmg, on the release's page
+    if u.app_bundle {
+        return std::process::Command::new("open").arg(&u.page).spawn().map(|_| ()).map_err(|e| format!("could not open {}: {e}", u.page));
+    }
     tauri::async_runtime::spawn_blocking(move || updater::install(&u)).await.map_err(|e| e.to_string())?.map_err(|e| format!("{e:#}"))?;
     app.restart()
 }

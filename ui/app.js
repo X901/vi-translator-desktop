@@ -365,18 +365,26 @@ $("obs-url-copy").addEventListener("click", async () => {
 });
 // ------------------------------------------------------------------------------------- updates
 
+// (VI Translator.app, the macOS .dmg's, is updated with the new .dmg: the button opens its page)
+let updateIsDmg = false;
 function showUpdate(u) {
   if (!u) return;
+  updateIsDmg = u.app_bundle === true;
   $("update-text").textContent = t("Version {version} is available.", { version: u.version });
+  $("update-now").textContent = updateIsDmg ? t("Download") : t("Update now");
   $("update-bar").classList.remove("hidden");
 }
 listen("update-available", (e) => showUpdate(e.payload));
 $("update-later").addEventListener("click", () => $("update-bar").classList.add("hidden"));
 $("update-now").addEventListener("click", async () => {
   $("update-now").disabled = true;
-  $("update-text").textContent = t("Downloading the update…");
+  $("update-text").textContent = updateIsDmg ? "" : t("Downloading the update…");
   try {
-    await invoke("install_update"); // the app restarts into the new version
+    await invoke("install_update"); // the app restarts into the new version (the .dmg's page opens for VI Translator.app)
+    if (updateIsDmg) {
+      $("update-text").textContent = t("The download page is open: install the new version from its .dmg.");
+      $("update-now").disabled = false;
+    }
   } catch (e) {
     $("update-text").textContent = t("Update failed: {e}", { e });
     $("update-now").disabled = false;

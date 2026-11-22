@@ -40,7 +40,7 @@ It's portable, so there's nothing to install:
 |---|---|
 | Windows 10/11 (x64, ARM) | `vi-translator-windows-x64.exe`, `vi-translator-windows-arm64.exe` |
 | Linux (x64, ARM) | `vi-translator-linux-x64`, `vi-translator-linux-arm64` |
-| macOS (Apple silicon) | `vi-translator-macos-arm64` |
+| macOS 11+ (Apple silicon, Intel) | `vi-translator-macos-universal.dmg` (the app, to drag into Applications), or the bare `vi-translator-macos-arm64`, `vi-translator-macos-x64` |
 
 - **Linux** needs WebKitGTK 4.1 and Tesseract with English, e.g. on Ubuntu/Debian
   `sudo apt install libwebkit2gtk-4.1-0 tesseract-ocr tesseract-ocr-eng`. Window capture works on X11
@@ -76,6 +76,13 @@ by the address the app shows (the PC's IP address), not a name.
 cargo run                  # run (debug)
 cargo build --release      # target/release/vi-translator(.exe)
 cargo test                 # the app and its core
+```
+
+On macOS, a `.dmg` with `VI Translator.app` for Apple silicon and Intel (needs Node.js for the Tauri CLI):
+
+```sh
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+cd src-tauri && npx @tauri-apps/cli@2 build --target universal-apple-darwin
 ```
 
 The reading and translating live in [`core/`](core/README.md) (`vi-translator-core`), shared with

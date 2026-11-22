@@ -42,6 +42,10 @@ pub fn parse_version(v: &str) -> Option<(u64, u64, u64)> {
 pub struct Update {
     pub version: String,
     pub notes: String,
+    /// The release's page (where VI Translator.app's new .dmg is).
+    pub page: String,
+    /// Running as VI Translator.app: the update is the new .dmg, from `page` (`in_app_bundle`).
+    pub app_bundle: bool,
     #[serde(skip)]
     pub url: String,
     #[serde(skip)]
@@ -65,6 +69,8 @@ pub fn newer_release(json: &serde_json::Value, current: &str) -> Option<Update> 
     Some(Update {
         version: tag.trim_start_matches('v').to_string(),
         notes: json["body"].as_str().unwrap_or("").chars().take(2000).collect(),
+        page: json["html_url"].as_str().unwrap_or(RELEASES_PAGE).to_string(),
+        app_bundle: in_app_bundle(),
         url: url_of(&name)?,
         sig_url: url_of(&format!("{name}.sig"))?,
     })
@@ -96,8 +102,26 @@ pub fn check() -> Result<Option<Update>> {
     Ok(newer_release(&json, env!("CARGO_PKG_VERSION")))
 }
 
+/// The releases, for a release without its own page.
+const RELEASES_PAGE: &str = "https://github.com/vi-translator/vi-translator-desktop/releases/latest";
+
+/// Running as VI Translator.app (the macOS .dmg's), not as the bare program. The app's program
+/// can't be swapped for a release file: the app is signed as a whole (a new program, or the old one
+/// left beside it, breaks its signature) and runs on both kinds of Mac (the release file is for
+/// one). Its update is the new .dmg.
+pub fn in_app_bundle() -> bool {
+    std::env::current_exe().ok().is_some_and(|p| is_app_bundle_exe(&p))
+}
+
+fn is_app_bundle_exe(exe: &Path) -> bool {
+    exe.to_str().is_some_and(|s| s.contains(".app/Contents/MacOS/"))
+}
+
 /// Download, verify, swap the executable. Returns the path of the new executable (to restart).
 pub fn install(u: &Update) -> Result<PathBuf> {
+    if in_app_bundle() {
+        bail!("VI Translator.app is updated with its new .dmg, from the release's page");
+    }
     let c = http();
     let data = c.get(&u.url).send()?.error_for_status()?.bytes().context("download")?;
     let sig = c.get(&u.sig_url).send()?.error_for_status()?.text().context("download signature")?;
@@ -160,6 +184,14 @@ pub fn run(app: AppHandle, cfg: Arc<Mutex<Config>>, found: Arc<Mutex<Option<Upda
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn knows_the_mac_app_from_the_bare_program() {
+        use std::path::Path;
+        assert!(super::is_app_bundle_exe(Path::new("/Applications/VI Translator.app/Contents/MacOS/vi-translator")));
+        assert!(!super::is_app_bundle_exe(Path::new("/Users/me/Downloads/vi-translator-macos-arm64")));
+        assert!(!super::is_app_bundle_exe(Path::new(r"C:\Users\me\vi-translator-windows-x64.exe")));
+    }
 
     #[test]
     fn versions() {

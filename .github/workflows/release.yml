@@ -1,6 +1,6 @@
 # Pushing a tag vX.Y.Z releases version X.Y.Z of the app: portable executables for Windows and
 # Linux (x64 and arm64) and macOS (Apple silicon and Intel), each with an Ed25519 signature (.sig) that the app's auto-update
-# checks against its built-in public key, attached to a GitHub Release.
+# checks against its built-in public key, attached to a GitHub Release. For macOS also a .dmg with the app for both.
 #
 # Same tag rules as the backend: the tag must look like v1.2.3 and be newer than the latest release.
 #
@@ -109,6 +109,20 @@ jobs:
           mkdir -p out
           cp "target/${{ matrix.target }}/release/vi-translator$EXT" "out/vi-translator-${{ matrix.os }}-${{ matrix.arch }}$EXT"
           ls -l out
+
+      # macOS: also VI Translator.app in a .dmg, for Apple silicon and Intel in one file
+      # (src-tauri/tauri.macos.conf.json). Signed ad hoc: Gatekeeper asks the user to allow it once.
+      # The Tauri CLI is the tauri crate's version (Cargo.lock), pinned. A failure here leaves the
+      # release without the .dmg instead of without a release (every build must pass for one).
+      - name: macOS .dmg
+        if: matrix.os == 'macos' && matrix.arch == 'arm64'
+        continue-on-error: true
+        working-directory: src-tauri
+        run: |
+          rustup target add x86_64-apple-darwin
+          npx --yes @tauri-apps/cli@2.12.5 build --target universal-apple-darwin
+          cp ../target/universal-apple-darwin/release/bundle/dmg/*.dmg ../out/vi-translator-macos-universal.dmg
+          ls -l ../out
 
       - uses: actions/upload-artifact@v4
         with:

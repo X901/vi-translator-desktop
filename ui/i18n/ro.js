@@ -387,4 +387,6 @@ I18N.add("ro", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Arată doar traducerile verificate: fără descărcare, fără cont. Pentru alte rânduri alege unul dintre serviciile de mai jos.",
   "4K picture": "Imagine 4K",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "O placă de captură 4K rulează în 4K, iar imaginea din această aplicație e afișată în 4K (și o fereastră de joc 4K). Pentru a juca pe imaginea acestei aplicații pe un ecran 4K. Are nevoie de un PC puternic; textul e citit oricum.",
+  "Download": "Descarcă",
+  "The download page is open: install the new version from its .dmg.": "Pagina de descărcare e deschisă: instalează noua versiune din fișierul .dmg.",
 });

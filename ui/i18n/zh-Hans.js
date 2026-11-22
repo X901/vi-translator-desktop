@@ -387,4 +387,6 @@ I18N.add("zh-Hans", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "只显示经过审核的翻译：无需下载，无需账号。其他句子请选择下面的某项服务。",
   "4K picture": "4K 画面",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K 采集卡以 4K 运行，本应用中的画面以 4K 显示（4K 游戏窗口也一样）。适合在 4K 屏幕上用本应用的画面玩游戏。需要性能强的电脑；文字识别不受影响。",
+  "Download": "下载",
+  "The download page is open: install the new version from its .dmg.": "下载页面已打开：请用其中的 .dmg 安装新版本。",
 });

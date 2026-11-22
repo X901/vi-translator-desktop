@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCameraUsageDescription</key>
+	<string>VI Translator reads the game's picture from your capture card.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>VI Translator plays your capture card's sound on this Mac.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>VI Translator shows live translations on phones, tablets and TVs on your home network.</string>
+</dict>
+</plist>

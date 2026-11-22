@@ -387,4 +387,6 @@ I18N.add("te", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "సమీక్షించిన అనువాదాలను మాత్రమే చూపిస్తుంది: డౌన్‌లోడ్ లేదు, ఖాతా లేదు. ఇతర లైన్‌ల కోసం కింది సేవల్లో ఒకదాన్ని ఎంచుకోండి.",
   "4K picture": "4K చిత్రం",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K క్యాప్చర్ కార్డ్ 4Kలో నడుస్తుంది, ఈ యాప్‌లోని చిత్రం 4Kలో కనిపిస్తుంది (4K గేమ్ విండో కూడా). 4K స్క్రీన్‌పై ఈ యాప్ చిత్రంపై ఆడటానికి. శక్తివంతమైన పీసీ అవసరం; టెక్స్ట్ ఎలాగైనా చదవబడుతుంది.",
+  "Download": "డౌన్‌లోడ్",
+  "The download page is open: install the new version from its .dmg.": "డౌన్‌లోడ్ పేజీ తెరిచింది: దాని .dmg నుండి కొత్త వెర్షన్‌ను ఇన్‌స్టాల్ చేయండి.",
 });
