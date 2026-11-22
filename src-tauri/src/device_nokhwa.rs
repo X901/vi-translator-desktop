@@ -89,6 +89,9 @@ type FromReader = Result<Option<Frame>>;
 /// a second or more). Before its first frame a card is waited for as long as it takes: one that
 /// sends nothing while the console is off would otherwise be opened again every few seconds.
 const STALL: Duration = Duration::from_secs(5);
+/// How often a wait for the card looks whether the capture was stopped (the player chose another
+/// source): a card that sends nothing (console off) must not keep the switch waiting.
+const STOP_CHECK: Duration = Duration::from_millis(250);
 
 /// Read the device in the background until stopped (or it fails: the manager then restarts it).
 /// (`_big`, the 4K picture: here the card always runs at its highest resolution; the picture's size
@@ -141,8 +144,28 @@ pub fn start(name: String, shared: Arc<Shared>, _big: bool) -> DeviceCapture {
 /// nothing for `stall` after its first frame.
 fn take_frames(rx: &std::sync::mpsc::Receiver<FromReader>, name: &str, shared: &Shared, stop: &AtomicBool, stall: Duration) {
     use std::sync::mpsc::RecvTimeoutError;
+    // The next thing from the reader, waited for at most `limit` (none: as long as it takes), in short
+    // steps that notice a stop (then Disconnected: the capture ends; a reader stuck on the card
+    // doesn't hold up the switch to another source).
+    let wait = |limit: Option<Duration>| -> Result<FromReader, RecvTimeoutError> {
+        let start = Instant::now();
+        loop {
+            let step = limit.map_or(STOP_CHECK, |l| l.saturating_sub(start.elapsed()).min(STOP_CHECK));
+            match rx.recv_timeout(step) {
+                Err(RecvTimeoutError::Timeout) => {
+                    if stop.load(Ordering::Relaxed) {
+                        return Err(RecvTimeoutError::Disconnected);
+                    }
+                    if limit.is_some_and(|l| start.elapsed() >= l) {
+                        return Err(RecvTimeoutError::Timeout);
+                    }
+                }
+                r => return r,
+            }
+        }
+    };
     // (opening has no time limit: the first time, macOS asks for camera access and waits for the answer)
-    let mut next = rx.recv().map_err(|_| RecvTimeoutError::Disconnected);
+    let mut next = wait(None);
     let (mut open, mut sending) = (false, false);
     let ago = Instant::now() - Duration::from_secs(1);
     let (mut last, mut last_preview) = (ago, ago);
@@ -179,7 +202,7 @@ fn take_frames(rx: &std::sync::mpsc::Receiver<FromReader>, name: &str, shared: &
             }
             Err(RecvTimeoutError::Disconnected) => return,
         }
-        next = if sending { rx.recv_timeout(stall) } else { rx.recv().map_err(|_| RecvTimeoutError::Disconnected) };
+        next = wait(sending.then_some(stall));
     }
 }
 
@@ -228,6 +251,24 @@ mod tests {
         take_frames(&rx, "Card", &shared, &AtomicBool::new(false), Duration::from_millis(100));
         assert!(shared.latest().is_some(), "it gave up before the first frame");
         late.join().unwrap();
+    }
+
+    #[test]
+    fn a_card_that_sends_nothing_lets_the_capture_stop() {
+        // open, then nothing (console off): stopping (another source chosen) ends the wait at once
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(2);
+        tx.send(Ok(None)).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let s2 = stop.clone();
+        let stopper = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            s2.store(true, Ordering::Relaxed);
+        });
+        let t = Instant::now();
+        take_frames(&rx, "Card", &Shared::default(), &stop, Duration::from_secs(5));
+        assert!(t.elapsed() < Duration::from_secs(2), "the stop wasn't noticed");
+        stopper.join().unwrap();
+        drop(tx);
     }
 
     #[test]
