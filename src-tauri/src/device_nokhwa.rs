@@ -85,7 +85,9 @@ type Frame = (u32, u32, Vec<u8>);
 /// What the card's reader hands over: `None` once the card is open, then its frames.
 type FromReader = Result<Option<Frame>>;
 
-/// A card that sends nothing for this long has stopped (they send 25 frames a second or more).
+/// A card that was sending frames and sends nothing for this long has stopped (they send 25 frames
+/// a second or more). Before its first frame a card is waited for as long as it takes: one that
+/// sends nothing while the console is off would otherwise be opened again every few seconds.
 const STALL: Duration = Duration::from_secs(5);
 
 /// Read the device in the background until stopped (or it fails: the manager then restarts it).
@@ -135,13 +137,13 @@ pub fn start(name: String, shared: Arc<Shared>, _big: bool) -> DeviceCapture {
     DeviceCapture { stop, thread: Some(thread) }
 }
 
-/// Put the reader's frames in the shared slots until stopped, the card fails, or it sends nothing
-/// for `stall`.
+/// Put the reader's frames in the shared slots until stopped, the card fails, or it stops sending:
+/// nothing for `stall` after its first frame.
 fn take_frames(rx: &std::sync::mpsc::Receiver<FromReader>, name: &str, shared: &Shared, stop: &AtomicBool, stall: Duration) {
     use std::sync::mpsc::RecvTimeoutError;
     // (opening has no time limit: the first time, macOS asks for camera access and waits for the answer)
     let mut next = rx.recv().map_err(|_| RecvTimeoutError::Disconnected);
-    let mut open = false;
+    let (mut open, mut sending) = (false, false);
     let ago = Instant::now() - Duration::from_secs(1);
     let (mut last, mut last_preview) = (ago, ago);
     while !stop.load(Ordering::Relaxed) {
@@ -152,6 +154,7 @@ fn take_frames(rx: &std::sync::mpsc::Receiver<FromReader>, name: &str, shared: &
             }
             // devices push frames at their own rate: every one is read, what's due is kept
             Ok(Ok(Some((w, h, rgba)))) => {
+                sending = true;
                 if shared.preview_due(last_preview) {
                     last_preview = Instant::now();
                     shared.put_preview(shrink(&rgba, w, h, (w * 4) as usize, false));
@@ -176,7 +179,7 @@ fn take_frames(rx: &std::sync::mpsc::Receiver<FromReader>, name: &str, shared: &
             }
             Err(RecvTimeoutError::Disconnected) => return,
         }
-        next = rx.recv_timeout(stall);
+        next = if sending { rx.recv_timeout(stall) } else { rx.recv().map_err(|_| RecvTimeoutError::Disconnected) };
     }
 }
 
@@ -209,6 +212,22 @@ mod tests {
         assert_eq!(shared.latest().map(|f| (f.w, f.h)), Some((2, 1)), "the frame it did send is kept");
         assert_eq!(*shared.status.lock().unwrap(), "Capture device \"Card\" stopped sending frames (none for 0 s)");
         drop(tx);
+    }
+
+    #[test]
+    fn a_card_is_waited_for_until_its_first_frame() {
+        // open, but its first frame comes later than `stall` (no signal yet): not a stopped card
+        let (tx, rx) = std::sync::mpsc::sync_channel::<FromReader>(2);
+        tx.send(Ok(None)).unwrap();
+        let late = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(400));
+            tx.send(Ok(Some((2, 1, vec![7; 8])))).unwrap();
+            std::thread::sleep(Duration::from_secs(1)); // (kept open: what ends the capture is the silence)
+        });
+        let shared = Shared::default();
+        take_frames(&rx, "Card", &shared, &AtomicBool::new(false), Duration::from_millis(100));
+        assert!(shared.latest().is_some(), "it gave up before the first frame");
+        late.join().unwrap();
     }
 
     #[test]
