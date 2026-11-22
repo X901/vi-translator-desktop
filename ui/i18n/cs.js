@@ -387,4 +387,6 @@ I18N.add("cs", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Zobrazuje jen zkontrolované překlady: bez stahování a bez účtu. Pro ostatní řádky zvolte jednu ze služeb níže.",
   "4K picture": "Obraz 4K",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Snímací karta 4K běží v 4K a obraz v této aplikaci se zobrazuje v 4K (i okno hry v 4K). Pro hraní na obrazu této aplikace na obrazovce 4K. Potřebuje výkonné PC; text se čte v obou případech.",
+  "Download": "Stáhnout",
+  "The download page is open: install the new version from its .dmg.": "Stránka ke stažení je otevřená: nainstalujte novou verzi z jejího souboru .dmg.",
 });

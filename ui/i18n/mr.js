@@ -387,4 +387,6 @@ I18N.add("mr", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "फक्त तपासलेली भाषांतरे दाखवते: डाउनलोड नाही, खाते नाही. इतर ओळींसाठी खालीलपैकी एक सेवा निवडा.",
   "4K picture": "4K चित्र",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "4K कॅप्चर कार्ड 4K मध्ये चालते आणि या अ‍ॅपमधील चित्र 4K मध्ये दिसते (4K गेम विंडोसुद्धा). 4K स्क्रीनवर या अ‍ॅपच्या चित्रावर खेळण्यासाठी. शक्तिशाली पीसी लागतो; मजकूर दोन्ही प्रकारे वाचला जातो.",
+  "Download": "डाउनलोड",
+  "The download page is open: install the new version from its .dmg.": "डाउनलोड पान उघडले आहे: त्याच्या .dmg मधून नवीन आवृत्ती इंस्टॉल करा.",
 });

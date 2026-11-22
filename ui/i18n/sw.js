@@ -387,4 +387,6 @@ I18N.add("sw", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Inaonyesha tafsiri zilizokaguliwa pekee: hakuna kupakua, hakuna akaunti. Kwa mistari mingine chagua mojawapo ya huduma zilizo hapa chini.",
   "4K picture": "Picha ya 4K",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Kadi ya kunasa ya 4K inafanya kazi kwa 4K, na picha katika programu hii inaonyeshwa kwa 4K (pia dirisha la mchezo la 4K). Kwa kucheza kwenye picha ya programu hii kwenye skrini ya 4K. Inahitaji kompyuta yenye nguvu; maandishi husomwa vyovyote vile.",
+  "Download": "Pakua",
+  "The download page is open: install the new version from its .dmg.": "Ukurasa wa kupakua umefunguliwa: sakinisha toleo jipya kutoka kwa .dmg yake.",
 });

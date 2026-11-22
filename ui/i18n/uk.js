@@ -387,4 +387,6 @@ I18N.add("uk", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Показує лише перевірені переклади: без завантаження й без облікового запису. Для інших рядків виберіть один зі сервісів нижче.",
   "4K picture": "Зображення 4K",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Карта захоплення 4K працює в 4K, а зображення в цьому застосунку показується в 4K (і вікно гри в 4K). Для гри на зображенні цього застосунку на екрані 4K. Потрібен потужний ПК; текст читається в будь-якому разі.",
+  "Download": "Завантажити",
+  "The download page is open: install the new version from its .dmg.": "Сторінка завантаження відкрита: установіть нову версію з її .dmg.",
 });

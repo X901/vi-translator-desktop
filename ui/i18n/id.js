@@ -387,4 +387,6 @@ I18N.add("id", {
   "Shows the reviewed translations only: no download, no account. For other lines choose one of the services below.": "Hanya menampilkan terjemahan yang sudah ditinjau: tanpa unduhan, tanpa akun. Untuk baris lain, pilih salah satu layanan di bawah.",
   "4K picture": "Gambar 4K",
   "A 4K capture card runs at 4K, and the picture in this app is shown in 4K (also a 4K game window). For playing on this app's picture on a 4K screen. Needs a strong PC; text is read either way.": "Capture card 4K berjalan di 4K, dan gambar di aplikasi ini ditampilkan dalam 4K (juga jendela game 4K). Untuk bermain di gambar aplikasi ini pada layar 4K. Butuh PC yang kuat; teks tetap dibaca.",
+  "Download": "Unduh",
+  "The download page is open: install the new version from its .dmg.": "Halaman unduhan terbuka: pasang versi baru dari .dmg-nya.",
 });
