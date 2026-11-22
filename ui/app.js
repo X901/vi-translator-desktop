@@ -292,7 +292,7 @@ async function loadWindows() {
   const sel = $("window_title");
   sel.innerHTML = "";
   sel.add(new Option(t("Looking for sources ..."), cfg.window_title));
-  const { windows, devices, obs, screens = [], xbox = null } = await invoke("list_sources");
+  const { windows, devices, obs, screens = [], xbox = null, ps5 = null } = await invoke("list_sources");
   knownScreens = screens;
   xboxTitle = xbox;
   sel.innerHTML = "";
@@ -312,7 +312,12 @@ async function loadWindows() {
   const opt = (text, value, full = text) => Object.assign(new Option(text, value), { title: full });
   const add = (g, text, value, full) => { g.appendChild(opt(text, value, full)); values.push(value); };
   // remote play in a window of the app (its window's title is the source)
-  if (xbox) add(group(t("Remote Play in VI Translator")), `🎮 ${t("Xbox (in VI Translator)")}`, xbox);
+  ps5Value = ps5;
+  if (xbox || ps5) {
+    const g = group(t("Remote Play in VI Translator"));
+    if (ps5) add(g, `🎮 ${t("PS5 (in VI Translator)")}`, ps5);
+    if (xbox) add(g, `🎮 ${t("Xbox (in VI Translator)")}`, xbox);
+  }
   if (devices.length) {
     const g = group(t("Capture cards and cameras"));
     for (const d of devices) add(g, `🎥 ${iso(short(d))}`, `device:${d}`, d);
@@ -347,6 +352,7 @@ async function loadWindows() {
   }
   sel.value = cfg.window_title;
   renderXbox();
+  renderPs5();
 }
 // Xbox in the app: the source is its player's window, opened from here (and with the app)
 let xboxTitle = null;
@@ -356,6 +362,74 @@ $("xbox-open").addEventListener("click", openXbox);
 $("window_title").addEventListener("change", (e) => {
   if (xboxTitle && e.target.value === xboxTitle) openXbox();
   renderXbox(e.target.value);
+  renderPs5(e.target.value);
+});
+
+// PS5 in the app: sign in to PSN (Sony's page, in a window of the app), find and link the PS5 with
+// the PIN it shows, then it streams while it is the source. Its login passcode, if the account has
+// one, is asked here when the PS5 wants it.
+let ps5Value = null;
+let ps5 = null;
+async function renderPs5(v = cfg.window_title) {
+  const on = !!ps5Value && v === ps5Value;
+  $("ps5-panel").hidden = !on;
+  if (!on) return;
+  try { ps5 = await invoke("ps5_status"); } catch { return; }
+  showPs5(ps5);
+}
+function showPs5(s) {
+  ps5 = s;
+  $("ps5-account").textContent = s.signed_in ? (s.account ? t("Signed in as {name}", { name: s.account }) : t("Signed in")) : t("Not signed in");
+  $("ps5-sign-in").hidden = s.signed_in;
+  $("ps5-sign-out").hidden = !s.signed_in;
+  $("ps5-console").textContent = s.console ? t("Linked: {name}", { name: `${s.console.name} (${s.console.host})` }) : t("Not linked");
+  $("ps5-link-form").hidden = !!s.console;
+  $("ps5-forget").hidden = !s.console;
+  for (const id of ["ps5-find", "ps5-link", "ps5-host", "ps5-pin"]) $(id).disabled = !s.signed_in;
+  $("ps5-login").hidden = s.pin_wanted == null;
+  $("ps5-login-text").textContent = s.pin_wanted ? t("Wrong passcode. Try again:") : t("The PS5 asks for your PlayStation login passcode:");
+  $("ps5-error").textContent = s.error || "";
+}
+listen("ps5", (e) => { if (!$("ps5-panel").hidden) showPs5(e.payload); });
+$("ps5-sign-in").addEventListener("click", () => invoke("ps5_sign_in").catch((e) => { $("ps5-error").textContent = String(e); }));
+$("ps5-sign-out").addEventListener("click", () => invoke("ps5_sign_out").then(() => renderPs5()));
+$("ps5-forget").addEventListener("click", () => invoke("ps5_forget").then(() => renderPs5()));
+$("ps5-find").addEventListener("click", async () => {
+  const b = $("ps5-find");
+  const sel = $("ps5-found");
+  b.disabled = true;
+  $("ps5-error").textContent = t("Looking for your PS5 …");
+  try {
+    const found = await invoke("ps5_find");
+    sel.innerHTML = "";
+    for (const f of found) sel.add(new Option(f.on ? `${f.name} (${f.host})` : t("{name} (in rest mode)", { name: `${f.name} (${f.host})` }), f.host));
+    sel.hidden = !found.length;
+    if (found.length) $("ps5-host").value = found[0].host;
+    $("ps5-error").textContent = found.length ? "" : t("No PS5 answered. Is it on, and on the same network as this PC? You can also type its address.");
+  } catch (e) {
+    $("ps5-error").textContent = String(e);
+  }
+  b.disabled = false;
+});
+$("ps5-found").addEventListener("change", (e) => { $("ps5-host").value = e.target.value; });
+$("ps5-link").addEventListener("click", async () => {
+  const b = $("ps5-link");
+  b.disabled = true;
+  $("ps5-error").textContent = t("Linking …");
+  try {
+    await invoke("ps5_link", { host: $("ps5-host").value.trim(), pin: $("ps5-pin").value });
+    $("ps5-pin").value = "";
+    $("ps5-error").textContent = "";
+  } catch (e) {
+    $("ps5-error").textContent = String(e);
+  }
+  b.disabled = false;
+  renderPs5();
+});
+$("ps5-login-send").addEventListener("click", () => {
+  invoke("ps5_login_pin", { pin: $("ps5-login-pin").value });
+  $("ps5-login-pin").value = "";
+  $("ps5-login").hidden = true;
 });
 function renderObs() {
   $("obs_port").value = cfg.obs_port;
@@ -553,7 +627,7 @@ $("window_title").addEventListener("change", (e) => {
 
 // ------------------------------------------------------------------------------------- the game's part of a window
 
-const isWindowSource = (v) => !!v && !v.startsWith("device:") && !v.startsWith("obs:");
+const isWindowSource = (v) => !!v && !v.startsWith("device:") && !v.startsWith("obs:") && !v.startsWith("ps5:");
 // "Screen 1 — DELL U2720Q (2560 × 1440)"
 const screenLabel = (s) => `${t("Screen {n}", { n: s.number })}${s.name ? ` — ${s.name}` : ""} (${s.w} × ${s.h})`;
 // a source or overlay value as people read it (a screen's id means nothing to them)

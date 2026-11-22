@@ -4,6 +4,8 @@
 //!
 //! Callbacks run on chiaki's own threads.
 
+pub mod play;
+
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::sync::{Arc, Once};
 
