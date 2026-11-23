@@ -122,6 +122,7 @@ window.AS = (() => {
   // Where the text box sits inside its region: {v: top|middle|bottom, h: left|center|right}.
   function alignOf(placement, area) {
     if (placement === "under_text") return { v: "top", h: "left" };
+    if (placement === "on_text") return { v: "top", h: "center" };
     if (placement === "above_text") return { v: "bottom", h: "center" };
     if (placement === "custom" && area) return { v: area.out_valign || "bottom", h: area.out_halign || "center" };
     if (area && area.text_pos) {
@@ -174,6 +175,8 @@ window.AS = (() => {
     const fs = Math.max(8, fontPx || style.font_size * fontScale * k);
     const bgMode = (area && area.background) || "";
     Object.assign(box.style, {
+      // (a box drawn again may have had a placement at the game's text: none of it stays)
+      position: "", left: "", top: "", transform: "", width: "", minWidth: "", minHeight: "",
       display: "block",
       direction: dir(),
       unicodeBidi: "plaintext",
@@ -511,7 +514,20 @@ window.AS = (() => {
   // tb: English text block [x, y, w, h] as fractions of the frame; lineH: English line height
   // (fraction); W, H: frame size in CSS px; ox, oy: where the box's container starts (CSS px).
   // Placements that follow the game's own text on screen (from the English text block).
-  const atText = (placement) => placement === "under_text" || placement === "above_text";
+  const atText = (placement) => placement === "under_text" || placement === "above_text" || placement === "on_text";
+
+  // The game profile's look (Game profile → How translations look), kept with the profile's page
+  // switches: "cover" puts each translation on an opaque black box right over the game's own lines,
+  // hiding the English, where those lines' box is known (`tb`); else the area's own placement.
+  const COVER = "translation_cover";
+  function look(area, style, opts, tb) {
+    if (!(opts && opts.more && opts.more[COVER] === true) || !tb) return { placement: area.placement, style, area };
+    return {
+      placement: "on_text",
+      style: Object.assign({}, style, { bg_color: "#000000", bg_opacity: 1 }),
+      area: Object.assign({}, area, { background: "" }),
+    };
+  }
 
   // "Just above the game's text": the Arabic's bottom right above the English, centred on it, as
   // wide as the area at most.
@@ -535,7 +551,9 @@ window.AS = (() => {
   // bottom (above_text).
   // gb: the game's own box around the text when the app found its edges ([x, y, w, h] fractions)
   function placeAtText(box, placement, tb, lineH, W, H, ox, oy, areaW, areaH, gb) {
-    if (placement === "under_text") {
+    if (placement === "on_text" && tb) {
+      placeOnText(box, tb, lineH, W, H, ox, oy);
+    } else if (placement === "under_text") {
       if (gb) placeUnderGameBox(box, gb, lineH || (tb && tb[3]) || 0.03, W, H, ox, oy);
       else if (tb) placeUnderText(box, tb, lineH, W, H, ox, oy);
       else Object.assign(box.style, { position: "absolute", left: "0", top: `${areaH}px`, margin: "0" });
@@ -544,6 +562,25 @@ window.AS = (() => {
     } else {
       Object.assign(box.style, { position: "absolute", left: "50%", bottom: `${areaH}px`, transform: "translateX(-50%)", margin: "0", width: "max-content", maxWidth: `${Math.max(areaW, 60)}px` });
     }
+  }
+
+  // Right over the game's text, centred on it: at least the English lines' width and a little more,
+  // wider when the translation needs it (up to 92 % of the picture) before it wraps, and as tall as
+  // the translation itself (a box taller than its text left an empty black band under it).
+  function placeOnText(box, tb, lineH, W, H, ox, oy) {
+    const lh = (lineH || tb[3]) * H;
+    const w = tb[2] * W + 2 * BOX_PAD.left * lh;
+    Object.assign(box.style, {
+      position: "absolute",
+      left: `${(tb[0] + tb[2] / 2) * W - ox}px`,
+      top: `${(tb[1] + tb[3] / 2) * H - oy}px`,
+      transform: "translate(-50%, -50%)",
+      margin: "0",
+      width: "max-content",
+      minWidth: `${w}px`,
+      maxWidth: `${Math.max(W * 0.92, w)}px`,
+      boxSizing: "border-box",
+    });
   }
 
   // Right under the game's box, with exactly its left and right edges (the text wraps inside).
@@ -581,5 +618,5 @@ window.AS = (() => {
   // An area's text style: its own, else the profile's (areas from before had none of their own).
   const styleOf = (area, base) => (area && area.style) || base;
 
-  return { setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText };
+  return { setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText, look, COVER };
 })();

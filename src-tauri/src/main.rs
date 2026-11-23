@@ -171,6 +171,14 @@ fn memory_status(state: tauri::State<AppState>) -> memory::Stats {
     state.memory.lock().unwrap().stats()
 }
 
+/// A line's translation from the memory, in the language in use, as plain text (the Game profile's
+/// look previews show a real game line): None when the memory doesn't have it.
+#[tauri::command]
+fn memory_line(state: tauri::State<AppState>, line: String) -> Option<String> {
+    let m = state.memory.lock().unwrap();
+    m.get(&line, &[], &[]).map(|(segs, _)| segs.iter().map(|s| s.0.as_str()).collect::<String>().trim().to_string())
+}
+
 #[tauri::command]
 fn memory_clear(webview: tauri::Webview, state: tauri::State<AppState>) -> Result<(), String> {
     main_only(&webview)?;
@@ -1357,7 +1365,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(hotkey::plugin())
         .manage(AppState { cfg: cfg.clone(), shared: shared.clone(), saver: saver.clone(), memory: memory.clone(), update: update.clone() })
-        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear])
+        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, memory_line, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_title(&format!("VI Translator {}", env!("CARGO_PKG_VERSION")));

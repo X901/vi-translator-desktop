@@ -390,4 +390,7 @@ I18N.add("ro", {
   "Download": "Descarcă",
   "The download page is open: install the new version from its .dmg.": "Pagina de descărcare e deschisă: instalează noua versiune din fișierul .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Urmează mărimea textului din joc. Schimb-o cu „Reglaj fin” de mai sus sau debifează „Potrivește mărimea textului jocului”.",
+  "How translations look": "Aspectul traducerilor",
+  "Above the game's text": "Deasupra textului jocului",
+  "Over the game's text, on a black box that hides it": "Peste textul jocului, pe o casetă neagră care îl ascunde",
 });

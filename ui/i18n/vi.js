@@ -390,4 +390,7 @@ I18N.add("vi", {
   "Download": "Tải xuống",
   "The download page is open: install the new version from its .dmg.": "Trang tải xuống đã mở: hãy cài phiên bản mới từ tệp .dmg của nó.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Theo cỡ chữ của game. Thay đổi bằng “Tinh chỉnh” ở trên, hoặc bỏ chọn “Khớp cỡ chữ của game”.",
+  "How translations look": "Cách hiển thị bản dịch",
+  "Above the game's text": "Phía trên chữ của game",
+  "Over the game's text, on a black box that hides it": "Đè lên chữ của game, trên một khung đen che chữ đó",
 });

@@ -390,4 +390,7 @@ I18N.add("tr", {
   "Download": "İndir",
   "The download page is open: install the new version from its .dmg.": "İndirme sayfası açıldı: yeni sürümü .dmg dosyasından yükleyin.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Oyunun yazı boyutunu izler. Yukarıdaki “İnce ayar” ile değiştirin ya da “Oyunun metin boyutuna uydur” işaretini kaldırın.",
+  "How translations look": "Çevirilerin görünümü",
+  "Above the game's text": "Oyunun yazısının üstünde",
+  "Over the game's text, on a black box that hides it": "Oyunun yazısının üstünde, onu gizleyen siyah bir kutuda",
 });

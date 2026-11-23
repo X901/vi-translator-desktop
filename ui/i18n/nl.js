@@ -390,4 +390,7 @@ I18N.add("nl", {
   "Download": "Downloaden",
   "The download page is open: install the new version from its .dmg.": "De downloadpagina is open: installeer de nieuwe versie uit de .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Volgt de tekstgrootte van de game. Wijzig die met ‘Fijnafstelling’ hierboven, of vink ‘Tekstgrootte van de game volgen’ uit.",
+  "How translations look": "Hoe vertalingen eruitzien",
+  "Above the game's text": "Boven de tekst van de game",
+  "Over the game's text, on a black box that hides it": "Over de tekst van de game, op een zwart vlak dat die verbergt",
 });

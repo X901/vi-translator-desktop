@@ -390,4 +390,7 @@ I18N.add("el", {
   "Download": "Λήψη",
   "The download page is open: install the new version from its .dmg.": "Η σελίδα λήψης άνοιξε: εγκαταστήστε τη νέα έκδοση από το .dmg της.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Ακολουθεί το μέγεθος του κειμένου του παιχνιδιού. Αλλάξτε το με «Λεπτομερής ρύθμιση» παραπάνω ή αποεπιλέξτε «Ίδιο μέγεθος κειμένου με το παιχνίδι».",
+  "How translations look": "Εμφάνιση μεταφράσεων",
+  "Above the game's text": "Πάνω από το κείμενο του παιχνιδιού",
+  "Over the game's text, on a black box that hides it": "Πάνω στο κείμενο του παιχνιδιού, σε μαύρο πλαίσιο που το κρύβει",
 });

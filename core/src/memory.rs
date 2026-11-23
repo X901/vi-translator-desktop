@@ -58,7 +58,16 @@ pub struct Memory {
     /// translations downloaded in the background, by language (the one in use is applied; the others
     /// wait for a switch back): kept through reload, clear and language switches
     packs: HashMap<String, Vec<Entry>>,
+    /// the near match found for recent texts (None: none close enough), until the memory changes
+    near_cache: std::cell::RefCell<HashMap<String, Option<String>>>,
 }
+
+/// How many texts' near matches are kept (then all are forgotten and found again).
+const NEAR_CACHE: usize = 2048;
+/// How many of a text's rarest words find the lines it's compared with.
+const RARE_WORDS: usize = 3;
+/// How many of those lines (most words in common first) are compared letter by letter.
+const NEAR_TRIES: usize = 40;
 
 /// How much we trust each source: a better translation is never replaced by a worse one.
 fn rank(source: &str) -> u8 {
@@ -212,7 +221,7 @@ impl Memory {
                 }
             }
         }
-        let mut m = Self { dir, lang: lang.to_string(), path, map: HashMap::new(), index: HashMap::new(), hits: 0, misses: 0, hit_ms: 0.0, miss_ms: 0.0, packs: HashMap::new() };
+        let mut m = Self { dir, lang: lang.to_string(), path, map: HashMap::new(), index: HashMap::new(), hits: 0, misses: 0, hit_ms: 0.0, miss_ms: 0.0, packs: HashMap::new(), near_cache: Default::default() };
         for (k, e) in map {
             m.insert(k, e);
         }
@@ -220,6 +229,7 @@ impl Memory {
     }
 
     fn remove(&mut self, key: &str) {
+        self.near_cache.get_mut().clear();
         if self.map.remove(key).is_some() {
             for w in key.split(' ') {
                 if let Some(keys) = self.index.get_mut(w) {
@@ -230,6 +240,7 @@ impl Memory {
     }
 
     fn insert(&mut self, key: String, e: Entry) {
+        self.near_cache.get_mut().clear();
         if !self.map.contains_key(&key) {
             let mut words: Vec<&str> = key.split(' ').collect();
             words.sort_unstable();
@@ -241,47 +252,72 @@ impl Memory {
         self.map.insert(key, e);
     }
 
-    /// Best entry for this English: exact key, else a close one (≥ 92 %, same number of icons).
-    /// Near matches are looked for only among lines sharing ≥ 70 % of the words (via the word
-    /// index), best 20 first — so a miss stays fast even with many thousands of lines.
+    /// Best entry for this English: exact key, else a close one (≥ 86–92 %, same number of icons).
+    /// A near match is looked for once per text: the answer is kept (`near_cache`) until the
+    /// memory changes, as the same subtitle is read again on every pass while it's on screen.
     fn find(&self, key: &str) -> Option<&Entry> {
         if let Some(e) = self.map.get(key) {
             return Some(e);
         }
+        let known = self.near_cache.borrow().get(key).cloned();
+        let found = match known {
+            Some(found) => found,
+            None => {
+                let found = self.near(key);
+                let mut cache = self.near_cache.borrow_mut();
+                if cache.len() >= NEAR_CACHE {
+                    cache.clear();
+                }
+                cache.insert(key.to_string(), found.clone());
+                found
+            }
+        };
+        found.and_then(|k| self.map.get(&k))
+    }
+
+    /// The key of the line closest to `key`, if one is close enough. Only lines that share one of
+    /// `key`'s rarest words are compared (via the word index): a line that shares none of its few
+    /// rarest words isn't that line. Counting every line with "the" or "you" in it, as before, took
+    /// 24 ms for a near hit and 140 ms for a miss in a memory of 400,000 lines.
+    fn near(&self, key: &str) -> Option<String> {
         let mut words: Vec<&str> = key.split(' ').collect();
         words.sort_unstable();
         words.dedup();
+        // (words the memory doesn't have at all are left out: OCR noise, "Yepr", "cometo")
+        let mut known: Vec<&Vec<String>> = words.iter().filter_map(|w| self.index.get(*w)).collect();
+        known.sort_unstable_by_key(|keys| keys.len());
+        let icons = key.matches('{').count();
+        let len = key.chars().count() as f64;
+        // (lines of about the same length only: can't be that alike otherwise)
+        let fits = |k: &str| {
+            let kl = k.chars().count() as f64;
+            (kl - len).abs() <= len * 0.15 + 2.0 && k.matches('{').count() == icons
+        };
         let mut shared: HashMap<&str, usize> = HashMap::new();
-        for w in &words {
-            if let Some(keys) = self.index.get(*w) {
-                for k in keys {
-                    *shared.entry(k.as_str()).or_default() += 1;
+        for keys in known.iter().take(RARE_WORDS) {
+            for k in keys.iter() {
+                if let Some(n) = shared.get_mut(k.as_str()) {
+                    *n += 1;
+                } else if fits(k) {
+                    shared.insert(k.as_str(), 1);
                 }
             }
         }
-        // (half the words in common: OCR noise breaks a word or two of a line — "Yepr", "cometo")
-        let need = words.len().div_ceil(2).max(1);
-        let mut cands: Vec<(&str, usize)> = shared.into_iter().filter(|(_, n)| *n >= need).collect();
+        let mut cands: Vec<(&str, usize)> = shared.into_iter().collect();
         cands.sort_unstable_by(|a, b| b.1.cmp(&a.1));
-        let icons = key.matches('{').count();
-        let len = key.chars().count() as f64;
-        let mut best: Option<(f64, &Entry)> = None;
+        let mut best: Option<(f64, &str)> = None;
         // compared without spaces (a lost or extra space is no difference); long lines may differ a
         // little more than short ones, where one letter can change the meaning
         let bare = |t: &str| t.replace(' ', "");
         let key_bare = bare(key);
         let need_sim = if key_bare.chars().count() >= 12 { 0.86 } else { 0.92 };
-        for (k, _) in cands.into_iter().take(20) {
-            let kl = k.chars().count() as f64;
-            if (kl - len).abs() > len * 0.15 + 2.0 || k.matches('{').count() != icons {
-                continue; // can't be that alike anyway
-            }
+        for (k, _) in cands.into_iter().take(NEAR_TRIES) {
             let s = similarity(&bare(k), &key_bare);
             if s >= need_sim && best.is_none_or(|(b, _)| s > b) {
-                best = Some((s, &self.map[k]));
+                best = Some((s, k));
             }
         }
-        best.map(|(_, e)| e)
+        best.map(|(_, k)| k.to_string())
     }
 
     pub fn knows(&self, line: &str) -> bool {

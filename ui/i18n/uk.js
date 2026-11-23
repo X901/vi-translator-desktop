@@ -390,4 +390,7 @@ I18N.add("uk", {
   "Download": "Завантажити",
   "The download page is open: install the new version from its .dmg.": "Сторінка завантаження відкрита: установіть нову версію з її .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Дорівнює розміру тексту гри. Змініть його за допомогою «Точне налаштування» вище або зніміть позначку «Підганяти під розмір тексту гри».",
+  "How translations look": "Вигляд перекладів",
+  "Above the game's text": "Над текстом гри",
+  "Over the game's text, on a black box that hides it": "Поверх тексту гри, на чорній плашці, що його ховає",
 });

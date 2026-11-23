@@ -390,4 +390,7 @@ I18N.add("cs", {
   "Download": "Stáhnout",
   "The download page is open: install the new version from its .dmg.": "Stránka ke stažení je otevřená: nainstalujte novou verzi z jejího souboru .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Řídí se velikostí textu ve hře. Změňte ji pomocí „Jemné doladění“ výše, nebo zrušte „Přizpůsobit velikosti textu hry“.",
+  "How translations look": "Vzhled překladů",
+  "Above the game's text": "Nad textem hry",
+  "Over the game's text, on a black box that hides it": "Přes text hry, na černém poli, které ho zakryje",
 });

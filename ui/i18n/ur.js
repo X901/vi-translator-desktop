@@ -390,4 +390,7 @@ I18N.add("ur", {
   "Download": "ڈاؤن لوڈ",
   "The download page is open: install the new version from its .dmg.": "ڈاؤن لوڈ کا صفحہ کھل گیا ہے: اس کی ‎.dmg‎ سے نیا ورژن انسٹال کریں۔",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "گیم کے متن کے سائز کے مطابق ہے۔ اسے اوپر “باریک ترتیب” سے بدلیں، یا “گیم کے متن کے سائز سے ملائیں” سے نشان ہٹائیں۔",
+  "How translations look": "ترجمے کیسے دکھیں",
+  "Above the game's text": "گیم کے متن کے اوپر",
+  "Over the game's text, on a black box that hides it": "گیم کے متن کے اوپر، ایک سیاہ خانے میں جو اسے چھپا دے",
 });

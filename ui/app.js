@@ -39,6 +39,8 @@ function openTab(name) {
   document.body.dataset.tab = name;
   editingChanged();
   if (name === "show" && cfg) { updateLan(); updateTvs(); } // (at once, not at the next 3-second refresh)
+  // (the look previews are measured, so drawn once their tab shows: the language or style may have changed)
+  if (name === "profile" && cfg) drawLookPreviews($("profile-form"));
 }
 
 // The read areas are edited on the preview only in Setup with the Read areas tab open: their boxes,
@@ -162,10 +164,12 @@ function drawLayer() {
       AS.anchor(band, a.placement, a);
       // matched size only for real translations (the sample text has no English line to match)
       const fontPx = lastSegs[a.id]?.length ? AS.matchedPx(a, lastLineH[a.id], shown.h) : 0;
-      AS.renderBox(box, segs, AS.styleOf(a, cfg.style), k, a.font_scale, a.placement, a, fontPx);
-      if (AS.atText(a.placement)) {
-        const tb = lastSegs[a.id]?.length ? lastTextBox[a.id] : null;
-        AS.placeAtText(box, a.placement, tb, lastLineH[a.id], shown.w, shown.h, r.x, r.y, px.w, px.h, tb ? lastGameBox[a.id] : null);
+      const tb = lastSegs[a.id]?.length ? lastTextBox[a.id] : null;
+      // (the profile's look: over the game's lines on a black box, or the area's own placement)
+      const L = AS.look(a, AS.styleOf(a, cfg.style), cfg.profile_opts, tb);
+      AS.renderBox(box, segs, L.style, k, a.font_scale, L.placement, L.area, fontPx);
+      if (AS.atText(L.placement)) {
+        AS.placeAtText(box, L.placement, tb, lastLineH[a.id], shown.w, shown.h, r.x, r.y, px.w, px.h, tb ? lastGameBox[a.id] : null);
       }
       band.insertAdjacentHTML("beforeend", `<div class="tag">${AS.esc(t("Translation · {name}", { name: a.name }))}</div>`);
       addHandles(band, a, "out");
@@ -2005,6 +2009,7 @@ function renderProfile() {
   const p = activeProfile();
   const opt = (x) => `<option value="${AS.esc(x.id)}" ${x.id === cfg.profile ? "selected" : ""}>${AS.esc(x.name)}</option>`;
   const mine = cfg.profiles || [];
+  const cover = cfg.profile_opts?.more?.[AS.COVER] === true;
   f.innerHTML = `
     <div class="field"><label for="pf-select">${t("Profile in use")}</label>
       <select id="pf-select">
@@ -2025,7 +2030,26 @@ function renderProfile() {
     </div>
     <p class="muted small">${isBuiltin(p)
       ? t("Built-in profiles get updates for the game automatically. A copy keeps your changes and stays yours.")
-      : t("Your changes to read areas, text style and game pages are saved in this profile.")}</p>`;
+      : t("Your changes to read areas, text style and game pages are saved in this profile.")}</p>
+    ${isBuiltin(p) ? `
+    <h3>${t("How translations look")}</h3>
+    <div class="looks">
+      <label class="look-opt"><span class="check" style="color:var(--text)"><input type="radio" name="pf-look" value="above" ${cover ? "" : "checked"}/> ${t("Above the game's text")}</span>
+        <div class="look-stage" data-look="above"></div></label>
+      <label class="look-opt"><span class="check" style="color:var(--text)"><input type="radio" name="pf-look" value="cover" ${cover ? "checked" : ""}/> ${t("Over the game's text, on a black box that hides it")}</span>
+        <div class="look-stage" data-look="cover"></div></label>
+    </div>` : ""}`;
+  // (built-in profiles only: a profile of your own places each area's translation itself. Kept like
+  // a game page's switch: in the profile, a built-in one too)
+  f.querySelectorAll('input[name="pf-look"]').forEach((el) => el.addEventListener("change", () => {
+    const on = el.value === "cover" && el.checked;
+    cfg.profile_opts.more = cfg.profile_opts.more || {};
+    cfg.profile_opts.more[AS.COVER] = on;
+    setShown("page", AS.COVER, on);
+    drawLayer();
+    save();
+  }));
+  drawLookPreviews(f);
   $("pf-select").addEventListener("change", (e) => useProfile(e.target.value));
   $("pf-copy").addEventListener("click", () => copyProfile(activeProfile()));
   $("pf-delete")?.addEventListener("click", () => deleteProfile(activeProfile()));
@@ -2035,6 +2059,41 @@ function renderProfile() {
     save(false);
   });
   $("pf-name")?.addEventListener("change", () => renderProfile());
+}
+
+// The look previews: the whole picture (16:9, the line at its size on screen) with a real line of the game and its
+// translation in the language in use (from the memory), drawn as the overlays draw it, with this
+// profile's subtitle style. (A plain dark background: no game picture in the app.)
+const LOOK_LINE = "Okay, listen to me very carefully.";
+async function drawLookPreviews(form) {
+  const stages = form.querySelectorAll(".look-stage");
+  if (!stages.length) return;
+  let text = null;
+  try { text = await invoke("memory_line", { line: LOOK_LINE }); } catch (e) { /* (the memory isn't ready: the English) */ }
+  const area = cfg.areas.find((a) => a.id === "subtitles") || cfg.areas[0];
+  if (!area) return;
+  const style = AS.styleOf(area, cfg.style);
+  for (const stage of stages) {
+    stage.innerHTML = "";
+    const en = document.createElement("div");
+    en.className = "look-en";
+    en.textContent = LOOK_LINE;
+    stage.appendChild(en);
+    const W = stage.clientWidth, H = stage.clientHeight;
+    if (!W || !H) continue;
+    // (the game's subtitles are about 3.5 % of the picture's height)
+    en.style.fontSize = `${Math.max(7, H * 0.035)}px`;
+    const s = stage.getBoundingClientRect(), r = en.getBoundingClientRect();
+    const tb = [(r.left - s.left) / W, (r.top - s.top) / H, r.width / W, r.height / H];
+    const cover = stage.dataset.look === "cover";
+    const L = AS.look(Object.assign({}, area, { placement: "above_text" }), style, { more: { [AS.COVER]: cover } }, tb);
+    const box = document.createElement("div");
+    stage.appendChild(box);
+    // (the game's size, as "Match the game's text size" gives it; the style's look otherwise)
+    const px = AS.matchedPx(Object.assign({}, area, { match_size: true }), tb[3], H);
+    AS.renderBox(box, [[text || LOOK_LINE, null]], L.style, H / 360, area.font_scale, L.placement, L.area, px);
+    AS.placeAtText(box, L.placement, tb, tb[3], W, H, 0, 0, W, H, null);
+  }
 }
 
 /** A script's text: plain, or by interface language (English the fallback). */

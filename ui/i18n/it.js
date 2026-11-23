@@ -390,4 +390,7 @@ I18N.add("it", {
   "Download": "Scarica",
   "The download page is open: install the new version from its .dmg.": "La pagina di download è aperta: installa la nuova versione dal suo .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Segue la dimensione del testo del gioco. Cambiala con “Regolazione fine” qui sopra, o togli la spunta a “Adatta alla dimensione del testo del gioco”.",
+  "How translations look": "Aspetto delle traduzioni",
+  "Above the game's text": "Sopra il testo del gioco",
+  "Over the game's text, on a black box that hides it": "Sopra il testo del gioco, su un riquadro nero che lo nasconde",
 });

@@ -47,8 +47,10 @@
             band.appendChild(box);
             areasEl.appendChild(band);
             AS.anchor(band, a.placement, a);
-            AS.renderBox(box, ev.segments, AS.styleOf(a, state.style), k, a.font_scale, a.placement, a, AS.matchedPx(a, ev.line_h, H));
-            if (AS.atText(a.placement)) AS.placeAtText(box, a.placement, ev.text_box, ev.line_h, W, H, r.x, r.y, px.w, px.h, ev.game_box);
+            // (the profile's look: over the game's lines on a black box, or the area's own placement)
+            const L = AS.look(a, AS.styleOf(a, state.style), state.profile_opts, ev.text_box);
+            AS.renderBox(box, ev.segments, L.style, k, a.font_scale, L.placement, L.area, AS.matchedPx(a, ev.line_h, H));
+            if (AS.atText(L.placement)) AS.placeAtText(box, L.placement, ev.text_box, ev.line_h, W, H, r.x, r.y, px.w, px.h, ev.game_box);
           }
         }
         AS.renderScreen(screenEl, state.screen, state.reason || [], state.profile_opts);

@@ -390,4 +390,7 @@ I18N.add("th", {
   "Download": "ดาวน์โหลด",
   "The download page is open: install the new version from its .dmg.": "เปิดหน้าดาวน์โหลดแล้ว ติดตั้งเวอร์ชันใหม่จากไฟล์ .dmg",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "ใช้ขนาดตามข้อความในเกม เปลี่ยนได้ด้วย “ปรับละเอียด” ด้านบน หรือเอาเครื่องหมายที่ “ใช้ขนาดตัวอักษรเท่ากับเกม” ออก",
+  "How translations look": "ลักษณะของคำแปล",
+  "Above the game's text": "เหนือข้อความของเกม",
+  "Over the game's text, on a black box that hides it": "ทับข้อความของเกม บนกล่องสีดำที่ปิดข้อความไว้",
 });

@@ -390,4 +390,7 @@ I18N.add("sw", {
   "Download": "Pakua",
   "The download page is open: install the new version from its .dmg.": "Ukurasa wa kupakua umefunguliwa: sakinisha toleo jipya kutoka kwa .dmg yake.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Hufuata ukubwa wa maandishi ya mchezo. Ubadilishe kwa “Rekebisha kwa kina” hapo juu, au ondoa alama kwenye “Linganisha na ukubwa wa maandishi ya mchezo”.",
+  "How translations look": "Jinsi tafsiri zinavyoonekana",
+  "Above the game's text": "Juu ya maandishi ya mchezo",
+  "Over the game's text, on a black box that hides it": "Juu ya maandishi ya mchezo, kwenye kisanduku cheusi kinachoyaficha",
 });

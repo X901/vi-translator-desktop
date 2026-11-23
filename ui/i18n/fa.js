@@ -390,4 +390,7 @@ I18N.add("fa", {
   "Download": "دانلود",
   "The download page is open: install the new version from its .dmg.": "صفحهٔ دانلود باز شد: نسخهٔ جدید را از فایل ‎.dmg‎ آن نصب کنید.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "از اندازهٔ متن بازی پیروی می‌کند. آن را با «تنظیم دقیق» در بالا تغییر دهید یا تیک «هم‌اندازه با متن بازی» را بردارید.",
+  "How translations look": "ظاهر ترجمه‌ها",
+  "Above the game's text": "بالای متن بازی",
+  "Over the game's text, on a black box that hides it": "روی متن بازی، در یک کادر سیاه که آن را می‌پوشاند",
 });

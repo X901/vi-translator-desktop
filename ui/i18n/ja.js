@@ -390,4 +390,7 @@ I18N.add("ja", {
   "Download": "ダウンロード",
   "The download page is open: install the new version from its .dmg.": "ダウンロードページを開きました。その .dmg から新しいバージョンをインストールしてください。",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "ゲームの文字サイズに合わせます。上の「微調整」で変えるか、「ゲームの文字サイズに合わせる」のチェックを外してください。",
+  "How translations look": "翻訳の表示",
+  "Above the game's text": "ゲームの文字の上に",
+  "Over the game's text, on a black box that hides it": "ゲームの文字の上に、それを隠す黒い枠で",
 });

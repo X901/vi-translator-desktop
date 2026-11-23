@@ -390,4 +390,7 @@ I18N.add("fil", {
   "Download": "I-download",
   "The download page is open: install the new version from its .dmg.": "Bukas na ang download page: i-install ang bagong bersyon mula sa .dmg nito.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Sumusunod sa laki ng text ng laro. Baguhin ito gamit ang “Pinong pag-aayos” sa itaas, o alisin ang tsek sa “Itugma sa laki ng teksto ng laro”.",
+  "How translations look": "Itsura ng mga salin",
+  "Above the game's text": "Sa itaas ng text ng laro",
+  "Over the game's text, on a black box that hides it": "Sa ibabaw ng text ng laro, sa itim na kahon na nagtatago rito",
 });

@@ -390,4 +390,7 @@ I18N.add("ko", {
   "Download": "다운로드",
   "The download page is open: install the new version from its .dmg.": "다운로드 페이지가 열렸습니다. 해당 .dmg로 새 버전을 설치하세요.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "게임의 글자 크기를 따릅니다. 위의 “미세 조정”(으)로 바꾸거나 “게임 텍스트 크기에 맞추기” 체크를 해제하세요.",
+  "How translations look": "번역 표시 방식",
+  "Above the game's text": "게임 글자 위쪽에",
+  "Over the game's text, on a black box that hides it": "게임 글자 위에, 글자를 가리는 검은 상자로",
 });

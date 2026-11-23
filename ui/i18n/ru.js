@@ -390,4 +390,7 @@ I18N.add("ru", {
   "Download": "Скачать",
   "The download page is open: install the new version from its .dmg.": "Страница загрузки открыта: установите новую версию из её .dmg.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Следует размеру текста игры. Измените его с помощью «Точная настройка» выше или снимите флажок «Подгонять под размер текста игры».",
+  "How translations look": "Вид переводов",
+  "Above the game's text": "Над текстом игры",
+  "Over the game's text, on a black box that hides it": "Поверх текста игры, на чёрной плашке, которая его скрывает",
 });

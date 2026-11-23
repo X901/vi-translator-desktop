@@ -390,4 +390,7 @@ I18N.add("zh-Hant", {
   "Download": "下載",
   "The download page is open: install the new version from its .dmg.": "下載頁面已開啟：請用其中的 .dmg 安裝新版本。",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "跟隨遊戲的文字大小。請用上面的「微調」來改，或取消勾選「符合遊戲文字大小」。",
+  "How translations look": "翻譯的顯示方式",
+  "Above the game's text": "在遊戲文字上方",
+  "Over the game's text, on a black box that hides it": "蓋在遊戲文字上，用黑色方框把它遮住",
 });

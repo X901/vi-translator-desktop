@@ -41,11 +41,13 @@
         // style sizes are for a 1080p window; the overlay window is sized in physical pixels
         const k = geom.client_h / 1080 / window.devicePixelRatio;
         const px = AS.matchedPx(area, lineH, geom.client_h / window.devicePixelRatio);
-        AS.renderBox(box, segments, AS.styleOf(area, cfg.style), k, area.font_scale, area.placement, area, px);
-        if (AS.atText(area.placement)) {
+        // (the profile's look: over the game's lines on a black box, or the area's own placement)
+        const L = AS.look(area, AS.styleOf(area, cfg.style), cfg.profile_opts, textBox);
+        AS.renderBox(box, segments, L.style, k, area.font_scale, L.placement, L.area, px);
+        if (AS.atText(L.placement)) {
           const dpr = window.devicePixelRatio;
           const W = (geom.client_w || 0) / dpr, H = geom.client_h / dpr;
-          AS.placeAtText(box, area.placement, W ? textBox : null, lineH, W, H, (geom.win_x || 0) / dpr, (geom.win_y || 0) / dpr, area.w * W, area.h * H, W ? gameBox : null);
+          AS.placeAtText(box, L.placement, W ? textBox : null, lineH, W, H, (geom.win_x || 0) / dpr, (geom.win_y || 0) / dpr, area.w * W, area.h * H, W ? gameBox : null);
         }
       }
 

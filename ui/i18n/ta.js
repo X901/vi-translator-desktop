@@ -390,4 +390,7 @@ I18N.add("ta", {
   "Download": "பதிவிறக்கு",
   "The download page is open: install the new version from its .dmg.": "பதிவிறக்கப் பக்கம் திறந்துள்ளது: அதன் .dmg இலிருந்து புதிய பதிப்பை நிறுவவும்.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "விளையாட்டின் உரை அளவைப் பின்பற்றுகிறது. மேலே உள்ள “நுண் சரிசெய்தல்” மூலம் மாற்றவும், அல்லது “கேமின் உரை அளவுக்குப் பொருத்தவும்” என்பதைத் தேர்வுநீக்கவும்.",
+  "How translations look": "மொழிபெயர்ப்புகள் எப்படித் தெரிய வேண்டும்",
+  "Above the game's text": "விளையாட்டின் உரைக்கு மேலே",
+  "Over the game's text, on a black box that hides it": "விளையாட்டின் உரையின் மேல், அதை மறைக்கும் கருப்புப் பெட்டியில்",
 });

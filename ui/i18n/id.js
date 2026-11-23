@@ -390,4 +390,7 @@ I18N.add("id", {
   "Download": "Unduh",
   "The download page is open: install the new version from its .dmg.": "Halaman unduhan terbuka: pasang versi baru dari .dmg-nya.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "Mengikuti ukuran teks game. Ubah dengan “Penyesuaian halus” di atas, atau hapus centang “Samakan dengan ukuran teks game”.",
+  "How translations look": "Tampilan terjemahan",
+  "Above the game's text": "Di atas teks game",
+  "Over the game's text, on a black box that hides it": "Di atas teks game, pada kotak hitam yang menutupinya",
 });

@@ -390,4 +390,7 @@ I18N.add("zh-Hans", {
   "Download": "下载",
   "The download page is open: install the new version from its .dmg.": "下载页面已打开：请用其中的 .dmg 安装新版本。",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "跟随游戏的文字大小。请用上面的“微调”来改，或取消勾选“匹配游戏文字大小”。",
+  "How translations look": "翻译的显示方式",
+  "Above the game's text": "在游戏文字上方",
+  "Over the game's text, on a black box that hides it": "盖在游戏文字上，用黑色方框把它遮住",
 });

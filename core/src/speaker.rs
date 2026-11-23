@@ -16,11 +16,19 @@ pub const NAME_PREFIX: &str = "name:";
 /// game (a highlighted phrase starting with it): a white "Tip:" or "Note:" is part of the text.
 pub fn split<'a>(en: &'a str, phrases: &[(String, String)]) -> Option<(String, String, &'a str)> {
     let (tagged, rest) = crate::ocr::split_name(en)?;
-    // the phrase is the name, or a highlighted run that starts with it
-    let first = tagged.split_whitespace().next()?;
+    // the phrase is the name, or a highlighted run that starts with it. Compared without the colon
+    // (and the dots OCR reads next to it): the game colours the name, and its colour may stop before
+    // the colon ("Andrew" for "Andrew:"), which as a whole line went to the translator, the colon
+    // coming back as a bracket ("أندرو)") and the name uncoloured.
+    let name = bare_name(&tagged);
+    let word = |w: &str| w.trim_end_matches(|c: char| matches!(c, ':' | '.' | '…' | ',' | ';')).to_string();
+    let first = word(name.split_whitespace().next()?);
     let color = phrases
         .iter()
-        .find(|(p, _)| p.starts_with(tagged.as_str()) || (p.split_whitespace().next() == Some(first) && tagged.starts_with(p.as_str())))?
+        .find(|(p, _)| {
+            let p = p.trim();
+            p.starts_with(tagged.as_str()) || p.starts_with(name.as_str()) || (p.split_whitespace().next().map(word).as_deref() == Some(first.as_str()) && name.starts_with(word(p).as_str()))
+        })?
         .1
         .clone();
     if rest.chars().filter(|c| c.is_alphabetic()).count() < 2 {
@@ -671,6 +679,22 @@ mod tests {
     fn a_coloured_name_is_split_off() {
         let (name, color, rest) = split("Dobbs: Not to be annoying, can you fix my leg?", &gold()).unwrap();
         assert_eq!((name.as_str(), color.as_str(), rest), ("Dobbs", "#ffd69f", "Not to be annoying, can you fix my leg?"));
+    }
+
+    #[test]
+    fn a_name_coloured_without_its_colon_is_split_off() {
+        // the game's colour stopped before the colon: the line went whole to the translator
+        // ("أندرو) طالما…") and the name came out uncoloured
+        let ph = vec![("Andrew".to_string(), "#7fc8ff".to_string())];
+        let (name, color, rest) = split("Andrew: As long as it's under a thousand.", &ph).unwrap();
+        assert_eq!((name.as_str(), color.as_str(), rest), ("Andrew", "#7fc8ff", "As long as it's under a thousand."));
+        let ph = vec![("Real Dimez".to_string(), "#c8a0ff".to_string())];
+        assert_eq!(split("Real Dimez: Yo.", &ph).unwrap().0, "Real Dimez");
+        let ph = vec![("Stefanie".to_string(), "#ffb0d0".to_string())];
+        assert_eq!(split("Stefanie: So it wasn't premeditated?", &ph).unwrap().1, "#ffb0d0");
+        // another word coloured, not the name: no name
+        let ph = vec![("premeditated".to_string(), "#ff0".to_string())];
+        assert!(split("Stefanie: So it wasn't premeditated?", &ph).is_none());
     }
 
     #[test]

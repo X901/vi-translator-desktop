@@ -390,4 +390,7 @@ I18N.add("ar", {
   "Download": "تنزيل",
   "The download page is open: install the new version from its .dmg.": "فُتحت صفحة التنزيل: ثبّت الإصدار الجديد من ملف ‎.dmg‎.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "يتبع حجم نص اللعبة. غيّره من «ضبط دقيق» أعلاه، أو ألغِ تحديد «مطابقة حجم نص اللعبة».",
+  "How translations look": "شكل الترجمة",
+  "Above the game's text": "فوق نص اللعبة",
+  "Over the game's text, on a black box that hides it": "فوق نص اللعبة، على مربع أسود يُخفيه",
 });

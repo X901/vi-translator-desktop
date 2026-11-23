@@ -390,4 +390,7 @@ I18N.add("te", {
   "Download": "డౌన్‌లోడ్",
   "The download page is open: install the new version from its .dmg.": "డౌన్‌లోడ్ పేజీ తెరిచింది: దాని .dmg నుండి కొత్త వెర్షన్‌ను ఇన్‌స్టాల్ చేయండి.",
   "Follows the game's text size. Change it with Fine-tune above, or untick “Match the game's text size”.": "గేమ్ టెక్స్ట్ పరిమాణాన్ని అనుసరిస్తుంది. పైన ఉన్న “సూక్ష్మ సర్దుబాటు”తో మార్చండి, లేదా “గేమ్ టెక్స్ట్ పరిమాణానికి సరిపోల్చండి” టిక్ తీసేయండి.",
+  "How translations look": "అనువాదాలు ఎలా కనిపించాలి",
+  "Above the game's text": "గేమ్ టెక్స్ట్ పైన",
+  "Over the game's text, on a black box that hides it": "గేమ్ టెక్స్ట్ పైన, దాన్ని కప్పే నల్ల పెట్టెలో",
 });

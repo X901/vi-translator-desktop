@@ -520,3 +520,12 @@ dialog.part .part-msg { font-size: 13px; color: var(--muted); min-height: 18px; 
 .card .area-style { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .card .area-style > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text); user-select: none; }
 .card .area-style > .form { margin-top: 10px; }
+
+/* Game profile: how translations look, each with a zoomed-in preview */
+.looks { display: grid; gap: 12px; }
+.look-opt { display: block; padding: 12px; border-radius: var(--radius); background: var(--panel-2); cursor: pointer; }
+.look-stage { position: relative; aspect-ratio: 16 / 9; margin-top: 10px; border-radius: var(--radius-sm); overflow: hidden;
+  background: radial-gradient(120% 90% at 30% 20%, #4a5a6e 0%, #26313f 45%, #12161d 100%); }
+.look-en { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); white-space: nowrap;
+  color: #fff; font: 600 10px/1.25 "Segoe UI", Arial, sans-serif; direction: ltr;
+  text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000, 0 0 3px #000; }
