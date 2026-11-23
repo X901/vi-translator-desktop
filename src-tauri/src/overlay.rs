@@ -26,6 +26,7 @@ struct Geom {
 
 /// Window label of the full-window overlay used by game-profile screens.
 pub const SCREEN_LABEL: &str = "ov-screen";
+pub const PHONE_LABEL: &str = "ov-phone";
 
 pub fn label_for(id: &str) -> String {
     let safe: String = id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
@@ -150,6 +151,9 @@ pub fn position_loop(app: AppHandle, cfg: Arc<Mutex<Config>>, shared: Arc<Shared
         for a in c.areas.iter().filter(|a| a.enabled) {
             // While a profile screen is up, the area overlays step aside.
             let rect = match (visible && !screen_on, client) {
+                // (over the game's text, or riding above its stacked lines: the box goes where the game's
+                // text is, so the window covers the whole picture)
+                (true, Some((_, _, cw, ch))) if c.cover_look() || c.fx(&a.id).rides(&a.id) => Some((0, 0, cw, ch)),
                 (true, Some((_, _, cw, ch))) => Some(overlay_rect(a, cw, ch)),
                 _ => None,
             };
@@ -160,6 +164,13 @@ pub fn position_loop(app: AppHandle, cfg: Arc<Mutex<Config>>, shared: Arc<Shared
             _ => None,
         };
         wanted.push((SCREEN_LABEL.into(), "__screen".into(), "screen".into(), screen_rect));
+        // GTA VI's phone held up: its translations beside it, over the whole picture
+        let phone_on = shared.phone_active.load(Ordering::Relaxed);
+        let phone_rect = match (visible && phone_on && !screen_on, client) {
+            (true, Some((_, _, cw, ch))) => Some((0, 0, cw, ch)),
+            _ => None,
+        };
+        wanted.push((PHONE_LABEL.into(), "__phone".into(), "phone".into(), phone_rect));
 
         for (label, win) in app.webview_windows() {
             if label.starts_with("ov-") && !wanted.iter().any(|w| w.0 == label) {
@@ -172,7 +183,7 @@ pub fn position_loop(app: AppHandle, cfg: Arc<Mutex<Config>>, shared: Arc<Shared
 
         for (label, id, placement, rect) in &wanted {
             // Don't create the screen window until a screen actually appears.
-            if label == SCREEN_LABEL && rect.is_none() && app.get_webview_window(label).is_none() {
+            if (label == SCREEN_LABEL || label == PHONE_LABEL) && rect.is_none() && app.get_webview_window(label).is_none() {
                 continue;
             }
             let Some(win) = ensure_window(&app, label, id) else { continue };

@@ -28,6 +28,19 @@ pub struct Live {
     pub on_screen: Mutex<HashMap<String, serde_json::Value>>,
     /// Area id -> the full translation event now shown (segments, size, place), for the OBS and TV pages.
     pub shown: Mutex<HashMap<String, serde_json::Value>>,
+    /// Area id -> the game's text seen there and not translated on screen yet: {"seq", "text_box",
+    /// "game_box", "line_h"} (seq 0 = not sent to the translator yet). With the "over the game's
+    /// text" look its black box goes up at once (Read Areas: "black box as soon as the text appears").
+    pub covers: Mutex<HashMap<String, serde_json::Value>>,
+    /// GTA VI's phone held up: where its screen is and its pieces' translations ({"screen", "pieces"};
+    /// see engine::read_phone), for the overlay that draws them beside it.
+    pub phone: Mutex<Option<serde_json::Value>>,
+    /// When the phone was last seen (it goes a moment after it's put away).
+    pub phone_seen: Mutex<Option<std::time::Instant>>,
+    /// The phone's pieces as read before (see phone::steady).
+    pub phone_pieces: Mutex<Vec<crate::phone::Seen>>,
+    /// The phone's translations are up (its overlay window shows).
+    pub phone_active: AtomicBool,
     /// Pause-menu text translated by the translator this session: English -> translation, in one language.
     pub menu_cache: Mutex<MenuCache>,
     /// …and the menu text it couldn't translate (asked again later).
@@ -85,6 +98,7 @@ pub fn overlay_state(cfg: &Mutex<crate::config::Config>, live: &Live) -> serde_j
         let c = cfg.lock().unwrap();
         (c.areas.clone(), c.style.clone(), c.profile_opts.clone(), c.overlays_enabled, c.target_lang.clone())
     };
+    let area_fx = cfg.lock().unwrap().area_fx.clone();
     serde_json::json!({
         "build": crate::net::build_id(),
         "areas": areas,
@@ -94,6 +108,9 @@ pub fn overlay_state(cfg: &Mutex<crate::config::Config>, live: &Live) -> serde_j
         "overlays": overlays,
         "lang": lang,
         "shown": live.shown.lock().unwrap().clone(),
+        "covers": live.covers.lock().unwrap().clone(),
+        "phone": live.phone.lock().unwrap().clone(),
+        "area_fx": area_fx,
         "screen": live.screen.lock().unwrap().clone(),
         "reason": live.screen_reason.lock().unwrap().clone(),
     })

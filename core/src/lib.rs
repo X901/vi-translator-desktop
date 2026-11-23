@@ -20,6 +20,7 @@ pub mod net;
 pub mod ocr;
 pub mod pagescript;
 pub mod perf;
+pub mod phone;
 pub mod phrasebook;
 pub mod screens;
 pub mod secure;

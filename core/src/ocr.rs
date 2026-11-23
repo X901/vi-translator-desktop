@@ -162,7 +162,11 @@ impl Ocr {
         // the two readings disagree, or the one taken looks wrong ("to aim uold", "aim7ät")
         let unsure = !agree(&txt(&first), &txt(&second));
         let (t1, t2) = (txt(&first), txt(&second));
-        let took_second = !second.is_empty() && score(&second) >= score(&first) + 3;
+        // (the first read nothing, the second read words: a rough reading of what's there beats nothing —
+        // white letters over sunlit gravel, "Drive t0'the prisgn": as nothing, the line on screen went and
+        // came back every few frames, its translation flickering)
+        let rough = first.is_empty() && quality(&second).0 >= 6 && looks_like_words(&txt(&second));
+        let took_second = !second.is_empty() && (score(&second) >= score(&first) + 3 || rough);
         let first_kept = first.clone();
         let second_kept = second.clone();
         let best = if took_second { second } else { first };
@@ -358,6 +362,17 @@ pub fn box_around(c: &Crop, block: (u32, u32, u32, u32), line_h: u32) -> Option<
     let rx = edge((x1..(x1 + reach).min(c.w)).collect(), &col)
         .filter(|&r| r.saturating_sub(x1) <= 2 * pad + 4)
         .unwrap_or((x1 + pad).min(c.w));
+    // To the pixel: an edge is where the brightness crosses halfway from the box's to the scene's (the
+    // step above takes the first column well off the box's level, a pixel or two out: the box's rim
+    // and its soft edge went outside it, and its translation's box came out narrower on the left).
+    let lx = {
+        let (out, inn) = (col(lx.saturating_sub(4)), col((lx + 4).min(c.w - 1)));
+        (lx.saturating_sub(3)..=(lx + 3).min(c.w - 1)).find(|&x| (col(x) - inn).abs() < (col(x) - out).abs()).unwrap_or(lx)
+    };
+    let rx = {
+        let (out, inn) = (col((rx + 3).min(c.w - 1)), col(rx.saturating_sub(5)));
+        (rx.saturating_sub(4)..(rx + 3).min(c.w)).rev().find(|&x| (col(x) - inn).abs() < (col(x) - out).abs()).map(|x| x + 1).unwrap_or(rx)
+    };
     let row = |y: u32| median((lx..rx).step_by(2).map(|x| lum(x, y)).collect());
     let bottom = edge((y1..(y1 + reach).min(c.h)).collect(), &row)
         .filter(|&b| b.saturating_sub(y1) <= 2 * pad + 4)
@@ -446,6 +461,308 @@ pub fn clean(words: &[Word]) -> String {
     let letters = text.chars().filter(|c| c.is_alphabetic()).count();
     let total = text.chars().count().max(1);
     if letters >= 4 && letters as f64 / total as f64 > 0.5 { fix_contractions(&text) } else { String::new() }
+}
+
+/// The text of the game's box that's always in one place (GTA VI's help, top left), told from a sign
+/// or a shop's name by where it is and how it's laid out, not by the box's edges (its see-through dark
+/// panel has none over a dark street): its first line starts at the box's top-left corner (a margin
+/// in), each next line one line pitch under the one before and starting at the same left edge (or a
+/// button icon's width in), none past the box's widest. `anchor`: the box's left, top and widest, in
+/// the crop's pixels. (the box around the lines, its words in reading order), or None.
+pub fn in_anchored_box(words: &[Word], anchor: (u32, u32, u32)) -> Option<((u32, u32, u32, u32), Vec<Word>)> {
+    if words.is_empty() {
+        return None;
+    }
+    let (left, top, widest) = anchor;
+    let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+    hs.sort_unstable();
+    let lh = hs[(hs.len() * 9 / 10).min(hs.len() - 1)].max(6);
+    // visual lines, top first
+    let mut order: Vec<usize> = (0..words.len()).collect();
+    order.sort_by_key(|&i| words[i].rect.1 + words[i].rect.3 / 2);
+    let mut lines: Vec<(u32, Vec<usize>)> = Vec::new(); // (first word's middle, words)
+    for i in order {
+        let m = words[i].rect.1 + words[i].rect.3 / 2;
+        match lines.last_mut() {
+            Some(l) if m <= l.0 + lh / 2 => l.1.push(i),
+            _ => lines.push((m, vec![i])),
+        }
+    }
+    let span = |idx: &[usize]| {
+        let x0 = idx.iter().map(|&i| words[i].rect.0).min().unwrap_or(0);
+        let x1 = idx.iter().map(|&i| words[i].rect.0 + words[i].rect.2).max().unwrap_or(0);
+        let y0 = idx.iter().map(|&i| words[i].rect.1).min().unwrap_or(0);
+        let y1 = idx.iter().map(|&i| words[i].rect.1 + words[i].rect.3).max().unwrap_or(0);
+        (x0, x1, y0, y1)
+    };
+    // (a line starts at the box's left, a margin in: up to an icon's width further at the most)
+    let starts_left = |x0: u32| x0 >= left && x0 <= left + 3 * lh;
+    let within = |x1: u32| x1 <= left + widest + lh;
+    let first = lines.iter().position(|(_, idx)| {
+        let (x0, x1, y0, _) = span(idx);
+        y0 >= top && y0 <= top + 2 * lh && starts_left(x0) && within(x1)
+    })?;
+    let mut kept: Vec<(u32, Vec<usize>)> = vec![lines[first].clone()];
+    for l in &lines[first + 1..] {
+        let (x0, x1, _, _) = span(&l.1);
+        let pitch = l.0 - kept.last().expect("one").0;
+        if !(lh..=2 * lh).contains(&pitch) || !starts_left(x0) || !within(x1) {
+            break;
+        }
+        kept.push(l.clone());
+    }
+    let mut out = Vec::new();
+    let (mut right, mut bottom) = (0, 0);
+    for (n, (_, idx)) in kept.iter().enumerate() {
+        let (_, x1, _, y1) = span(idx);
+        right = right.max(x1);
+        bottom = bottom.max(y1);
+        let mut idx = idx.clone();
+        idx.sort_by_key(|&i| words[i].rect.0);
+        out.extend(idx.into_iter().map(|i| Word { line: n as u32, ..words[i].clone() }));
+    }
+    // (the box's right edge a line height past the text's, its bottom about half a line under it:
+    // measured where its edges show)
+    Some(((left, top, (right + lh).saturating_sub(left).min(widest), (bottom + lh * 9 / 20).saturating_sub(top)), out))
+}
+
+/// The words inside the game's own box (GTA VI's help box), when there is one: (the box, its words,
+/// whether its edges were found in this picture). Text around it in the area (a shop's
+/// "SUPERMARKET" above it, a sign under it) is left out. With that text, the words' block reaches
+/// past the box and its edges may not be found: then each group of lines on its own (lines a line
+/// pitch or less apart), the biggest first.
+///
+/// `known`: where the box was found last (it doesn't move: GTA VI's help is always there, as wide).
+/// Its see-through dark panel over a dark street has no edges to find, and its text would be lost:
+/// then the lines in the known box's left and right edges, from its top down while they follow one
+/// another, are its text. And edges found elsewhere than the known box (a window or a sign's frame
+/// in the text's block) give way to it.
+pub fn in_game_box(c: &Crop, words: &[Word], known: Option<(u32, u32, u32, u32)>) -> Option<((u32, u32, u32, u32), Vec<Word>, bool)> {
+    let found = in_game_box_found(c, words);
+    let Some(k) = known else { return found.map(|(b, w)| (b, w, true)) };
+    let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+    hs.sort_unstable();
+    let mh = hs.get(hs.len() / 2).copied().unwrap_or(20).max(4);
+    let like_known = |b: (u32, u32, u32, u32)| b.0.abs_diff(k.0) <= 2 * mh && b.2.abs_diff(k.2) <= 4 * mh && b.1.abs_diff(k.1) <= 2 * mh;
+    if let Some((b, w)) = found.as_ref().filter(|(b, _)| like_known(*b)) {
+        return Some((*b, w.clone(), true));
+    }
+    // the lines in the known box: from its top down while one follows the other
+    let mut cand: Vec<&Word> = words.iter().filter(|w| (k.0..k.0 + k.2).contains(&(w.rect.0 + w.rect.2 / 2)) && w.rect.1 + w.rect.3 / 2 >= k.1).collect();
+    cand.sort_by_key(|w| w.rect.1 + w.rect.3 / 2);
+    let mut kept: Vec<Word> = Vec::new();
+    let mut last = None::<u32>;
+    for w in cand {
+        let m = w.rect.1 + w.rect.3 / 2;
+        let ok = match last {
+            None => m <= k.1 + 3 * mh, // (the text starts at the box's top)
+            Some(l) => m <= l + 2 * mh,
+        };
+        if !ok {
+            break;
+        }
+        last = Some(last.map_or(m, |l| l.max(m)));
+        kept.push(w.clone());
+    }
+    if kept.is_empty() {
+        return found.map(|(b, w)| (b, w, true));
+    }
+    // in reading order: line by line (middles within half a line), each left to right
+    let (mut line, mut first) = (0u32, None::<u32>);
+    for w in kept.iter_mut() {
+        let m = w.rect.1 + w.rect.3 / 2;
+        if first.is_some_and(|f| m > f + mh / 2) {
+            line += 1;
+            first = None;
+        }
+        first.get_or_insert(m);
+        w.line = line;
+    }
+    kept.sort_by_key(|w| (w.line, w.rect.0));
+    let bottom = kept.iter().map(|w| w.rect.1 + w.rect.3).max().unwrap_or(k.1) + mh;
+    Some(((k.0, k.1, k.2, bottom.saturating_sub(k.1)), kept, false))
+}
+
+fn in_game_box_found(c: &Crop, words: &[Word]) -> Option<((u32, u32, u32, u32), Vec<Word>)> {
+    if words.is_empty() {
+        return None;
+    }
+    let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+    hs.sort_unstable();
+    let mh = hs[hs.len() / 2].max(4);
+    let inside = |b: (u32, u32, u32, u32)| -> Vec<Word> {
+        words
+            .iter()
+            .filter(|w| {
+                let (cx, cy) = (w.rect.0 + w.rect.2 / 2, w.rect.1 + w.rect.3 / 2);
+                cx >= b.0 && cx < b.0 + b.2 && cy >= b.1 && cy < b.1 + b.3
+            })
+            .cloned()
+            .collect()
+    };
+    let found = |ws: &[Word]| text_with_icons(c, ws).2.and_then(|blk| box_around(c, blk, mh));
+    if let Some(b) = found(words) {
+        let kept = inside(b);
+        if !kept.is_empty() {
+            return Some((b, kept));
+        }
+    }
+    // groups of lines, top to bottom: a line joins the group above when it's at most 2 line heights under it
+    let mut order: Vec<usize> = (0..words.len()).collect();
+    order.sort_by_key(|&i| words[i].rect.1 + words[i].rect.3 / 2);
+    let mut groups: Vec<(u32, Vec<usize>)> = Vec::new(); // (the lowest middle, words)
+    for i in order {
+        let m = words[i].rect.1 + words[i].rect.3 / 2;
+        match groups.last_mut() {
+            Some(g) if m <= g.0 + 2 * mh => {
+                g.0 = g.0.max(m);
+                g.1.push(i);
+            }
+            _ => groups.push((m, vec![i])),
+        }
+    }
+    if groups.len() < 2 {
+        return None;
+    }
+    groups.sort_by_key(|g| std::cmp::Reverse(g.1.len()));
+    for (_, idx) in groups {
+        let ws: Vec<Word> = idx.iter().map(|&i| words[i].clone()).collect();
+        if let Some(b) = found(&ws) {
+            let kept = inside(b);
+            if !kept.is_empty() {
+                return Some((b, kept));
+            }
+        }
+    }
+    None
+}
+
+/// Reads as one of the game's instructions: a sentence (it ends with . ! ? or …) or five words or more.
+/// A shop menu's item where the help box would be ("Tactical Rifles", "Curated Liveries") is neither.
+pub fn reads_as_sentences(text: &str) -> bool {
+    let t = text.trim_end_matches(|c: char| matches!(c, '"' | '\'' | ')') || c.is_whitespace());
+    t.ends_with(['.', '!', '?', '…']) || t.split_whitespace().filter(|w| w.chars().any(|c| c.is_alphabetic())).count() >= 5
+}
+
+/// Text in capitals for the most part (4 letters or more, nine in ten capitals): a sign or a
+/// billboard ("BOAT STORAGE … CALL TODAY!", a road sign's "NORTH WEST"), never GTA VI's help, which
+/// is written in sentences.
+pub fn mostly_capitals(text: &str) -> bool {
+    let letters: Vec<char> = text.chars().filter(|c| c.is_alphabetic()).collect();
+    letters.len() >= 4 && letters.iter().filter(|c| c.is_uppercase()).count() * 10 >= letters.len() * 9
+}
+
+/// Lines stacked up from a bottom line (GTA VI's subtitles, up to six lines and more), in a crop
+/// that ends where the area ends: the lowest line must have its middle within two line heights of
+/// the crop's bottom (where line 1 is), and the lines above count while each sits one line pitch
+/// over the one under it (GTA VI: 1.9 line heights; up to 2.4 between two speakers' blocks), centred
+/// like it, and reads as words. Text with no line at the bottom (a car's "KEY LENTO POLICE" up in
+/// the picture) is none of it: empty; a plate or a sign next to the lines is left out.
+///
+/// The line height is the tall words' (capitals and descenders: the 90th percentile), not the median
+/// word's: short words ("on", "re") are a third smaller, and with lines of mostly short ones the pitch
+/// between two lines of one block read as a gap now and then, dropping the top line from one frame
+/// to the next.
+pub fn bottom_stack(words: &[Word], crop_h: f64) -> Vec<Word> {
+    if words.is_empty() {
+        return Vec::new();
+    }
+    let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+    hs.sort_unstable();
+    let lh = hs[(hs.len() * 9 / 10).min(hs.len() - 1)].max(6) as f64;
+    // visual lines: words whose middles are within half a line height of the line's, bottom first
+    let cy = |w: &Word| w.rect.1 as f64 + w.rect.3 as f64 / 2.0;
+    let mut order: Vec<usize> = (0..words.len()).collect();
+    order.sort_by(|&a, &b| cy(&words[b]).total_cmp(&cy(&words[a])));
+    struct Line {
+        mid: f64,
+        n: f64,
+        x0: f64,
+        x1: f64,
+        idx: Vec<usize>,
+    }
+    let mut lines: Vec<Line> = Vec::new();
+    for i in order {
+        let w = &words[i];
+        let (x0, x1) = (w.rect.0 as f64, (w.rect.0 + w.rect.2) as f64);
+        match lines.last_mut() {
+            Some(l) if (l.mid - cy(w)).abs() < 0.5 * lh => {
+                l.mid = (l.mid * l.n + cy(w)) / (l.n + 1.0);
+                l.n += 1.0;
+                l.x0 = l.x0.min(x0);
+                l.x1 = l.x1.max(x1);
+                l.idx.push(i);
+            }
+            _ => lines.push(Line { mid: cy(w), n: 1.0, x0, x1, idx: vec![i] }),
+        }
+    }
+    // (a line of no words: a plate "LS5252", a stray mark)
+    let text_of = |l: &Line| {
+        let mut idx = l.idx.clone();
+        idx.sort_by_key(|&i| words[i].rect.0);
+        idx.iter().map(|&i| words[i].text.as_str()).collect::<Vec<_>>().join(" ")
+    };
+    let wordy = |t: &str| {
+        let letters = |w: &str| w.trim_matches(|c: char| !c.is_alphabetic()).chars().filter(|c| c.is_alphabetic()).count();
+        t.split_whitespace().any(|w| letters(w) >= 2 && w.chars().filter(|c| c.is_ascii_digit()).count() == 0) && looks_like_words(t)
+    };
+    lines.retain(|l| wordy(&text_of(l)));
+    let Some(first) = lines.first() else { return Vec::new() };
+    if first.mid < crop_h - 2.0 * lh {
+        return Vec::new();
+    }
+    let centre = |l: &Line| (l.x0 + l.x1) / 2.0;
+    let mut kept: Vec<Vec<usize>> = vec![first.idx.clone()];
+    let (mut below, c) = (first.mid, centre(first));
+    for l in &lines[1..] {
+        let pitch = below - l.mid;
+        // (closer than a line: a piece of the same line the OCR read a little higher, a tall misread
+        // letter pulling it up; "Local: Just-just" next to "fuckin' get outta here")
+        if pitch < 0.9 * lh {
+            kept.last_mut().expect("one").extend(l.idx.iter().copied());
+            continue;
+        }
+        // (one speaker's wrapped lines are 34 px apart at 1080p, two speakers' blocks 44: a plate or a
+        // sign as close is no words, left out above)
+        if !(1.15 * lh..=2.4 * lh).contains(&pitch) || (centre(l) - c).abs() > 3.0 * lh {
+            break;
+        }
+        below = l.mid;
+        kept.push(l.idx.clone());
+    }
+    // Top to bottom, each line left to right and numbered as seen: the OCR can read a pale coloured
+    // name as a line of its own ("Coca's:" after "…C'mon!"), and `clean` takes the words in order.
+    let mut out = Vec::new();
+    // (a stray mark the OCR read before a speaker's name — "- Local:", "9 . Driver:", "S Tourist:" — made
+    // the same line a new one, translated and shown again: what's before a name on its line goes when
+    // it's no word)
+    let stray = |w: &Word| w.text.chars().filter(|c| c.is_alphabetic()).count() <= 1 && !matches!(w.text.as_str(), "I" | "A" | "a");
+    for (n, l) in kept.iter().rev().enumerate() {
+        let mut idx = l.clone();
+        idx.sort_by_key(|&i| words[i].rect.0);
+        if let Some(j) = idx.iter().position(|&i| speaker_name(&words[i].text).is_some()) {
+            if j > 0 && idx[..j].iter().all(|&i| stray(&words[i])) {
+                idx.drain(..j);
+            }
+        }
+        out.extend(idx.into_iter().map(|i| Word { line: n as u32, ..words[i].clone() }));
+    }
+    out
+}
+
+/// Stacked lines on their way up (GTA VI slides its lines up as a new one comes): for a moment no line
+/// is where line 1 is, the lines above it a line's place up. Not the end of the lines: the reading keeps
+/// what's up until line 1 is back (else the translation went for a moment, and came back).
+pub fn stack_moving(words: &[Word], crop_h: f64) -> bool {
+    if words.is_empty() {
+        return false;
+    }
+    let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+    hs.sort_unstable();
+    let lh = hs[(hs.len() * 9 / 10).min(hs.len() - 1)].max(6) as f64;
+    let base = crop_h - 2.0 * lh;
+    let lowest = words.iter().map(|w| w.rect.1 as f64 + w.rect.3 as f64 / 2.0).fold(f64::MIN, f64::max);
+    lowest < base && lowest >= base - 2.6 * lh && looks_like_words(&clean(words))
 }
 
 /// GTA VI stacks subtitle lines: two people's, the one speaking now in white and the other in grey
@@ -1588,6 +1905,111 @@ mod centered_tests {
     }
     fn texts(ws: &[Word]) -> String {
         ws.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" ")
+    }
+
+    #[test]
+    fn the_help_box_is_told_by_where_its_lines_are() {
+        // GTA VI's help box in the help area's crop: left 15, top 94, at most 445 wide; its lines 24 px
+        // tall, 33 apart, starting 14 px in
+        let anchor = (15, 94, 445);
+        let w = |t: &str, x: u32, y: u32, wd: u32| Word { text: t.into(), rect: (x, y, wd, 24), line: 0 };
+        let help = vec![
+            w("Getting", 29, 108, 90), w("a", 125, 108, 12), w("wanted", 143, 108, 80), w("level", 229, 108, 55), w("doesn't", 290, 108, 85),
+            w("affect", 29, 141, 70), w("your", 105, 141, 50), w("criminal", 161, 141, 90), w("profile,", 257, 141, 85), w("but", 348, 141, 40),
+            w("cops", 29, 174, 55), w("will.", 90, 174, 45),
+        ];
+        let (b, kept) = in_anchored_box(&help, anchor).unwrap();
+        assert_eq!(texts(&kept), "Getting a wanted level doesn't affect your criminal profile, but cops will.");
+        assert_eq!((b.0, b.1), (15, 94));
+        assert!(b.2 <= 445 && b.3 >= 174 + 24 - 94);
+        // a shop's name above it and a sign under it: left out
+        let mut busy = help.clone();
+        busy.push(w("SUPERMARKET", 0, 40, 150));
+        busy.push(w("786-555-0109", 10, 300, 160));
+        assert_eq!(texts(&in_anchored_box(&busy, anchor).unwrap().1), texts(&kept));
+        // a sign's words elsewhere in the area: none of it
+        let sign = vec![w("Visitor", 200, 30, 80), w("Center", 290, 30, 80)];
+        assert!(in_anchored_box(&sign, anchor).is_none());
+        // a line too wide for the box (a billboard right where the box is): not the box
+        let wide = vec![w("BOAT", 29, 108, 300), w("STORAGE", 340, 108, 300)];
+        assert!(in_anchored_box(&wide, anchor).is_none());
+    }
+
+    #[test]
+    fn help_reads_as_sentences_and_a_menu_item_does_not() {
+        assert!(reads_as_sentences("Hold to interact."));
+        assert!(reads_as_sentences("Cops will recognize you faster in areas with heat if you haven't changed your appearance"));
+        assert!(!reads_as_sentences("Tactical Rifles"));
+        assert!(!reads_as_sentences("Curated Liveries"));
+    }
+
+    #[test]
+    fn a_billboard_in_capitals_is_not_help() {
+        assert!(mostly_capitals("BOAT STORAG HURRICANE SAFE 786-555-0109 BOAT SERVICING STORAGE PARTS"));
+        assert!(!mostly_capitals("Use the GPS to find the LSPD station."));
+        assert!(mostly_capitals("NORTH WEST"));
+        assert!(!mostly_capitals("OK")); // (too short to tell)
+    }
+
+    #[test]
+    fn stacked_lines_count_from_the_bottom_line_up() {
+        // GTA VI at 1080p, in a crop ending at the area's bottom (991): lines 24 px tall, 44 apart (in
+        // the crop: line 1's middle at 976 - 602), with short words a third smaller ("on", "re")
+        let at = |t: &str, x: u32, mid: u32, h: u32| Word { text: t.into(), rect: (x, mid - h / 2, 10 * t.len() as u32, h), line: 0 };
+        // a line centred in the picture (x 960), its words 10 px a letter and a space apart
+        let line = |ws: &[(&str, u32)], mid: u32| {
+            let width: u32 = ws.iter().map(|(t, _)| 10 * t.len() as u32 + 10).sum::<u32>() - 10;
+            let mut x = 960 - width / 2;
+            ws.iter()
+                .map(|(t, h)| {
+                    let w = at(t, x, mid + (24 - h) / 2, *h);
+                    x += 10 * t.len() as u32 + 10;
+                    w
+                })
+                .collect::<Vec<_>>()
+        };
+        let three: Vec<Word> = [
+            line(&[("Locals:", 24), ("Fuck", 24), ("you!", 22)], 286),
+            line(&[("Cops:", 24), ("Show", 24), ("us", 16), ("your", 22), ("hands!", 24)], 330),
+            line(&[("Locals:", 24), ("You", 24), ("won't", 24), ("see", 16), ("us", 16), ("again!", 24)], 374),
+        ]
+        .concat();
+        let all = texts(&bottom_stack(&three, 389.0));
+        assert_eq!(all, three.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" "));
+        // a car's lettering up in the picture, a plate right above line 1: not subtitles
+        let mut busy = three[8..].to_vec(); // (line 1)
+        busy.push(at("KEY", 700, 200, 20));
+        busy.push(at("LENTO", 760, 200, 20));
+        busy.push(at("POLICE", 860, 200, 20));
+        busy.push(at("LS5252", 880, 340, 22));
+        assert_eq!(texts(&bottom_stack(&busy, 389.0)), "Locals: You won't see us again!");
+        // only the car's lettering, low in the area but not where line 1 is: nothing
+        let car = vec![at("KEY", 700, 289, 22), at("LENTO", 760, 289, 22), at("POLICE", 860, 289, 22)];
+        assert!(bottom_stack(&car, 389.0).is_empty());
+        // one line read as two pieces 9 px apart (a tall misread letter): still one line, in order
+        let mut split = line(&[("Local:", 24), ("Just-just", 24), ("fuckin'", 24), ("get", 24), ("outta", 24), ("here,", 24), ("okay?", 24)], 374);
+        for w in &mut split[..2] {
+            w.rect.1 -= 9;
+        }
+        assert_eq!(texts(&bottom_stack(&split, 389.0)), "Local: Just-just fuckin' get outta here, okay?");
+        // one speaker's wrapped lines, 34 px apart (closer than two speakers' 44): all of them
+        let wrapped = [
+            line(&[("Local:", 24), ("How", 24), ("'bout", 24), ("you,", 24), ("uh,", 24)], 306),
+            line(&[("just", 24), ("leave", 24), ("me", 24), ("alone", 24)], 340),
+            line(&[("Sounds", 24), ("nice,", 24), ("huh?", 24)], 374),
+        ]
+        .concat();
+        assert_eq!(texts(&bottom_stack(&wrapped, 389.0)), "Local: How 'bout you, uh, just leave me alone Sounds nice, huh?");
+        // the lines sliding up as a new one comes: nothing at line 1 for a moment, the rest a place up
+        let sliding = [line(&[("Local:", 24), ("Go", 24), ("away.", 24)], 286), line(&[("Cops:", 24), ("Stop!", 24)], 330)].concat();
+        assert!(bottom_stack(&sliding, 389.0).is_empty() && stack_moving(&sliding, 389.0));
+        assert!(!stack_moving(&three, 389.0)); // (line 1 there: not moving)
+        // a stray mark before a name goes
+        let marked = line(&[("-", 10), ("Local:", 24), ("What", 24), ("the", 24), ("hell?", 24)], 374);
+        assert_eq!(texts(&bottom_stack(&marked, 389.0)), "Local: What the hell?");
+        // a line off to the side above line 1 isn't joined to it
+        let side = [line(&[("Locals:", 24), ("again!", 24)], 374), vec![at("Garage", 100, 330, 24), at("menu", 180, 330, 24)]].concat();
+        assert_eq!(texts(&bottom_stack(&side, 389.0)), "Locals: again!");
     }
 
     #[test]

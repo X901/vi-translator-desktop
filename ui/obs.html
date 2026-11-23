@@ -29,6 +29,8 @@
         const W = window.innerWidth, H = window.innerHeight;
         const k = H / 1080; // style sizes are for 1080p
         areasEl.innerHTML = "";
+        const probe = document.createElement("div");
+        areasEl.appendChild(probe);
         // Overlays switched off in the app: nothing on the stream either
         if (state.overlays === false) {
           screenEl.innerHTML = "";
@@ -37,7 +39,8 @@
         if (!state.screen) {
           for (const a of state.areas) {
             const ev = state.shown[a.id];
-            if (!a.enabled || !ev || !ev.segments || !ev.segments.length) continue;
+            const cover = (state.covers || {})[a.id] || null;
+            if (!a.enabled || ((!ev || !ev.segments || !ev.segments.length) && !cover)) continue;
             const px = { x: a.x * W, y: a.y * H, w: a.w * W, h: a.h * H };
             const r = AS.rectFor(a.placement, px, W, H, a);
             const band = document.createElement("div");
@@ -47,13 +50,22 @@
             band.appendChild(box);
             areasEl.appendChild(band);
             AS.anchor(band, a.placement, a);
-            // (the profile's look: over the game's lines on a black box, or the area's own placement)
-            const L = AS.look(a, AS.styleOf(a, state.style), state.profile_opts, ev.text_box);
-            AS.renderBox(box, ev.segments, L.style, k, a.font_scale, L.placement, L.area, AS.matchedPx(a, ev.line_h, H));
-            if (AS.atText(L.placement)) AS.placeAtText(box, L.placement, ev.text_box, ev.line_h, W, H, r.x, r.y, px.w, px.h, ev.game_box);
+            // (the profile's look: over the game's lines on a black box, or the area's own placement;
+            // and with it the black box alone over text not translated yet)
+            // (riding above stacked lines: placed by the other areas' too)
+            const ride = AS.ridePlace(a, state.areas, state.area_fx, state.profile_opts, state.shown || {}, state.covers || {}, W, H,
+              (f, e) => AS.measureBox(probe, f, state.style, state.profile_opts, e, k, H, a.w * W));
+            AS.drawLine(box, a, state.style, state.profile_opts, state.area_fx, ev, cover, k, H, { W, H, ox: r.x, oy: r.y, areaW: px.w, areaH: px.h, ride });
           }
         }
         AS.renderScreen(screenEl, state.screen, state.reason || [], state.profile_opts);
+        // (GTA VI's phone held up: its translations beside it)
+        if (!state.screen && state.phone) {
+          const ph = document.createElement("div");
+          Object.assign(ph.style, { position: "absolute", left: "0", top: "0", width: W + "px", height: H + "px" });
+          areasEl.appendChild(ph);
+          AS.renderPhone(ph, state.phone);
+        }
       }
 
       async function poll() {

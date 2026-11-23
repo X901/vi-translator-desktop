@@ -24,13 +24,25 @@
       let textBox = null; // English text block [x, y, w, h] (fractions of the frame)
       let gameBox = null; // the game's own box around it, when found (same units)
       let geom = { placement: "above", client_h: 1080 };
+      let cover = null; // the game's text seen here, not translated yet (its black box goes up at once)
+      // every area's translation now shown and text seen (translations riding above stacked lines
+      // place themselves by the others': AS.ridePlace)
+      const shownAll = {}, seenAll = {};
+      const probe = document.createElement("div");
 
       // The "__screen" window covers the whole game and draws profile pages (GTA V "Mission Failed").
       const SCREEN = AREA === "__screen";
+      // The "__phone" window covers the whole game and draws the phone's translations beside it.
+      const PHONE = AREA === "__phone";
+      let phone = null;
       let layout = null;
 
       function draw() {
         if (!cfg) return;
+        if (PHONE) {
+          AS.renderPhone(wrap, phone);
+          return;
+        }
         if (SCREEN) {
           AS.renderScreen(wrap, layout, segments, cfg.profile_opts);
           return;
@@ -39,16 +51,20 @@
         if (!area) return;
         AS.anchor(wrap, area.placement, area);
         // style sizes are for a 1080p window; the overlay window is sized in physical pixels
-        const k = geom.client_h / 1080 / window.devicePixelRatio;
-        const px = AS.matchedPx(area, lineH, geom.client_h / window.devicePixelRatio);
+        const dpr = window.devicePixelRatio;
+        const k = geom.client_h / 1080 / dpr;
+        const W = (geom.client_w || 0) / dpr, H = geom.client_h / dpr;
         // (the profile's look: over the game's lines on a black box, or the area's own placement)
-        const L = AS.look(area, AS.styleOf(area, cfg.style), cfg.profile_opts, textBox);
-        AS.renderBox(box, segments, L.style, k, area.font_scale, L.placement, L.area, px);
-        if (AS.atText(L.placement)) {
-          const dpr = window.devicePixelRatio;
-          const W = (geom.client_w || 0) / dpr, H = geom.client_h / dpr;
-          AS.placeAtText(box, L.placement, W ? textBox : null, lineH, W, H, (geom.win_x || 0) / dpr, (geom.win_y || 0) / dpr, area.w * W, area.h * H, W ? gameBox : null);
-        }
+        const ev = { segments, text_box: textBox, game_box: gameBox, line_h: lineH };
+        const ox = (geom.win_x || 0) / dpr, oy = (geom.win_y || 0) / dpr;
+        // (the window covers the whole picture for these: config "full" in overlay.rs)
+        const fx = AS.fxOf(cfg.area_fx, AREA);
+        const whole = !!W && (AS.coverLook(cfg.profile_opts) || fx.ride);
+        if (!probe.parentNode) wrap.appendChild(probe);
+        const ride = W ? AS.ridePlace(area, cfg.areas, cfg.area_fx, cfg.profile_opts, shownAll, seenAll, W, H,
+          (f, e) => AS.measureBox(probe, f, cfg.style, cfg.profile_opts, e, k, H, area.w * W)) : null;
+        AS.drawLine(box, area, cfg.style, cfg.profile_opts, cfg.area_fx, ev, cover, k, H,
+          { W, H, ox, oy, areaW: area.w * W, areaH: area.h * H, noBoxes: !W, ride, whole });
       }
 
       invoke("get_config").then((c) => { cfg = c; AS.setLang(c.target_lang); draw(); });
@@ -62,7 +78,21 @@
         listen("screen", (e) => { layout = e.payload; if (!layout) segments = []; draw(); });
       }
       const MY_TEXT = SCREEN ? "__screen_reason" : AREA;
+      if (PHONE) {
+        invoke("get_phone").then((p) => { phone = p; draw(); }).catch(() => {});
+        listen("phone", (e) => { phone = e.payload; draw(); });
+      }
+      listen("cover", (e) => {
+        if (e.payload.cover) seenAll[e.payload.area] = e.payload.cover; else delete seenAll[e.payload.area];
+        if (e.payload.area === AREA) cover = e.payload.cover || null;
+        if (!SCREEN) draw();
+      });
       listen("translation", (e) => {
+        if (!e.payload.error) {
+          if (e.payload.segments && e.payload.segments.length) shownAll[e.payload.area] = e.payload; else delete shownAll[e.payload.area];
+          // (another area's line moves a riding translation)
+          if (e.payload.area !== MY_TEXT && !SCREEN && cfg && AS.fxOf(cfg.area_fx, AREA).ride) draw();
+        }
         if (e.payload.area !== MY_TEXT || e.payload.error) return;
         segments = e.payload.segments;
         if (e.payload.line_h) lineH = e.payload.line_h;

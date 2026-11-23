@@ -154,14 +154,24 @@ window.AS = (() => {
   const MATCH_FACTOR = 1.2;
 
   // fontPx: exact font size in CSS px (from the English line height); otherwise style size × fontScale × k.
-  function renderBox(box, segments, style, k, fontScale, placement, area, fontPx) {
+  // o: { fadeMs: the translation fades in (when it's new), empty: the box alone, without text (the
+  // black box over the game's text before its translation is ready) }.
+  // (what each area shows, to fade in only a new translation: the TV page draws its boxes anew)
+  const lastText = {};
+  function renderBox(box, segments, style, k, fontScale, placement, area, fontPx, o) {
+    o = o || {};
+    const key = (area && area.id) || "";
     const plain = segments.map((s) => (s[1] && s[1].startsWith("icon:") ? "🎮" : s[0])).join("").trim();
-    if (!plain) {
+    if (!plain && !(o.empty && placement === "on_text")) {
       box.style.display = "none";
       box.innerHTML = "";
+      if (!o.probe) lastText[key] = "";
       return;
     }
-    box.innerHTML = segHtml(segments, style.keep_colors);
+    // Over the game's text: the translation in the middle of its black box (at least as big as the
+    // English: see placeOnText), and it's what fades in, the box being up already.
+    const onText = placement === "on_text";
+    box.innerHTML = onText ? `<span class="vt-t" style="display:block">${segHtml(segments, style.keep_colors)}</span>` : segHtml(segments, style.keep_colors);
     const [r, g, b] = hexToRgb(style.bg_color);
     const ow = style.outline_width * k;
     const shadows = [];
@@ -190,6 +200,9 @@ window.AS = (() => {
       background: `rgba(${r},${g},${b},${style.bg_opacity})`,
       padding: `${style.padding * k}px ${style.padding * 1.8 * k}px`,
       borderRadius: `${style.radius * k}px`,
+      border: "none",
+      borderImage: "none",
+      boxShadow: "none",
       textShadow: shadows.join(", ") || "none",
       maxWidth: "calc(100% - 8px)",
       margin: "4px",
@@ -197,6 +210,21 @@ window.AS = (() => {
       whiteSpace: "pre-wrap",
       overflowWrap: "anywhere",
     });
+    if (onText) Object.assign(box.style, { display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center" });
+    // A new translation fades in (the same one drawn again doesn't)
+    const target = onText ? box.firstElementChild : box;
+    if (o.probe) {
+      // (only measured)
+    } else if (plain && o.fadeMs > 0 && lastText[key] !== plain) {
+      target.style.transition = "none";
+      target.style.opacity = "0";
+      void target.offsetWidth; // (the start, drawn, before the change)
+      target.style.transition = `opacity ${o.fadeMs}ms ease-out`;
+      target.style.opacity = "1";
+    } else if (!(o.fadeMs > 0)) {
+      Object.assign(target.style, { transition: "", opacity: "" });
+    }
+    if (!o.probe) lastText[key] = plain;
     if (bgMode === "none") {
       // Like the game's own text: no box, a soft shadow, and a thin dark outline unless the style
       // says none (GTA VI's subtitles and instructions have only the shadow).
@@ -211,8 +239,175 @@ window.AS = (() => {
       if (o <= 0) ring.push(`0 0 ${2 * k}px rgba(0,0,0,0.6)`); // (keeps it readable over a bright floor)
       Object.assign(box.style, { background: "transparent", padding: `${2 * k}px ${4 * k}px`, borderRadius: "0", textShadow: ring.join(", ") });
     } else if (bgMode === "game") {
-      // Like GTA's help box: dark, see-through, square corners.
-      Object.assign(box.style, { background: "rgba(10,10,10,0.62)", borderRadius: "0", padding: `${9 * k}px ${14 * k}px`, textShadow: "none" });
+      // Like GTA VI's help box (fitted on 35 captured frames over scenes from black to white): nearly
+      // solid all across, near-black on its left turning dark grey on its right, and letting a little of
+      // the scene through, more toward its right (2 % → 12 % at the middle → 19 %); a thin rim a shade
+      // lighter; square corners; the text 14 px in at 1080p.
+      Object.assign(box.style, {
+        background: "linear-gradient(90deg, rgba(3,3,6,0.98) 0%, rgba(7,7,10,0.97) 20%, rgba(10,10,14,0.91) 35%, rgba(14,14,18,0.885) 50%, rgba(19,19,23,0.85) 65%, rgba(21,21,26,0.83) 80%, rgba(26,26,32,0.81) 100%)",
+        // (its rim: a shade lighter than its black, never lighter than the scene around it)
+        border: `${Math.max(1, 1.5 * k)}px solid rgba(255,255,255,0.035)`,
+        borderRadius: "0",
+        padding: `${12 * k}px ${14 * k}px`,
+        textShadow: "none",
+      });
+    }
+    // A border in Vice City colours (Read Areas), to tell this area's translation from the others':
+    // hot pink, sunset orange and gold to purple and ocean cyan, with a soft pink glow; a light dark
+    // backing where the area has no box of its own (outlined text), for the border to frame.
+    if (o.accent) {
+      const bw = Math.max(1.5, 2 * k);
+      Object.assign(box.style, {
+        border: `${bw}px solid transparent`,
+        borderImage: "linear-gradient(90deg, #ff2d95 0%, #ff7a45 30%, #ffc94a 50%, #b45cff 72%, #2fd6ff 100%) 1",
+        borderRadius: "0",
+        boxShadow: `0 0 ${8 * k}px rgba(255, 45, 149, 0.35), 0 0 ${14 * k}px rgba(47, 214, 255, 0.18)`,
+      });
+      if (bgMode === "none") Object.assign(box.style, { background: "rgba(10, 6, 20, 0.5)", padding: `${5 * k}px ${12 * k}px` });
+    }
+  }
+
+  // ---- GTA VI's phone in the hand (WhatUp, Snapmatic) -------------------------------------------
+  // P: {screen: [x, y, w, h], screen_bg, pieces: [{rect, ar, title?, name?, bg, fg, label, end}]}
+  // (fractions of the picture; see the core's phone.rs). The translations in a panel beside the phone
+  // (on the side with more room) in the phone's own colours, each piece level with its English: a
+  // bubble in its bubble's colours (the other person's white, the character's light blue, a reply to
+  // pick dark blue), on the same side as on the phone; a header or a label ("Suggested", "New
+  // message") plain, in its colour. A piece pushed down by a taller one above it doesn't overlap it.
+  // root: an element covering exactly the game picture.
+  function renderPhone(root, P) {
+    root.innerHTML = "";
+    if (!P || !P.pieces || !P.pieces.length) return;
+    const W = root.clientWidth, H = root.clientHeight;
+    if (!W || !H) return;
+    const [sx, sy, sw, sh] = [P.screen[0] * W, P.screen[1] * H, P.screen[2] * W, P.screen[3] * H];
+    // the panel: the phone's screen's own size, beside it (on the side with more room), its text the
+    // phone's size
+    const gap = 0.012 * W;
+    const roomLeft = sx - gap * 2, roomRight = W - (sx + sw) - gap * 2;
+    const onLeft = roomLeft >= roomRight;
+    const colW = Math.max(Math.min(sw, onLeft ? roomLeft : roomRight), 0.12 * W);
+    const x = onLeft ? sx - gap - colW : sx + sw + gap;
+    const fs = Math.max(11, 0.04 * colW);
+    const pad = 0.5 * fs;
+    const panel = document.createElement("div");
+    root.appendChild(panel);
+    Object.assign(panel.style, {
+      position: "absolute",
+      left: `${x}px`,
+      top: `${sy}px`,
+      width: `${colW}px`,
+      height: `${sh}px`,
+      overflow: "hidden",
+      background: P.screen_bg || "#f2f3f6",
+      borderRadius: `${0.5 * fs}px`,
+      boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+      opacity: "0.97",
+    });
+    // (in the panel: places relative to its top left)
+    const put = (d, left, top) => Object.assign(d.style, { left: `${left - x}px`, top: `${top - sy}px` });
+    // the buttons at the bottom right ("SELECT", "BACK"): each one's word beside the game's, in its style
+    for (const b of P.buttons || []) {
+      const capH = b.rect[3] * H;
+      const d = document.createElement("div");
+      Object.assign(d.style, {
+        position: "absolute",
+        right: `${W - b.rect[0] * W + capH * 0.6}px`,
+        top: `${(b.rect[1] + b.rect[3] / 2) * H}px`,
+        transform: "translateY(-50%)",
+        whiteSpace: "nowrap",
+        direction: dir(),
+        fontFamily: `"Noto Sans Arabic", ${fonts()}`,
+        fontWeight: "700",
+        fontSize: `${capH * 1.3}px`,
+        lineHeight: "1",
+        color: "#ffffff",
+        textShadow: "0 1px 3px rgba(0,0,0,0.85)",
+      });
+      d.textContent = b.ar;
+      root.appendChild(d);
+    }
+    let below = -1e9;
+    for (const p of P.pieces) {
+      if (!p.ar && !(P.list && (p.name || p.avatar))) continue;
+      if (P.list) {
+        // WhatUp's chat list, as on the phone: rows of the contact's picture, name and message's start (one
+        // line, cut), the chosen row outlined; the section headers ("Suggested", "Messages") plain grey
+        const d = document.createElement("div");
+        const rowW = colW - 2 * pad;
+        Object.assign(d.style, { position: "absolute", boxSizing: "border-box", direction: dir(), fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`, fontSize: `${fs}px`, lineHeight: "1.3", width: `${rowW}px` });
+        if (p.name || p.avatar) {
+          const av = 2.9 * fs;
+          Object.assign(d.style, {
+            display: "flex",
+            alignItems: "center",
+            gap: `${0.6 * fs}px`,
+            padding: `${0.3 * fs}px ${0.6 * fs}px`,
+            background: p.bg || "#f4f4f7",
+            // (square-cornered, as on the phone)
+            borderRadius: `${0.12 * fs}px`,
+            border: p.edge ? `${Math.max(2, 0.12 * fs).toFixed(1)}px solid ${p.edge}` : "none",
+          });
+          // (the picture as on the phone, its unread dot too)
+          const pic = p.avatar ? `<img src="${p.avatar}" style="width:${av}px;height:${av}px;flex:none">` : `<div style="width:${av}px;height:${av}px;border-radius:50%;background:#c9cad3;flex:none"></div>`;
+          const one = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;unicode-bidi:plaintext";
+          const lineH = 1.3 * fs;
+          // (the message: its translation; one that is no text, an emoji, as it is; none yet: an empty line)
+          const msg = p.ar ? esc(p.ar) : p.preview ? `<img src="${p.preview}" style="height:${(0.95 * fs).toFixed(1)}px;vertical-align:middle">` : "&nbsp;";
+          const mark = p.badge ? `<img src="${p.badge}" style="height:${(1.15 * fs).toFixed(1)}px;flex:none;align-self:flex-start;margin-top:${(0.15 * fs).toFixed(1)}px">` : "";
+          d.innerHTML =
+            pic +
+            `<div style="min-width:0;flex:1;text-align:${rtl() ? "right" : "left"}">` +
+            (p.name ? `<div style="${one};font-weight:700;color:#24252c">${esc(p.name)}</div>` : "") +
+            `<div style="${one};color:#6a6c77;min-height:${lineH.toFixed(1)}px">${msg}</div></div>` +
+            mark;
+        } else {
+          // (a section's header, its icon before it as on the phone: "Suggested")
+          Object.assign(d.style, { color: "#7a7c88", fontSize: `${0.9 * fs}px`, padding: `0 ${0.2 * fs}px`, display: "flex", alignItems: "center", gap: `${0.35 * fs}px` });
+          d.innerHTML = (p.badge ? `<img src="${p.badge}" style="height:${(1.1 * fs).toFixed(1)}px;flex:none">` : "") + `<span style="unicode-bidi:plaintext">${esc(p.ar)}</span>`;
+        }
+        panel.appendChild(d);
+        const top = Math.max(p.rect[1] * H - 0.6 * fs, below + 0.3 * fs);
+        put(d, x + pad, top);
+        below = top + d.offsetHeight;
+        continue;
+      }
+      const d = document.createElement("div");
+      d.innerHTML = (p.name ? `<div style="font-weight:700;margin-bottom:${(0.15 * fs).toFixed(1)}px">${esc(p.name)}</div>` : "") + esc(p.ar);
+      Object.assign(d.style, {
+        position: "absolute",
+        boxSizing: "border-box",
+        direction: dir(),
+        unicodeBidi: "plaintext",
+        textAlign: rtl() ? "right" : "left",
+        fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`,
+        fontSize: `${fs}px`,
+        lineHeight: "1.55",
+        whiteSpace: "pre-wrap",
+        color: p.fg || "#2b2d34",
+        maxWidth: `${colW - 2 * pad}px`,
+        width: "max-content",
+      });
+      if (p.title) {
+        Object.assign(d.style, { fontWeight: "700", textAlign: "center", width: `${colW - 2 * pad}px` });
+      } else if (p.label) {
+        // ("New message", a day's date: centred, as on the phone)
+        Object.assign(d.style, { fontSize: `${0.85 * fs}px`, fontWeight: "600", textAlign: "center" });
+      } else {
+        Object.assign(d.style, {
+          background: p.bg || "#f8f9fb",
+          borderRadius: `${0.6 * fs}px`,
+          padding: `${0.45 * fs}px ${0.7 * fs}px`,
+          // (a reply to pick: outlined, as on the phone)
+          border: p.edge ? `${Math.max(2, 0.12 * fs).toFixed(1)}px solid ${p.edge}` : "none",
+        });
+      }
+      panel.appendChild(d);
+      // (the character's own messages on the right, as on the phone; the rest on the left; labels centred)
+      const left = p.label ? x + (colW - d.offsetWidth) / 2 : p.end ? x + colW - pad - d.offsetWidth : x + pad;
+      const top = Math.max(p.rect[1] * H, below + 0.35 * fs);
+      put(d, left, top);
+      below = top + d.offsetHeight;
     }
   }
 
@@ -520,8 +715,10 @@ window.AS = (() => {
   // switches: "cover" puts each translation on an opaque black box right over the game's own lines,
   // hiding the English, where those lines' box is known (`tb`); else the area's own placement.
   const COVER = "translation_cover";
+  // (An area placed under the game's own box, GTA VI's help top left, keeps that place: within the
+  // box's left and right edges, right under it, growing downward; the box's text stays readable.)
   function look(area, style, opts, tb) {
-    if (!(opts && opts.more && opts.more[COVER] === true) || !tb) return { placement: area.placement, style, area };
+    if (!(opts && opts.more && opts.more[COVER] === true) || !tb || area.placement === "under_text") return { placement: area.placement, style, area };
     return {
       placement: "on_text",
       style: Object.assign({}, style, { bg_color: "#000000", bg_opacity: 1 }),
@@ -550,9 +747,12 @@ window.AS = (() => {
   // size in CSS px; the box's container starts at the area's top (under_text) or ends at its
   // bottom (above_text).
   // gb: the game's own box around the text when the app found its edges ([x, y, w, h] fractions)
-  function placeAtText(box, placement, tb, lineH, W, H, ox, oy, areaW, areaH, gb) {
+  // cov (on_text): { min: the box at least as big as the game's text (its own box, gb, when found),
+  // also: text seen after this line ({text_box, game_box, line_h}) that the box covers too — lines
+  // stacking up only: a single line replaced by the next grew the box for a moment, then shrank it }
+  function placeAtText(box, placement, tb, lineH, W, H, ox, oy, areaW, areaH, gb, cov) {
     if (placement === "on_text" && tb) {
-      placeOnText(box, tb, lineH, W, H, ox, oy);
+      placeOnText(box, tb, lineH, W, H, ox, oy, gb, cov);
     } else if (placement === "under_text") {
       if (gb) placeUnderGameBox(box, gb, lineH || (tb && tb[3]) || 0.03, W, H, ox, oy);
       else if (tb) placeUnderText(box, tb, lineH, W, H, ox, oy);
@@ -565,22 +765,156 @@ window.AS = (() => {
   }
 
   // Right over the game's text, centred on it: at least the English lines' width and a little more,
-  // wider when the translation needs it (up to 92 % of the picture) before it wraps, and as tall as
-  // the translation itself (a box taller than its text left an empty black band under it).
-  function placeOnText(box, tb, lineH, W, H, ox, oy) {
+  // wider when the translation needs it (up to 92 % of the picture) before it wraps. With cov.min at
+  // least as big as the game's text all round: the game's own box when it was found (subtitles with a
+  // background, from the game's settings), else the lines with a margin; and over text seen since
+  // (cov.also) too. Without it as tall as the translation itself.
+  function placeOnText(box, tb, lineH, W, H, ox, oy, gb, cov) {
     const lh = (lineH || tb[3]) * H;
-    const w = tb[2] * W + 2 * BOX_PAD.left * lh;
+    const around = (t, g, l) => {
+      if (g) return [g[0] * W, g[1] * H, g[2] * W, g[3] * H];
+      const m = (l || t[3]) * H;
+      return [t[0] * W - BOX_PAD.left * m, t[1] * H - 0.35 * m, t[2] * W + 2 * BOX_PAD.left * m, t[3] * H + 0.7 * m];
+    };
+    let r = [tb[0] * W - BOX_PAD.left * lh, tb[1] * H, tb[2] * W + 2 * BOX_PAD.left * lh, tb[3] * H];
+    let minH = 0;
+    if (cov && cov.min) {
+      r = around(tb, gb, lineH);
+      const a = cov.also && cov.also.text_box ? around(cov.also.text_box, cov.also.game_box, cov.also.line_h) : null;
+      if (a) {
+        const x0 = Math.min(r[0], a[0]), y0 = Math.min(r[1], a[1]);
+        r = [x0, y0, Math.max(r[0] + r[2], a[0] + a[2]) - x0, Math.max(r[1] + r[3], a[1] + a[3]) - y0];
+      }
+      minH = r[3];
+    }
     Object.assign(box.style, {
       position: "absolute",
-      left: `${(tb[0] + tb[2] / 2) * W - ox}px`,
-      top: `${(tb[1] + tb[3] / 2) * H - oy}px`,
+      left: `${r[0] + r[2] / 2 - ox}px`,
+      top: `${r[1] + r[3] / 2 - oy}px`,
       transform: "translate(-50%, -50%)",
       margin: "0",
       width: "max-content",
-      minWidth: `${w}px`,
-      maxWidth: `${Math.max(W * 0.92, w)}px`,
+      minWidth: `${r[2]}px`,
+      minHeight: minH ? `${minH}px` : "",
+      maxWidth: `${Math.max(W * 0.92, r[2])}px`,
       boxSizing: "border-box",
     });
+  }
+
+  // A read area's effects (Read Areas; the defaults when it has none of its own: config.rs AreaFx)
+  function fxOf(all, id) {
+    const f = Object.assign({ cover_min: true, cover_early: true, fade_ms: 150 }, (all && all[id]) || {});
+    f.fade_ms = Math.min(Math.max(Number(f.fade_ms) || 0, 0), 2000);
+    if (typeof f.stack_up !== "boolean") f.stack_up = id === "subtitles";
+    if (typeof f.ride !== "boolean") f.ride = id === "subtitles" || id === "instructions";
+    if (typeof f.accent !== "boolean") f.accent = id === "instructions";
+    if (typeof f.reviewed_only !== "boolean") f.reviewed_only = id === "instructions";
+    return f;
+  }
+
+  // "Above the game's text" with lines that stack up (GTA VI's subtitles, up to six lines and more):
+  // the translations that ride (the subtitles' and the bottom instructions') go together, as one
+  // block, right above the top of the stacked English, and move up as more lines come (quickly). The
+  // stacking area's translation is the block's top; the others' are under it. With no English there,
+  // the block stays above line 1 (the stacking area's bottom line).
+  // areas: all of them; shown / seen: by area id, the translation now shown ({segments, text_box,
+  // line_h}) and the text seen and not translated yet; measure(area, ev): its translation's height in px.
+  // Returns null when `a` doesn't ride (or the look is over the game's text), else where its box goes:
+  // { bottom, cx, maxW } in px of the picture.
+  const RIDE_GAP = 0.35; // (of a line's height, between the block and the English, and inside the block)
+  function ridePlace(a, areas, fxAll, opts, shown, seen, W, H, measure) {
+    if (coverLook(opts) || !fxOf(fxAll, a.id).ride) return null;
+    const lead = areas.find((x) => x.enabled && fxOf(fxAll, x.id).ride && fxOf(fxAll, x.id).stack_up) || a;
+    const has = (e) => !!(e && e.segments && e.segments.length);
+    const s = seen[lead.id], e = shown[lead.id];
+    const src = s && s.text_box ? s : has(e) && e.text_box ? e : null;
+    const lh = ((src && src.line_h) || 0.025) * H;
+    // line 1's top when no English is up: a line and its margin above the stacking area's bottom
+    const top = src ? src.text_box[1] * H : (lead.y + lead.h) * H - 2.2 * lh;
+    let bottom = top - RIDE_GAP * lh;
+    if (a.id === lead.id) {
+      for (const f of areas) {
+        if (f.id === lead.id || !f.enabled || !fxOf(fxAll, f.id).ride || !has(shown[f.id])) continue;
+        bottom -= measure(f, shown[f.id]) + RIDE_GAP * lh;
+      }
+    }
+    return { bottom, cx: (lead.x + lead.w / 2) * W, maxW: Math.max(lead.w * W, 60) };
+  }
+
+  // Place a box at a ridePlace() spot (P.ox, P.oy: where its container starts), sliding there quickly.
+  function placeRide(box, R, P, fadeMs) {
+    Object.assign(box.style, {
+      position: "absolute",
+      left: `${R.cx - P.ox}px`,
+      top: `${R.bottom - P.oy}px`,
+      transform: "translate(-50%, -100%)",
+      margin: "0",
+      width: "max-content",
+      maxWidth: `${R.maxW}px`,
+      textAlign: "center",
+      boxSizing: "border-box",
+      transition: `${fadeMs > 0 ? `opacity ${fadeMs}ms ease-out, ` : ""}top 90ms ease-out`,
+    });
+  }
+
+  // A box's height as drawn for this area's translation, measured in a hidden copy (for ridePlace).
+  function measureBox(probe, a, baseStyle, opts, ev, k, sizeH, maxW) {
+    const L = look(a, styleOf(a, baseStyle), opts, null);
+    renderBox(probe, ev.segments, L.style, k, a.font_scale, L.placement, L.area, matchedPx(a, ev.line_h, sizeH), { probe: true });
+    Object.assign(probe.style, { position: "absolute", visibility: "hidden", left: "0", top: "0", width: "max-content", maxWidth: `${maxW}px`, margin: "0" });
+    const h = probe.offsetHeight;
+    probe.style.display = "none";
+    return h;
+  }
+  const coverLook = (opts) => !!(opts && opts.more && opts.more[COVER] === true);
+
+  // Draw one read area's line in `box`: its translation (ev), or, with the "over the game's text"
+  // look, the black box alone over text seen there and not translated yet (cover). k, sizeH: as for
+  // renderBox and matchedPx. P: { W, H, ox, oy, areaW, areaH } for placeAtText, and noBoxes: where
+  // the game's text is isn't known (then the area's own placement). False when nothing is drawn.
+  // Where each area's translation was placed, and for which text: the same translation stays where it
+  // is (a new reading of the same English, a box a few pixels off, moved it); only another text moves it.
+  const placed = {};
+  const PLACE_KEYS = ["position", "left", "top", "transform", "width", "minWidth", "minHeight", "maxWidth"];
+  function drawLine(box, a, baseStyle, opts, fxAll, ev, cover, k, sizeH, P) {
+    const fx = fxOf(fxAll, a.id);
+    const has = !!(ev && ev.segments && ev.segments.length);
+    const early = !has && !!cover && coverLook(opts) && fx.cover_early && !P.noBoxes;
+    const src = has ? ev : early ? cover : null;
+    if (!src) {
+      renderBox(box, [], baseStyle, k, 1, "", a);
+      return false;
+    }
+    const tb = P.noBoxes ? null : src.text_box;
+    const L = look(a, styleOf(a, baseStyle), opts, tb);
+    renderBox(box, has ? ev.segments : [], L.style, k, a.font_scale, L.placement, L.area, matchedPx(a, src.line_h, sizeH),
+      { fadeMs: fx.fade_ms, empty: early, accent: fx.accent });
+    if (atText(L.placement)) {
+      placeAtText(box, L.placement, tb, src.line_h, P.W, P.H, P.ox, P.oy, P.areaW, P.areaH, P.noBoxes ? null : src.game_box,
+        { min: early || fx.cover_min, also: has && early === false && cover && coverLook(opts) && fx.cover_early && fx.stack_up ? cover : null });
+    } else if (P.ride) {
+      placeRide(box, P.ride, P, fx.fade_ms);
+    } else if (P.whole) {
+      // (a window over the whole picture, the game's text not known: at the bottom of the area's own
+      // region, centred)
+      const r = rectFor(a.placement, { x: a.x * P.W, y: a.y * P.H, w: a.w * P.W, h: a.h * P.H }, P.W, P.H, a);
+      placeRide(box, { bottom: r.y + r.h, cx: r.x + r.w / 2, maxW: r.w }, P, fx.fade_ms);
+    }
+    // (the same translation, drawn again: where it was; riding above stacked lines it moves with them)
+    if (has && !P.ride) {
+      const key = ev.segments.map((s) => s[0]).join("") + "|" + P.W + "x" + P.H;
+      const was = placed[a.id];
+      if (was && was.key === key) {
+        for (const p of PLACE_KEYS) box.style[p] = was.style[p];
+      } else {
+        const style = {};
+        for (const p of PLACE_KEYS) style[p] = box.style[p]; // (no Object.fromEntries: 2018 TVs)
+        placed[a.id] = { key: key, style: style };
+      }
+    } else if (!has) {
+      delete placed[a.id];
+    }
+    return box.style.display !== "none";
   }
 
   // Right under the game's box, with exactly its left and right edges (the text wraps inside).
@@ -618,5 +952,5 @@ window.AS = (() => {
   // An area's text style: its own, else the profile's (areas from before had none of their own).
   const styleOf = (area, base) => (area && area.style) || base;
 
-  return { setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText, look, COVER };
+  return { setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText, look, COVER, fxOf, coverLook, drawLine, ridePlace, measureBox, renderPhone };
 })();

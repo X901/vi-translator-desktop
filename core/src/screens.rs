@@ -367,6 +367,12 @@ pub fn menu_word(en: &str) -> Option<&'static str> {
         .map(|(_, a)| *a)
 }
 
+/// The layout's translation of a button's word ("Select", "Back").
+pub fn button_word(en: &str) -> Option<&'static str> {
+    let k = letters(en);
+    button_words().iter().find(|(e, _)| letters(e) == k).map(|(_, a)| *a)
+}
+
 /// A coarse picture of a region: 24 x 6 brightness samples. Cheap enough for every frame.
 pub fn region_sig(f: &FrameData, r: &Rect) -> Vec<u8> {
     let (cols, rows) = (24u32, 6u32);

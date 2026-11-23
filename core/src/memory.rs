@@ -81,8 +81,41 @@ fn rank(source: &str) -> u8 {
     }
 }
 
-/// Lower-case words; icons "⟦n⟧" -> "{n}" (renumbered in order); punctuation dropped.
+/// An icon "⟦n⟧" or "{n}" stuck to text ("⟦1⟧m", "(⟦1⟧/⟦2⟧)", "⟦1⟧⟦2⟧") as a word of its own: spaces
+/// round each one.
+fn icons_apart(line: &str) -> String {
+    let cs: Vec<char> = line.chars().collect();
+    let mut out = String::with_capacity(line.len() + 8);
+    let mut i = 0;
+    while i < cs.len() {
+        let close = match cs[i] {
+            '⟦' => Some('⟧'),
+            '{' => Some('}'),
+            _ => None,
+        };
+        if let Some(close) = close {
+            let mut j = i + 1;
+            while j < cs.len() && cs[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j > i + 1 && j < cs.len() && cs[j] == close {
+                out.push(' ');
+                out.extend(&cs[i..=j]);
+                out.push(' ');
+                i = j + 1;
+                continue;
+            }
+        }
+        out.push(cs[i]);
+        i += 1;
+    }
+    out
+}
+
+/// Lower-case words; icons "⟦n⟧" -> "{n}" (renumbered in order, each a word of its own even stuck to
+/// text); punctuation dropped.
 pub fn key_of(line: &str) -> String {
+    let line = &icons_apart(line);
     let mut out = Vec::new();
     let mut icon = 0;
     for tok in line.split_whitespace() {
@@ -334,6 +367,16 @@ impl Memory {
         self.find(&key).map(|e| (fill(&e.ar, icons, phrases), e.source.clone()))
     }
 
+    /// The line the memory takes `line` for (its own text, as kept: a misreading finds the line it's
+    /// a misreading of), or None.
+    pub fn line_of(&self, line: &str) -> Option<String> {
+        let key = key_of(line);
+        if key.is_empty() {
+            return None;
+        }
+        self.find(&key).map(|e| e.en.clone())
+    }
+
     pub fn put(&mut self, line: &str, segs: &Segments, source: &str) {
         let key = key_of(line);
         if key.is_empty() || segs.iter().all(|(t, c)| t.trim().is_empty() && c.is_none()) {
@@ -583,6 +626,13 @@ mod tests {
         assert_eq!(key_of("\u{2003}Lucia\u{2003}"), "lucia");
         assert_eq!(key_of("\u{130}stanbul"), "istanbul");
         assert_eq!(key_of(&key_of("\u{130}stanbul")), key_of("\u{130}stanbul"));
+        // icons stuck to text are words of their own
+        assert_eq!(key_of("Distance: \u{27e6}1\u{27e7}m"), "distance {1} m");
+        assert_eq!(key_of("Trackers (\u{27e6}1\u{27e7}/\u{27e6}2\u{27e7}) installed."), "trackers {1} {2} installed");
+        assert_eq!(key_of("Love ya. {1}{2}{3}"), "love ya {1} {2} {3}");
+        assert_eq!(key_of("{1}% done"), "{1} done");
+        assert_eq!(key_of(&key_of("Love ya. {1}{2}{3}")), key_of("Love ya. {1}{2}{3}"));
+        assert_eq!(key_of("a {b} {12x} c"), "a b 12x c");
         let _ = std::fs::remove_dir_all(&path);
     }
 

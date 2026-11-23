@@ -177,6 +177,25 @@ fn memory_status(state: tauri::State<AppState>) -> memory::Stats {
 
 /// A line's translation from the memory, in the language in use, as plain text (the Game profile's
 /// look previews show a real game line): None when the memory doesn't have it.
+/// GTA VI's phone's translations now up (see the core's engine), for its overlay window when it opens.
+#[tauri::command]
+fn get_phone(state: tauri::State<AppState>) -> Option<serde_json::Value> {
+    state.shared.phone.lock().unwrap().clone()
+}
+
+/// What the memory takes a line for, and its translation and where it came from (for checking a
+/// reading the app showed: dev builds' console).
+#[tauri::command]
+fn memory_probe(state: tauri::State<AppState>, line: String) -> serde_json::Value {
+    let m = state.memory.lock().unwrap();
+    let got = m.get(&line, &[], &[]);
+    serde_json::json!({
+        "line_of": m.line_of(&line),
+        "ar": got.as_ref().map(|(segs, _)| segs.iter().map(|s| s.0.as_str()).collect::<String>()),
+        "source": got.map(|(_, src)| src),
+    })
+}
+
 #[tauri::command]
 fn memory_line(state: tauri::State<AppState>, line: String) -> Option<String> {
     let m = state.memory.lock().unwrap();
@@ -811,8 +830,21 @@ fn ocr_loop(app: AppHandle, ctx: engine::Context, shared: Arc<Shared>) {
         }
     };
     let mut reader = engine::start(ctx);
+    let mut last_seq = 0u64;
     loop {
-        let frame = shared.latest();
+        // The next frame as soon as it's captured: after the wait, a frame read already is waited out
+        // (2 ms at a time, up to a capture's worth), so a reading starts on a new frame, not on one
+        // up to a frame old, and not twice on the same one. (No new frame for that long: the same
+        // one again, for what's timed: a line that's gone, a page's checks.)
+        let mut frame = shared.latest();
+        let give_up = Instant::now() + Duration::from_millis(120);
+        while frame.as_ref().is_some_and(|f| f.seq == last_seq) && Instant::now() < give_up {
+            std::thread::sleep(Duration::from_millis(2));
+            frame = shared.latest();
+        }
+        if let Some(f) = &frame {
+            last_seq = f.seq;
+        }
         let wait = match &frame {
             Some(f) => reader.step(engine::Input::Frame(f, &ocr)),
             None => reader.step(engine::Input::Nothing),
@@ -1068,6 +1100,141 @@ fn translate_frames(file: &str, times_file: &str, out_dir: &str) -> anyhow::Resu
     }
     let _ = child.kill();
     eprintln!("translate-frames: {next} frames");
+    Ok(())
+}
+
+/// `--read-lines <dir> [--area <id>]`: each saved frame's lines in a read area as the reading sees
+/// them (an area whose lines stack up read as far above it as the app reads): each OCR line with its
+/// middle and height (frame pixels), then what's kept as the area's text.
+fn read_lines(dir: &str, area_id: &str) -> anyhow::Result<()> {
+    let cfg = Config::load(&config_path());
+    let area_cfg = cfg.areas.iter().find(|a| a.id == area_id).cloned().ok_or_else(|| anyhow::anyhow!("no area {area_id}"))?;
+    let stacks = cfg.fx(area_id).stacks(area_id);
+    let area = if stacks { config::stack_grown(&area_cfg) } else { area_cfg.clone() };
+    Ocr::init_thread();
+    let ocr = Ocr::new()?;
+    let mut files: Vec<_> = std::fs::read_dir(dir)?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "png" || x == "jpg") && !p.to_string_lossy().ends_with("_overlay.png")).collect();
+    files.sort();
+    let mut known_box: Option<((u32, u32, u32, u32), String, u64)> = None;
+    let mut anchored_at: Option<(u32, u32)> = None;
+    for path in files {
+        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let img = image::open(&path)?.to_rgba8();
+        let (w, h) = img.dimensions();
+        // (as the reading does: an area that stacks up in two parts, the second only when needed)
+        let t = Instant::now();
+        let (crop, mut words, _) = if stacks {
+            engine::read_stacked(&ocr, img.as_raw(), w, h, &area_cfg, &area)
+        } else {
+            let c = Crop::from_frame(img.as_raw(), w, h, area.x, area.y, area.w, area.h);
+            let r = c.as_ref().map(|c| ocr.recognize_checked(c)).transpose()?.unwrap_or_default();
+            (c, r.0, r.1)
+        };
+        let ms = t.elapsed().as_millis();
+        let Some(crop) = crop else { continue };
+        if area.centered_only {
+            words = ocr::centered_words(&words, area.x.clamp(0.0, 1.0) * w as f64, w as f64);
+        }
+        let y0 = (area.y.clamp(0.0, 1.0) * h as f64) as u32;
+        let mut lines: std::collections::BTreeMap<u32, Vec<&ocr::Word>> = Default::default();
+        for wd in &words {
+            lines.entry(wd.line).or_default().push(wd);
+        }
+        println!("{name} ({ms} ms)");
+        for (_, ws) in lines {
+            let mid = ws.iter().map(|w| w.rect.1 + w.rect.3 / 2).sum::<u32>() / ws.len() as u32 + y0;
+            let hh = ws.iter().map(|w| w.rect.3).max().unwrap_or(0);
+            println!("   y {mid:4} h {hh:3}  {}", ws.iter().map(|w| w.text.as_str()).collect::<Vec<_>>().join(" "));
+        }
+        if stacks && !words.is_empty() {
+            words = ocr::bottom_stack(&words, crop.h as f64);
+        }
+        // (as the reading does: the box where it was found last, for 15 s (the frames' times), and then
+        // only for the same instruction or one of two lines or more)
+        let at_ms: u64 = name.rsplit('_').next().and_then(|t| t.trim_end_matches(".png").trim_end_matches("ms").parse().ok()).unwrap_or(0);
+        let anchor = config::box_anchor(&area).map(|[ax, ay, aw]| {
+            let (cx0, cy0) = ((area.x.clamp(0.0, 1.0) * w as f64) as u32, (area.y.clamp(0.0, 1.0) * h as f64) as u32);
+            (((ax * w as f64).round() as u32).saturating_sub(cx0), ((ay * h as f64).round() as u32).saturating_sub(cy0), (aw * w as f64) as u32)
+        });
+        if let (true, Some(anchor)) = (area.needs_box && !words.is_empty(), anchor) {
+            match ocr::in_anchored_box(&words, anchor) {
+                Some((b, kept)) => {
+                    let first = kept.first().map(|w| (w.rect.0, w.rect.1)).unwrap_or_default();
+                    let still = anchored_at.is_some_and(|(x, y): (u32, u32)| x.abs_diff(first.0) <= 3 && y.abs_diff(first.1) <= 3);
+                    let e = ocr::in_game_box(&crop, &kept, None).map(|(e, _, _)| e).filter(|e| e.0.abs_diff(b.0) <= 12 && e.1.abs_diff(b.1) <= 12);
+                    anchored_at = Some(first);
+                    let right = kept.iter().map(|w| w.rect.0 + w.rect.2).max().unwrap_or(0);
+                    let bottom = kept.iter().map(|w| w.rect.1 + w.rect.3).max().unwrap_or(0);
+                    println!("   box {b:?} edges {e:?} text right {right} bottom {bottom}{}", if still { " still" } else { "" });
+                    words = if still || e.is_some() { kept } else { Vec::new() };
+                }
+                None => {
+                    anchored_at = None;
+                    words.clear();
+                }
+            }
+        } else if area.needs_box && !words.is_empty() {
+            let known = known_box.as_ref().filter(|(_, _, t)| at_ms.saturating_sub(*t) < 15_000).map(|(b, _, _)| *b);
+            match ocr::in_game_box(&crop, &words, known) {
+                Some((_, kept, false))
+                    if !ocr::similar(&ocr::clean(&kept), known_box.as_ref().map_or("", |k| k.1.as_str()))
+                        && kept.iter().map(|w| w.line).collect::<std::collections::HashSet<_>>().len() < 2 =>
+                {
+                    words.clear()
+                }
+                Some((b, kept, seen)) => {
+                    println!("   game box {b:?}{}", if seen { "" } else { " (where it was found last)" });
+                    if seen {
+                        known_box = Some((b, ocr::clean(&kept), at_ms));
+                    }
+                    words = kept;
+                }
+                None => words.clear(),
+            }
+        }
+        let mut text = ocr::clean(&words);
+        if area.needs_box && (ocr::mostly_capitals(&text) || (config::box_anchor(&area).is_some() && !ocr::reads_as_sentences(&text))) {
+            text.clear();
+        }
+        println!("   => {text:?}");
+    }
+    Ok(())
+}
+
+/// `--read-phone <dir>`: each saved frame's phone screen (where it was found) and its text in pieces,
+/// as the reading finds them.
+fn read_phone(dir: &str) -> anyhow::Result<()> {
+    Ocr::init_thread();
+    let ocr = Ocr::new()?;
+    let mut files: Vec<_> = std::fs::read_dir(dir)?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "png" || x == "jpg") && !p.to_string_lossy().ends_with("_overlay.png")).collect();
+    files.sort();
+    // (as the reading does: steady from one frame to the next, by the frames' times)
+    let mut seen = Vec::new();
+    let start = Instant::now();
+    for path in files {
+        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let at_ms: u64 = name.rsplit('_').next().and_then(|t| t.trim_end_matches(".png").trim_end_matches(".jpg").trim_end_matches("ms").parse().ok()).unwrap_or(0);
+        let when = start + Duration::from_millis(at_ms);
+        let img = image::open(&path)?.to_rgba8();
+        let (w, h) = img.dimensions();
+        let t = Instant::now();
+        let Some(screen) = vi_translator_core::phone::find_screen(img.as_raw(), w, h) else {
+            println!("{name}: no phone ({} ms)", t.elapsed().as_millis());
+            continue;
+        };
+        let pieces = vi_translator_core::phone::read_screen(&ocr, img.as_raw(), w, h, screen);
+        let pieces = vi_translator_core::phone::steady(&mut seen, pieces, screen, when);
+        println!("{name}: phone {screen:?} ({} ms)", t.elapsed().as_millis());
+        let sbg = vi_translator_core::phone::screen_bg(img.as_raw(), w, h, screen, screen.1, screen.1 + screen.3);
+        println!("   screen bg {sbg:?}");
+        for (r, en) in vi_translator_core::phone::read_buttons(&ocr, img.as_raw(), w, h) {
+            println!("   BUTTON {r:?} {en:?}");
+        }
+        for p in pieces {
+            let l = &p.look;
+            println!("   {}{:?} {:?}{} bg {:?} fg {:?}{}{}{}", if p.title { "TITLE " } else { "" }, p.rect, p.en, p.name.as_ref().map(|n| format!(" (name {n:?})")).unwrap_or_default(), l.bg, l.fg, if l.label { " LABEL" } else { "" }, if l.end { " END" } else { "" }, l.edge.map(|e| format!(" EDGE {e:?}")).unwrap_or_default() + &p.avatar.map(|a| format!(" AVATAR {a:?}")).unwrap_or_default() + &p.preview.map(|a| format!(" PREVIEW {a:?}")).unwrap_or_default() + &p.badge.map(|a| format!(" BADGE {a:?}")).unwrap_or_default());
+        }
+    }
     Ok(())
 }
 
@@ -1456,6 +1623,21 @@ fn main() {
         }
         return;
     }
+    if let Some(dir) = args.iter().position(|a| a == "--read-phone").and_then(|i| args.get(i + 1)) {
+        if let Err(e) = read_phone(dir) {
+            eprintln!("error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if let Some(dir) = args.iter().position(|a| a == "--read-lines").and_then(|i| args.get(i + 1)) {
+        let area = args.iter().position(|a| a == "--area").and_then(|j| args.get(j + 1)).map(String::as_str).unwrap_or("subtitles");
+        if let Err(e) = read_lines(dir, area) {
+            eprintln!("error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if let Some(i) = args.iter().position(|a| a == "--test-image") {
         let area = args.iter().position(|a| a == "--area").and_then(|j| args.get(j + 1)).map(String::as_str).unwrap_or("subtitles");
         let Some(image) = args.get(i + 1) else {
@@ -1491,7 +1673,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(hotkey::plugin())
         .manage(AppState { cfg: cfg.clone(), shared: shared.clone(), saver: saver.clone(), memory: memory.clone(), update: update.clone() })
-        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, memory_line, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_browser_sign_in, ps5_login_url, ps5_sign_in_address, ps5_set_account, ps5_wake, ps5_set_sound, ps5_set_resolution, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
+        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, memory_line, memory_probe, get_phone, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_browser_sign_in, ps5_login_url, ps5_sign_in_address, ps5_set_account, ps5_wake, ps5_set_sound, ps5_set_resolution, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_title(&format!("VI Translator {}", env!("CARGO_PKG_VERSION")));

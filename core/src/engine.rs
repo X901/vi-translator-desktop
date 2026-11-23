@@ -205,6 +205,11 @@ struct Job {
 #[derive(Default)]
 struct AreaState {
     candidate: String,
+    /// An area whose lines stack up: the candidate's and the current text's lines, top to bottom (a
+    /// block is the same block when its lines are, one by one: as one text, a line added to or gone
+    /// from three or more still read as "the same")
+    candidate_lines: Vec<String>,
+    current_lines: Vec<String>,
     candidate_since: Option<Instant>,
     current: String,
     last_seen: Option<Instant>,
@@ -215,7 +220,91 @@ struct AreaState {
     /// The line on screen was sent without the game's coloured words: read on its first frame, while
     /// GTA VI's instructions still fade in with a white glow. Its colours are looked for again until then.
     colors_until: Option<Instant>,
+    /// Where the game's own box was last found in this area (crop pixels), and when: its edges get
+    /// lost over a dark scene, its place doesn't change (see ocr::in_game_box).
+    game_box: Option<((u32, u32, u32, u32), Instant)>,
+    /// The text read in it then.
+    game_box_text: String,
+    /// The line on screen's English box and game box, as first sent: the same line sent again (its
+    /// colours seen) keeps them (a reading with a stray mark made its black box wider, then narrower)
+    line_boxes: Option<(Option<[f64; 4]>, Option<[f64; 4]>)>,
+    /// When the line on screen was last read (other text read since: it's gone, see the reading), and
+    /// whether its end was told already.
+    current_seen: Option<Instant>,
+    current_ended: bool,
+    /// The anchored box's text last read (its first line's left and top, crop pixels): the box's text
+    /// stays still from one read to the next, a sign's moves with the camera.
+    anchored_at: Option<(u32, u32)>,
 }
+
+/// Stacked lines in parts to translate (ocr::speaker_lines), one speaker's lines together: with the
+/// speakers' names on, a line with no name of its own is the named one's above it going on (a sentence
+/// ending a line split "I don't wanna go out like this, man, come on!" from "Just chill for a second,
+/// please! Let me go!", translated alone and wrong, the whole line reviewed). Fewer than two: none.
+fn stack_parts(cr: &Crop, words: &[ocr::Word]) -> Vec<(String, f64)> {
+    let parts = ocr::speaker_lines(cr, words);
+    // (a name of its own: "Name:", or one of the game's speakers with its colon misread — "Tourist.")
+    let named = |t: &str| {
+        ocr::split_name(t).is_some()
+            || t.split_whitespace().next().is_some_and(|w| {
+                let n = w.trim_end_matches(|c: char| matches!(c, '.' | ',' | ';' | '•' | '\'' | '?'));
+                n.len() < w.len() && n.chars().next().is_some_and(|c| c.is_uppercase()) && speaker::is_known(n)
+            })
+    };
+    if !parts.iter().any(|(t, _)| named(t)) {
+        return parts;
+    }
+    let mut out: Vec<(String, f64)> = Vec::new();
+    for (t, b) in parts {
+        match out.last_mut() {
+            Some((pt, pb)) if !named(&t) && (b - *pb).abs() < 0.1 => {
+                pt.push(' ');
+                pt.push_str(&t);
+            }
+            _ => out.push((t, b)),
+        }
+    }
+    if out.len() < 2 { Vec::new() } else { out }
+}
+
+/// Levenshtein distance between two texts (characters).
+fn edit_distance(a: &str, b: &str) -> usize {
+    let (a, b): (Vec<char>, Vec<char>) = (a.chars().collect(), b.chars().collect());
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.iter().enumerate() {
+        let mut prev = row[0];
+        row[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let cur = row[j + 1];
+            row[j + 1] = (prev + usize::from(ca != cb)).min(row[j] + 1).min(cur + 1);
+            prev = cur;
+        }
+    }
+    row[b.len()]
+}
+
+/// Each area's highlight colours as last seen this session (for a line never seen in colour yet).
+static AREA_COLORS: std::sync::LazyLock<Mutex<HashMap<String, Vec<String>>>> = std::sync::LazyLock::new(Default::default);
+
+/// GTA VI's highlight pink (its instructions' "prison", measured on captured frames).
+const GTA6_HIGHLIGHT: &str = "#ff7da7";
+
+/// Each line's highlighted words and colours as last seen this session (its text in lower-case letters
+/// and digits -> its phrases): a line that comes back is coloured from its first frame.
+static LINE_COLORS: std::sync::LazyLock<Mutex<HashMap<String, Vec<(String, String)>>>> = std::sync::LazyLock::new(Default::default);
+
+/// The same text (OCR's reading differences aside): for stacked lines (`la`, `lb`: their lines), the
+/// same lines one by one; else the whole text alike.
+fn same_text(a: &str, la: &[String], b: &str, lb: &[String]) -> bool {
+    if !la.is_empty() && !lb.is_empty() {
+        la.len() == lb.len() && la.iter().zip(lb).all(|(x, y)| ocr::similar(x, y))
+    } else {
+        ocr::similar(a, b)
+    }
+}
+
+/// How long the game's box is remembered where it was found last.
+const GAME_BOX_KEEP: Duration = Duration::from_secs(15);
 
 /// Instant -> Unix milliseconds.
 fn unix_ms(t: Instant) -> u64 {
@@ -238,7 +327,8 @@ const MAX_LAG: Duration = Duration::from_secs(3);
 
 enum PMsg {
     /// A translation is ready to show.
-    Ready { seq: u64, en_start: Instant, ev: TranslationEvent },
+    /// `now`: it replaces the area's translation at once (stacked lines: see Presenter::ready_now).
+    Ready { seq: u64, en_start: Instant, ev: TranslationEvent, now: bool },
     /// The English line with this seq left the screen at `at` (gone, or replaced by the next line).
     Ended { area: String, seq: u64, at: Instant },
     /// A full-screen page took over (or the language changed): hide every area now, and drop the
@@ -267,6 +357,11 @@ pub struct Presenter {
     ended: HashMap<(String, u64), Instant>,
     /// translations of lines up to this seq come too late (a page took over since): dropped
     cleared_upto: u64,
+    /// areas whose waiting translation goes up at once (see ready_now)
+    now: std::collections::HashSet<String>,
+    /// A translation leaves with its English (the app's): not held up for as long as it took to come
+    /// (a line the translator took 600 ms for stayed 600 ms after its English left)
+    follow: bool,
 }
 
 /// How long the end of an English line is remembered (a translation can come minutes late: the
@@ -282,8 +377,24 @@ impl Presenter {
         self.pending.insert(area.into(), (seq, en_start)); // only the newest ready line waits
         true
     }
+    /// A translation that replaces the area's at once, not after the one up has had its time: lines
+    /// that stack up (GTA VI's subtitles) come and go as one block, the lines up already being part
+    /// of the new block (a line added under them, or the top one gone): holding the old block up meant
+    /// English on screen without its translation for a moment each time.
+    fn ready_now(&mut self, area: &str, seq: u64, en_start: Instant) -> bool {
+        let ok = self.ready(area, seq, en_start);
+        if ok {
+            self.now.insert(area.into());
+        }
+        ok
+    }
     fn ended(&mut self, area: &str, seq: u64, at: Instant) {
         self.ended.insert((area.into(), seq), at);
+        // (a line after the one up ended, the one up's end never told — stacked lines don't end the
+        // block up when a line joins it: see the reading): it ended then too
+        if let Some(s) = self.showing.get(area).filter(|s| s.seq < seq) {
+            self.ended.entry((area.into(), s.seq)).or_insert(at);
+        }
     }
     fn clear_all(&mut self, upto: u64) -> Vec<Act> {
         self.cleared_upto = self.cleared_upto.max(upto);
@@ -298,12 +409,13 @@ impl Presenter {
             // English ended as the Arabic came after the English started (at most MAX_LAG).
             let done = match self.showing.get(&area) {
                 None => true,
+                Some(_) if self.now.contains(&area) && self.pending.contains_key(&area) => true,
                 Some(s) => {
                     // (its end was never told — the record lost, or a path that forgot it: a newer line
                     // of this area waiting means its English had gone by the time that one started)
                     let end = self.ended.get(&(area.clone(), s.seq)).copied().or_else(|| self.pending.get(&area).filter(|p| p.0 > s.seq).map(|p| p.1));
                     end.is_some_and(|end| {
-                        let lag = s.shown_at.saturating_duration_since(s.en_start).min(MAX_LAG);
+                        let lag = if self.follow { Duration::ZERO } else { s.shown_at.saturating_duration_since(s.en_start).min(MAX_LAG) };
                         now >= end.max(s.shown_at) + lag.min(end.saturating_duration_since(s.en_start))
                     })
                 }
@@ -312,6 +424,7 @@ impl Presenter {
                 continue;
             }
             if let Some((seq, en_start)) = self.pending.remove(&area) {
+                self.now.remove(&area);
                 self.showing.insert(area.clone(), Shown { seq, shown_at: now, en_start });
                 acts.push(Act::Show { area, seq });
             } else if self.showing.remove(&area).is_some() {
@@ -323,8 +436,89 @@ impl Presenter {
     }
 }
 
+/// The shortest time between two readings (ms): about a frame of a 60 fps capture.
+pub const MIN_INTERVAL_MS: u64 = 16;
+
+/// An area whose lines stack up, read in parts from the bottom (`grown`: its whole height,
+/// `stack_grown`): the area itself first, where line 1 and the next two are, then a band of about
+/// three lines above it only when the lines read go up to the top of what's been read (another line
+/// could be there), and so on up. Most of the time there's no text, or one or two lines: one small
+/// picture for the OCR (about 10 ms at 1080p, against 55 for the whole height); each band above
+/// costs about as much again, and only while the lines go on.
+/// Parts overlap by OV (more than a line's height): a line across a border is taken from the part its
+/// middle is in, where it's whole. Words come back in the whole height's pixels, with its crop (the
+/// colours, icons and boxes are looked for there).
+pub fn read_stacked(ocr: &ocr::Ocr, rgba: &[u8], fw: u32, fh: u32, base: &crate::config::Area, grown: &crate::config::Area) -> (Option<Crop>, Vec<ocr::Word>, bool) {
+    const OV: f64 = 0.04;
+    const BAND: f64 = 0.125; // (three of GTA VI's lines: 44 px apart at 1080p)
+    let crop = Crop::from_frame(rgba, fw, fh, grown.x, grown.y, grown.w, grown.h);
+    let Some(gh) = crop.as_ref().map(|c| c.h as f64) else { return (crop, Vec::new(), true) };
+    let row = |f: f64| (f.clamp(0.0, 1.0) * fh as f64) as u32;
+    let ov = row(OV).max(8);
+    let mid = |w: &ocr::Word| w.rect.1 + w.rect.3 / 2;
+    let shift = |w: ocr::Word, dy: u32, line: u32| ocr::Word { rect: (w.rect.0, w.rect.1 + dy, w.rect.2, w.rect.3), line: w.line + line, ..w };
+    let (mut words, mut sure) = (Vec::new(), true);
+    // (the part read last: its top, as a fraction of the picture and in the whole height's pixels)
+    let mut top = base.y.max(grown.y);
+    for n in 0u32.. {
+        let (y, h) = if n == 0 { (top, grown.y + grown.h - top) } else { ((top - BAND).max(grown.y), (top - (top - BAND).max(grown.y)) + OV) };
+        let Some(part) = Crop::from_frame(rgba, fw, fh, grown.x, y, grown.w, h) else { break };
+        let (got, ok) = ocr.recognize_checked(&part).unwrap_or((Vec::new(), true));
+        sure &= ok;
+        let dy = row(y).saturating_sub(row(grown.y));
+        let border = row(top).saturating_sub(row(grown.y)); // (the top of the part below, in the whole height)
+        if n > 0 {
+            // A line across the border: from this part when its middle is above the border's middle.
+            // A word the border cut in the part below (its middle there is lower than the whole word's)
+            // goes too when this part has it whole: read twice, "Tourists: Tourists: Okay now…".
+            let above: Vec<ocr::Word> = got.into_iter().map(|w| shift(w, dy, 10_000 * n)).filter(|w| mid(w) < border + ov / 2).collect();
+            let same = |a: &ocr::Word, b: &ocr::Word| {
+                let x = (a.rect.0 + a.rect.2).min(b.rect.0 + b.rect.2).saturating_sub(a.rect.0.max(b.rect.0));
+                let ys = a.rect.1 < b.rect.1 + b.rect.3 && b.rect.1 < a.rect.1 + a.rect.3;
+                ys && x * 2 >= a.rect.2.min(b.rect.2)
+            };
+            words.retain(|w: &ocr::Word| mid(w) >= border + ov / 2 && !above.iter().any(|u| same(u, w)));
+            words.extend(above);
+        } else {
+            words.extend(got.into_iter().map(|w| shift(w, dy, 0)));
+        }
+        top = y;
+        if top <= grown.y + 1e-9 {
+            break;
+        }
+        // Up again only when the lines read so far go up to near this part's top: a line above
+        // joins one at most 2.4 line heights over it, and one lower than that was read whole here.
+        let stack = ocr::bottom_stack(&words, gh);
+        let mut hs: Vec<u32> = stack.iter().map(|w| w.rect.3).collect();
+        hs.sort_unstable();
+        let lh = hs.get(hs.len() * 9 / 10).or(hs.last()).copied().unwrap_or(0) as f64;
+        let highest = stack.iter().map(|w| mid(w) as f64).fold(f64::MAX, f64::min);
+        let part_top = row(top).saturating_sub(row(grown.y)) as f64;
+        if stack.is_empty() || highest - part_top >= 3.0 * lh {
+            break;
+        }
+    }
+    (crop, words, sure)
+}
+
+/// The game's text seen in an area, not translated on screen yet (`Live::covers`): set (Some) or gone
+/// (None), told to the overlays ("cover") when it changes.
+fn set_cover(sink: &dyn Sink, live: &Live, area: &str, cover: Option<serde_json::Value>) {
+    let changed = {
+        let mut m = live.covers.lock().unwrap();
+        match cover {
+            Some(v) => m.insert(area.to_string(), v.clone()).as_ref() != Some(&v),
+            None => m.remove(area).is_some(),
+        }
+    };
+    if changed {
+        let v = live.covers.lock().unwrap().get(area).cloned();
+        sink.emit("cover", serde_json::json!({ "area": area, "cover": v }));
+    }
+}
+
 fn present_loop(sink: Arc<dyn Sink>, rx: mpsc::Receiver<PMsg>, live: Arc<Live>) {
-    let mut p = Presenter::default();
+    let mut p = Presenter { follow: true, ..Presenter::default() };
     let mut events: HashMap<(String, u64), TranslationEvent> = HashMap::new();
     loop {
         let mut msgs = Vec::new();
@@ -337,8 +531,8 @@ fn present_loop(sink: Arc<dyn Sink>, rx: mpsc::Receiver<PMsg>, live: Arc<Live>) 
         let mut acts = Vec::new();
         for m in msgs {
             match m {
-                PMsg::Ready { seq, en_start, ev } => {
-                    if p.ready(&ev.area, seq, en_start) {
+                PMsg::Ready { seq, en_start, ev, now } => {
+                    if if now { p.ready_now(&ev.area, seq, en_start) } else { p.ready(&ev.area, seq, en_start) } {
                         events.retain(|(a, _), _| *a != ev.area); // keep only the newest waiting line
                         events.insert((ev.area.clone(), seq), ev);
                     }
@@ -346,6 +540,10 @@ fn present_loop(sink: Arc<dyn Sink>, rx: mpsc::Receiver<PMsg>, live: Arc<Live>) 
                 PMsg::Ended { area, seq, at } => p.ended(&area, seq, at),
                 PMsg::ClearAll { upto } => {
                     events.clear();
+                    let areas: Vec<String> = live.covers.lock().unwrap().keys().cloned().collect();
+                    for a in areas {
+                        set_cover(&*sink, &live, &a, None);
+                    }
                     acts.extend(p.clear_all(upto));
                 }
             }
@@ -355,6 +553,11 @@ fn present_loop(sink: Arc<dyn Sink>, rx: mpsc::Receiver<PMsg>, live: Arc<Live>) 
             match act {
                 Act::Show { area, seq } => {
                     if let Some(ev) = events.remove(&(area.clone(), seq)) {
+                        // (the text seen there is this line, or one before it: its translation is up now)
+                        let cover_seq = live.covers.lock().unwrap().get(&area).map(|c| c["seq"].as_u64().unwrap_or(0));
+                        if cover_seq.is_some_and(|s| s != 0 && s <= seq) {
+                            set_cover(&*sink, &live, &area, None);
+                        }
                         let ar: String = ev
                             .segments
                             .iter()
@@ -476,6 +679,59 @@ mod presenter_tests {
         p.ready(A, 1, t);
         assert_eq!(p.tick(t + ms(200_000)), vec![Act::Show { area: A.into(), seq: 1 }]); // 200 s late: the end is still known
         assert_eq!(p.tick(t + ms(203_100)), vec![Act::Hide { area: A.into() }]); // gone at most MAX_LAG later
+    }
+
+    #[test]
+    fn a_misreading_is_nearer_the_line_up_than_another_line() {
+        assert_eq!(edit_distance("getinvehicle", "getinavehicle"), 1);
+        assert_eq!(edit_distance("getinvehicle", "getinthevehicle"), 3);
+        assert_eq!(edit_distance("getifvehicle", "getinavehicle"), 2);
+        assert_eq!(edit_distance("", "abc"), 3);
+    }
+
+    #[test]
+    fn a_block_of_stacked_lines_is_the_same_when_its_lines_are() {
+        let l = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let three = l(&["Tourist: Eyes on the road, you're gonna get someone killed!", "Tourist: Oh! God... c'mon, now, sweetie... think of your momma...", "Tourist: Hey trust me, you don't wanna do this..."]);
+        let moved = l(&["Tourist: Oh! God... c'mon, now, sweetie... think of your momma...", "Tourist: Hey trust me, you don't wanna do this...", "Cops: Stop right fucking now!"]);
+        let noisy = l(&["Tourist: Eyes on the road, you're gonna get someone killed!", "Tourist. Ohl God... c'mon, now, sweetie... think of your momma...", "Tourist: Hey trust me, you don't wanna do this..."]);
+        assert!(same_text(&three.join(" "), &three, &noisy.join(" "), &noisy)); // (a misread letter or two)
+        assert!(!same_text(&three.join(" "), &three, &moved.join(" "), &moved)); // a line gone, one added
+        assert!(!same_text(&three.join(" "), &three, &three[1..].join(" "), &three[1..])); // the top one gone
+    }
+
+    #[test]
+    fn a_translation_that_follows_leaves_with_its_english() {
+        let t = Instant::now();
+        let mut p = Presenter { follow: true, ..Presenter::default() };
+        p.ready(A, 1, t);
+        assert_eq!(p.tick(t + ms(600)), vec![Act::Show { area: A.into(), seq: 1 }]); // 600 ms to translate
+        p.ended(A, 1, t + ms(3000));
+        assert_eq!(p.tick(t + ms(3001)), vec![Act::Hide { area: A.into() }]); // not 600 ms later
+        // stacked: a line joined at 5 s (no end told for the block up), the new block's translation
+        // replaces it when ready; the new block's English gone ends the old one too if it never came
+        p.ready(A, 2, t + ms(4000));
+        assert_eq!(p.tick(t + ms(4100)), vec![Act::Show { area: A.into(), seq: 2 }]);
+        assert!(p.tick(t + ms(5050)).is_empty()); // (seq 3 seen at 5 s: no end for 2)
+        p.ended(A, 3, t + ms(5500)); // seq 3's English gone before its translation came
+        assert_eq!(p.tick(t + ms(5501)), vec![Act::Hide { area: A.into() }]);
+    }
+
+    #[test]
+    fn stacked_lines_replace_the_block_at_once() {
+        let t = Instant::now();
+        let mut p = Presenter::default();
+        p.ready(A, 1, t);
+        assert_eq!(p.tick(t + ms(300)), vec![Act::Show { area: A.into(), seq: 1 }]); // 300 ms after its English
+        // a line added under it at 2 s: the new block's translation goes up as soon as it's ready, not
+        // 300 ms later (the time the first block took)
+        p.ended(A, 1, t + ms(2000));
+        p.ready_now(A, 2, t + ms(2000));
+        assert_eq!(p.tick(t + ms(2050)), vec![Act::Show { area: A.into(), seq: 2 }]);
+        // (and a plain one waits as before)
+        p.ended(A, 2, t + ms(4000));
+        p.ready(A, 3, t + ms(4000));
+        assert!(p.tick(t + ms(4010)).is_empty());
     }
 }
 
@@ -664,7 +920,9 @@ impl Reader {
             }
             for st in states.values_mut() {
                 st.current.clear();
+                st.current_lines.clear();
                 st.candidate.clear();
+                st.candidate_lines.clear();
             }
             let _ = present.send(PMsg::ClearAll { upto: seq_counter });
         }
@@ -1040,7 +1298,9 @@ impl Reader {
                             }
                             st.current_start = None;
                             st.current.clear();
+                            st.current_lines.clear();
                             st.candidate.clear();
+                            st.candidate_lines.clear();
                             st.current_seq = 0;
                             seq_counter += 1;
                             latest.lock().unwrap().insert(id.clone(), seq_counter);
@@ -1067,7 +1327,7 @@ impl Reader {
                     // The pause menu is checked on every new frame (its checks are tiny), so its Arabic
                     // goes the moment the English does: pace by the capture rate, not the read interval.
                     let pause = screen.is_some();
-                    let pace = if pause { (1000 / c.capture_fps.clamp(1, 30) as u64).min(interval_ms) } else { interval_ms };
+                    let pace = if pause { (1000 / c.capture_fps.clamp(1, 60) as u64).min(interval_ms) } else { interval_ms };
                     let spent = t0.elapsed();
                     // (normal areas pause while the page is up)
                     done!(Duration::from_millis(pace.max(30)).saturating_sub(spent));
@@ -1075,6 +1335,123 @@ impl Reader {
             } else if screen.is_some() {
                 // (no whole frame to look for pages in)
                 hide_screen(&*ctx.sink, &ctx.live, &latest, &mut screen);
+            }
+
+            // GTA VI's phone in the hand (WhatUp, Snapmatic): its text beside it (see phone.rs). Each piece
+            // from the memory, or the translator (like a page's menu text: asked once, in the background,
+            // shown when it comes); the contacts' names written as the speakers' are.
+            if let (Some(f), Some(ocr)) = (frame, ocr_now) {
+                let found = if c.phone_text() {
+                    crate::phone::find_screen(&f.rgba, f.w, f.h).map(|scr| (scr, crate::phone::read_screen(ocr, &f.rgba, f.w, f.h, scr))).filter(|(_, p)| !p.is_empty())
+                } else {
+                    None
+                };
+                let now = Instant::now();
+                match found {
+                    Some((scr, pieces)) => {
+                        *ctx.live.phone_seen.lock().unwrap() = Some(now);
+                        // (steady from one read to the next: a misreading keeps the first reading, a missed piece stays a moment)
+                        let pieces = crate::phone::steady(&mut ctx.live.phone_pieces.lock().unwrap(), pieces, scr, now);
+                        let (w, h) = (f.w as f64, f.h as f64);
+                        let frac = |r: (u32, u32, u32, u32)| [r.0 as f64 / w, r.1 as f64 / h, r.2 as f64 / w, r.3 as f64 / h];
+                        let lang = c.target_lang.clone();
+                        let mut out = Vec::new();
+                        let read_btns = crate::phone::read_buttons(ocr, &f.rgba, f.w, f.h);
+                        let mut btns = Vec::new();
+                        {
+                            let m = ctx.memory.lock().unwrap();
+                            let cache = ctx.live.menu_cache.lock().unwrap();
+                            // the buttons' words at the bottom right ("SELECT", "BACK"): the layout's words for
+                            // them, else the memory's, else the translator's (asked once)
+                            for (r, en) in &read_btns {
+                                let title: String = en.split(' ').map(|w| { let mut c = w.chars(); c.next().map(|f| f.to_string() + &c.as_str().to_lowercase()).unwrap_or_default() }).collect::<Vec<_>>().join(" ");
+                                let ar = screens::button_word(&title)
+                                    .map(str::to_string)
+                                    .or_else(|| m.get(&title, &[], &[]).map(|(segs, _)| segs.iter().map(|s| s.0.as_str()).collect::<String>().trim().to_string()))
+                                    .or_else(|| cache.map.get(&title).cloned());
+                                match ar {
+                                    // (a button's word plain: "تراجع!" is "تراجع")
+                                    Some(ar) => btns.push(serde_json::json!({ "rect": frac(*r), "ar": ar.trim_end_matches(['!', '.', '!']).trim() })),
+                                    None => {
+                                        if menu_asked.insert(title.clone()) {
+                                            seq_counter += 1;
+                                            let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: title, phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
+                                        }
+                                    }
+                                }
+                            }
+                            for p in &pieces {
+                                if p.title {
+                                    let fg = p.look.fg;
+                                    out.push(serde_json::json!({ "rect": frac(p.rect), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]) }));
+                                    continue;
+                                }
+                                let ar = m
+                                    .get(&p.en, &[], &[])
+                                    .map(|(segs, _)| segs.iter().map(|s| s.0.as_str()).collect::<String>().trim().to_string())
+                                    .or_else(|| cache.map.get(&p.en).cloned())
+                                    .or_else(|| cache.map.iter().find(|(k, _)| ocr::similar(k, &p.en)).map(|(_, v)| v.clone()));
+                                let hex = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
+                                // (a chat list's row shows while its message's translation comes: its contact, its picture)
+                                let ar = if p.avatar.is_some() && p.en.is_empty() { Some(String::new()) } else { ar };
+                                let png = |o: (i32, i32, u32, u32), h: u32| {
+                                    crate::phone::part_png(&f.rgba, f.w, f.h, p.rect, o, h).map(|png| {
+                                        use base64::Engine as _;
+                                        format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                                    })
+                                };
+                                if ar.is_none() && p.avatar.is_some() {
+                                    out.push(serde_json::json!({
+                                        "rect": frac(p.rect), "ar": "", "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
+                                        "bg": hex(p.look.bg), "fg": hex(p.look.fg), "edge": p.look.edge.map(hex),
+                                        "avatar": p.avatar.and_then(|a| png((a.0, a.1, a.2, a.2), 56)),
+                                        "badge": p.badge.and_then(|b| png(b, 28)),
+                                    }));
+                                }
+                                match ar {
+                                    Some(ar) => out.push(serde_json::json!({
+                                        "rect": frac(p.rect),
+                                        "ar": ar,
+                                        "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
+                                        "bg": hex(p.look.bg),
+                                        "fg": hex(p.look.fg),
+                                        "label": p.look.label,
+                                        "end": p.look.end,
+                                        "edge": p.look.edge.map(hex),
+                                        // (a chat list's row: its contact's picture, as on the phone)
+                                        "avatar": p.avatar.and_then(|a| png((a.0, a.1, a.2, a.2), 56)),
+                                        "preview": p.preview.and_then(|b| png(b, 28)),
+                                        "badge": p.badge.and_then(|b| png(b, 28)),
+                                    })),
+                                    None => {
+                                        if !menu_asked.contains(&p.en) && !menu_asked.iter().any(|a| ocr::similar(a, &p.en)) && menu_asked.insert(p.en.clone()) {
+                                            seq_counter += 1;
+                                            let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: p.en.clone(), phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        let sbg = crate::phone::screen_bg(&f.rgba, f.w, f.h, scr, scr.1, scr.1 + scr.3);
+                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some()), "buttons": btns });
+                        let mut up = ctx.live.phone.lock().unwrap();
+                        if up.as_ref() != Some(&v) {
+                            *up = Some(v.clone());
+                            ctx.live.phone_active.store(true, std::sync::atomic::Ordering::Relaxed);
+                            ctx.sink.emit("phone", v);
+                        }
+                    }
+                    None => {
+                        // (put away: gone a moment after it was last seen, not on a frame it was missed)
+                        let gone = ctx.live.phone_seen.lock().unwrap().is_none_or(|t| now.saturating_duration_since(t) > Duration::from_millis(300));
+                        let mut up = ctx.live.phone.lock().unwrap();
+                        if gone && up.is_some() {
+                            *up = None;
+                            ctx.live.phone_active.store(false, std::sync::atomic::Ordering::Relaxed);
+                            ctx.sink.emit("phone", serde_json::Value::Null);
+                        }
+                    }
+                }
             }
 
             // an area turned off (or gone): its line ends now (else the presenter waits for it forever)
@@ -1085,11 +1462,27 @@ impl Reader {
                 }
                 keep
             });
-            for area in c.areas.iter().filter(|a| a.enabled) {
+            for area_cfg in c.areas.iter().filter(|a| a.enabled) {
+                // (an area whose lines stack up is read up to STACK_H above it too: see bottom_stack)
+                let stacks = c.fx(&area_cfg.id).stacks(&area_cfg.id);
+                // (when the English counts as gone: lines that stack up come and go quickly; an
+                // instruction stays up and is read over every kind of ground, sunlit gravel missing it
+                // for a moment now and then: gone after 350 ms at the least, not blinking)
+                let clear_ms = if stacks { clear_after_ms } else { clear_after_ms.max(350) };
+                // (read here, from the frame: grown; the host reads the area as it is)
+                let own_read = matches!((&frame, &ocr_now), (Some(_), Some(_)));
+                let grown;
+                let area = if stacks && own_read {
+                    grown = crate::config::stack_grown(area_cfg);
+                    &grown
+                } else {
+                    area_cfg
+                };
                 let st = states.entry(area.id.clone()).or_default();
                 let now = Instant::now();
                 // (the host read the area itself, or its OCR reads it here)
                 let (crop, words, sure) = match (frame, ocr_now) {
+                    (Some(frame), Some(ocr)) if stacks => read_stacked(ocr, &frame.rgba, fw, fh, area_cfg, area),
                     (Some(frame), Some(ocr)) => {
                         let crop = Crop::from_frame(&frame.rgba, fw, fh, area.x, area.y, area.w, area.h);
                         let (words, sure) = match &crop {
@@ -1114,14 +1507,90 @@ impl Reader {
                         text = ocr::clean(&words);
                     }
                 }
+                // Lines stacked up from the area's own line 1: only with a line there, and what's joined to it.
+                // (always its words in reading order, top line first: the band read above line 1's came after
+                // them, and the block's English came out of order — "…Oh! God… Tourist: Eyes on the road")
+                let mut lines_now: Vec<String> = Vec::new();
+                if let Some(cr) = crop.as_ref().filter(|_| stacks && !words.is_empty()) {
+                    // (lines sliding up, line 1's place empty for a moment: what's up stays, for 400 ms at most)
+                    let moving = ocr::stack_moving(&words, cr.h as f64);
+                    let all = std::mem::take(&mut words);
+                    words = ocr::bottom_stack(&all, cr.h as f64);
+                    if words.is_empty() && moving && !st.current.is_empty() && st.last_seen.is_some_and(|t| now.saturating_duration_since(t) < Duration::from_millis(400)) {
+                        continue;
+                    }
+                    text = ocr::clean(&words);
+                    let n = words.iter().map(|w| w.line + 1).max().unwrap_or(0);
+                    lines_now = (0..n).map(|l| ocr::clean(&words.iter().filter(|w| w.line == l).cloned().collect::<Vec<_>>())).collect();
+                }
                 // An area of the game's own box (GTA VI's help): no box around the text, no text here.
-                if area.needs_box && !text.is_empty() {
-                    let found = crop.as_ref().zip(ocr::text_with_icons_block(crop.as_ref(), &words)).and_then(|(cr, b)| {
-                        let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
-                        hs.sort_unstable();
-                        ocr::box_around(cr, b, hs.get(hs.len() / 2).copied().unwrap_or(20))
-                    });
-                    if found.is_none() {
+                // (only its words: not a shop's name above the box or a sign under it, read along with them)
+                // (the game's box this frame, found or remembered: the translation goes right under it)
+                let mut help_box = None;
+                let anchor = crate::config::box_anchor(area).map(|[ax, ay, aw]| {
+                    let (cx0, cy0) = ((area.x.clamp(0.0, 1.0) * fw as f64) as u32, (area.y.clamp(0.0, 1.0) * fh as f64) as u32);
+                    (((ax * fw as f64).round() as u32).saturating_sub(cx0), ((ay * fh as f64).round() as u32).saturating_sub(cy0), (aw * fw as f64) as u32)
+                });
+                if let (true, Some(anchor)) = (area.needs_box && !text.is_empty(), anchor) {
+                    // where the box always is: its text by its place and its lines, still from one read
+                    // to the next (or with the box's edges seen around it)
+                    match ocr::in_anchored_box(&words, anchor) {
+                        Some((b, kept)) => {
+                            let first = kept.first().map(|w| (w.rect.0, w.rect.1)).unwrap_or_default();
+                            let still = st.anchored_at.is_some_and(|(x, y)| x.abs_diff(first.0) <= 3 && y.abs_diff(first.1) <= 3);
+                            // the box's own edges, when they show: the translation takes exactly them
+                            let edges = crop.as_ref().and_then(|cr| ocr::in_game_box(cr, &kept, None)).map(|(e, _, _)| e).filter(|e| e.0.abs_diff(b.0) <= 12 && e.1.abs_diff(b.1) <= 12);
+                            st.anchored_at = Some(first);
+                            if still || edges.is_some() {
+                                words = kept;
+                                text = ocr::clean(&words);
+                                // (edges not seen this time: the ones seen for this instruction, if they were:
+                                // the same text has the same box; else from its lines)
+                                if let Some(e) = edges {
+                                    st.game_box = Some((e, now));
+                                    st.game_box_text = text.clone();
+                                }
+                                let same = st.game_box.filter(|_| ocr::similar(&text, &st.game_box_text)).map(|(e, _)| e);
+                                help_box = Some(edges.or(same).unwrap_or(b));
+                            } else {
+                                text.clear();
+                            }
+                        }
+                        None => {
+                            st.anchored_at = None;
+                            text.clear();
+                        }
+                    }
+                    // (a sign in capitals, or a shop menu's item where the box would be: not sentences)
+                    if ocr::mostly_capitals(&text) || !ocr::reads_as_sentences(&text) {
+                        text.clear();
+                    }
+                } else if area.needs_box && !text.is_empty() {
+                    let known = st.game_box.filter(|(_, at)| at.elapsed() < GAME_BOX_KEEP).map(|(b, _)| b);
+                    match crop.as_ref().and_then(|cr| ocr::in_game_box(cr, &words, known)) {
+                        // (its edges not found: only the same instruction going on, or one of two lines or
+                        // more; not a word of the scene, or of a menu, where the box was a moment ago)
+                        Some((_, kept, false))
+                            if !ocr::similar(&ocr::clean(&kept), &st.game_box_text)
+                                && kept.iter().map(|w| w.line).collect::<std::collections::HashSet<_>>().len() < 2 =>
+                        {
+                            text.clear()
+                        }
+                        Some((b, kept, seen)) => {
+                            if seen {
+                                st.game_box = Some((b, now));
+                                st.game_box_text = ocr::clean(&kept);
+                            }
+                            help_box = Some(b);
+                            if kept.len() != words.len() {
+                                words = kept;
+                                text = ocr::clean(&words);
+                            }
+                        }
+                        None => text.clear(),
+                    }
+                    // (a sign or billboard with a frame around it: in capitals, not the game's sentences)
+                    if ocr::mostly_capitals(&text) {
                         text.clear();
                     }
                 }
@@ -1131,51 +1600,178 @@ impl Reader {
                 }
                 if !text.is_empty() {
                     st.last_seen = Some(now);
+                    // The line on screen read again; or other text read in its place for as long as it takes
+                    // the English to count as gone: it's gone (an instruction replaced by the next, which
+                    // isn't translated yet: the old translation went on showing over it).
+                    if same_text(&text, &lines_now, &st.current, &st.current_lines) {
+                        st.current_seen = Some(now);
+                    } else if !stacks && st.current_seq != 0 && !st.current_ended && st.current_seen.is_some_and(|t| now.saturating_duration_since(t) > Duration::from_millis(clear_ms)) {
+                        let _ = present.send(PMsg::Ended { area: area.id.clone(), seq: st.current_seq, at: st.current_seen.unwrap_or(now) });
+                        st.current_ended = true;
+                    }
+                    // (the same line, its pale coloured name faded out first or not read this time: the line
+                    // on screen goes on, not a new one translated and shown again without its name)
+                    if speaker::without_name(&st.candidate).is_some_and(|rest| ocr::similar(rest, &text)) {
+                        text = st.candidate.clone();
+                        lines_now = st.candidate_lines.clone();
+                    }
                     let mut is_new = false;
-                    if !ocr::similar(&text, &st.candidate) {
+                    if !same_text(&text, &lines_now, &st.candidate, &st.candidate_lines) {
+                        // A new line: with the "over the game's text" look its black box goes up now,
+                        // before the line has settled or been translated (Read Areas).
+                        // (and the lines that stack up, for the translations that ride above them, at once)
+                        let fx = c.fx(&area.id);
+                        // (an area placed under the game's box keeps that place with this look: no black box)
+                        let tell = if c.cover_look() { fx.cover_early && area.placement != "under_text" } else { stacks && fx.rides(&area.id) };
+                        // (with the black box over the English: only when its translation is at hand, the
+                        // memory knowing it, each of its lines: a line the translator takes half a second for
+                        // left an empty black box up meanwhile; its English shows until its translation comes)
+                        let at_hand = || {
+                            let m = ctx.memory.lock().unwrap();
+                            let knows = |l: &str| m.knows(l) || speaker::without_name(l).is_some_and(|rest| m.knows(rest)) || m.knows(&speaker::sentence_of(l));
+                            knows(&text) || crop.as_ref().is_some_and(|cr| {
+                                let parts = stack_parts(cr, &words);
+                                parts.len() > 1 && parts.iter().all(|(p, _)| knows(p))
+                            })
+                        };
+                        if tell && !same_text(&text, &lines_now, &st.current, &st.current_lines) && (!c.cover_look() || at_hand()) {
+                            if let Some((cr, b)) = crop.as_ref().zip(ocr::text_with_icons_block(crop.as_ref(), &words)) {
+                                let (cx0, cy0) = ((area.x.clamp(0.0, 1.0) * fw as f64) as u32, (area.y.clamp(0.0, 1.0) * fh as f64) as u32);
+                                let to_frame = |(x, y, w, h): (u32, u32, u32, u32)| {
+                                    let (fw, fh) = (fw as f64, fh as f64);
+                                    [(cx0 + x) as f64 / fw, (cy0 + y) as f64 / fh, w as f64 / fw, h as f64 / fh]
+                                };
+                                let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+                                hs.sort_unstable();
+                                let mh = hs.get(hs.len() / 2).copied().unwrap_or(20);
+                                let game_box = if fx.cover_min { ocr::box_around(cr, b, mh).map(to_frame) } else { None };
+                                let v = serde_json::json!({ "seq": 0, "text_box": to_frame(b), "game_box": game_box, "line_h": mh as f64 / fh as f64 });
+                                set_cover(&*ctx.sink, &ctx.live, &area.id, Some(v));
+                            }
+                        }
                         st.candidate = text;
+                        st.candidate_lines = lines_now.clone();
                         st.candidate_since = Some(now);
                         is_new = true;
                     }
                     // A line the translation memory already knows needn't wait to settle: show it on
                     // first sight. Other lines wait `stable_ms` so a half-faded frame isn't translated.
-                    let known = is_new
-                        && sure
+                    // (on any reading of it, not only a clean first one: over bright ground the junk readings
+                    // in between kept restarting the wait, and "Drive to the prison" came a second late)
+                    let known = (is_new || !same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines))
                         && crop.as_ref().is_some_and(|cr| {
                             let (t, icons, _) = ocr::text_with_icons(cr, &words);
-                            let line = if icons.is_empty() { &st.candidate } else { &t };
+                            let line = if icons.is_empty() || stacks { &st.candidate } else { &t };
                             let m = ctx.memory.lock().unwrap();
                             // (a speaker name in front is not part of what's remembered)
-                            m.knows(line) || speaker::without_name(line).is_some_and(|rest| m.knows(rest)) || m.knows(&speaker::sentence_of(line))
+                            let knows = |l: &str| m.knows(l) || speaker::without_name(l).is_some_and(|rest| m.knows(rest)) || m.knows(&speaker::sentence_of(l));
+                            // (stacked lines: each line known, the block new — a line came or went)
+                            // (and as read without the icons: a small word the reader took for a button icon —
+                            // "Get in 🎮 vehicle" for "Get in a vehicle" — missed the line the memory has)
+                            knows(line) || knows(&st.candidate) || (stacks && {
+                                let parts = stack_parts(cr, &words);
+                                parts.len() > 1 && parts.iter().all(|(p, _)| knows(p))
+                            })
                         });
                     // A reading the app isn't sure of (text still animating in: GTA VI's instructions
                     // fade in with a glow) waits three times as long: by then the real text has
                     // replaced it, or it really is what's on screen.
                     let wait = if sure { stable_ms } else { stable_ms * 3 };
+                    // (an instruction on screen is replaced by a reading that holds for a quarter of a second
+                    // at least, unless the memory knows it: a junk reading over bright ground — "Drive tofthe
+                    // pr.iSoi7" — replaced "Drive to the prison" for a moment)
+                    let wait = if !stacks && !st.current.is_empty() { wait.max(250) } else { wait };
                     let settled = !is_new && st.candidate_since.is_some_and(|s| now - s >= Duration::from_millis(wait));
                     // The same line, sent without colours, now shows them: sent again with them (the same
                     // line on screen, not a new one: its start and the lines log stay as they are).
                     let recolor = st.colors_until.is_some_and(|t| now < t)
                         && !st.current.is_empty()
-                        && ocr::similar(&st.candidate, &st.current)
+                        && same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines)
                         && crop.as_ref().is_some_and(|cr| !ocr::colored_phrases(cr, &words).is_empty());
                     if st.colors_until.is_some_and(|t| now >= t) {
                         st.colors_until = None;
                     }
-                    if ((known || settled) && !ocr::similar(&st.candidate, &st.current)) || recolor {
+                    // (a reading of the line on screen the OCR got wrong — "en, Get in a vehicle", "Get ima
+                    // vehicle:" — that the memory takes for the same line, the same translation: the same line,
+                    // not sent again, its box moving each time)
+                    if !stacks && !recolor && !st.current.is_empty() && (known || settled) && !same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines) {
+                        let m = ctx.memory.lock().unwrap();
+                        let ar = |l: &str| m.get(l, &[], &[]).map(|(segs, _)| segs.iter().map(|s| s.0.as_str()).collect::<String>().trim().to_string());
+                        // (or a misreading the memory takes for another line, near the line up too: "Get ih vehicle"
+                        // with "Get in a vehicle" up is a letter from "Get in vehicle", two from the line up — "اركب
+                        // المركبة" for a moment over "اركب مركبة". Another line needs a clean reading of it to replace
+                        // the line up; a misreading within two letters more of the line up stays on it. And once the
+                        // line up hasn't been read for a while, the next goes up whatever its reading.)
+                        let norm = |l: &str| l.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect::<String>();
+                        let closer_to_up = !st.current_ended
+                            && m.line_of(&st.candidate).is_some_and(|other| {
+                                let (c, o) = (norm(&st.candidate), norm(&other));
+                                c != o && edit_distance(&c, &norm(&st.current)) <= edit_distance(&c, &o) + 2
+                            });
+                        if closer_to_up || ar(&st.candidate).is_some_and(|a| Some(a) == ar(&st.current)) {
+                            drop(m);
+                            st.candidate = st.current.clone();
+                            st.candidate_lines = st.current_lines.clone();
+                            st.current_seen = Some(now);
+                        }
+                    }
+                    // (only reviewed translations here: a reading matching no reviewed line — "Getin a vehigle",
+                    // "Drive to the" — went to the translator, "أدخل في فيهيغل", "قُدْ إلى"; it isn't translated,
+                    // what's up stays until its English counts as gone)
+                    let allowed = !c.fx(&area.id).reviewed_only(&area.id) || {
+                        let m = ctx.memory.lock().unwrap();
+                        let reviewed = |l: &str| m.get(l, &[], &[]).is_some_and(|(_, src)| src == "reviewed");
+                        reviewed(&st.candidate) || speaker::without_name(&st.candidate).is_some_and(|r| reviewed(r))
+                    };
+                    if allowed && (((known || settled) && !same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines)) || recolor) {
                         // Stable new text: translate it once. Colours are measured now (and again for a
                         // moment if there were none: see `colors_until`).
+                        let prev_lines = std::mem::take(&mut st.current_lines);
                         st.current = st.candidate.clone();
-                        let phrases = crop.as_ref().map(|cr| ocr::colored_phrases(cr, &words)).unwrap_or_default();
+                        st.current_seen = Some(now);
+                        st.current_ended = false;
+                        st.current_lines = st.candidate_lines.clone();
+                        let mut phrases = crop.as_ref().map(|cr| ocr::colored_phrases(cr, &words)).unwrap_or_default();
+                        // (a line's colours as seen the last time it was up: GTA VI fades its instructions in
+                        // white, their pink word coming a moment later, and the line went up white, then pink)
+                        {
+                            // (by the line the memory takes it for: a misreading of it finds its colours too)
+                            let key: String = ctx.memory.lock().unwrap().line_of(&st.current).unwrap_or_else(|| st.current.clone()).to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect();
+                            let mut seen = LINE_COLORS.lock().unwrap();
+                            if !phrases.is_empty() {
+                                if seen.len() > 2000 {
+                                    seen.clear();
+                                }
+                                seen.insert(key, phrases.clone());
+                                AREA_COLORS.lock().unwrap().insert(area.id.clone(), phrases.iter().map(|p| p.1.clone()).collect());
+                            } else if let Some(p) = seen.get(&key) {
+                                phrases = p.clone();
+                            }
+                        }
                         st.colors_until = if phrases.is_empty() && !recolor { Some(now + Duration::from_millis(2000)) } else { None };
+                        // (a line never seen in colour yet, its reviewed translation marking the highlighted words —
+                        // from the game's own highlight tags: those words in the colours this area's were last
+                        // seen in, else GTA VI's pink, from its first frame; its own colours, when they show, follow.
+                        // Only where the translation is the reviewed one: the colours carry no English words)
+                        if phrases.is_empty() && c.fx(&area.id).reviewed_only(&area.id) {
+                            let colors = AREA_COLORS.lock().unwrap().get(&area.id).cloned().unwrap_or_else(|| vec![GTA6_HIGHLIGHT.to_string()]);
+                            phrases = (0..4).map(|i| (String::new(), colors.get(i).or(colors.last()).cloned().unwrap_or_default())).collect();
+                        }
                         // Controller button icons inside the text ("Press ✕ to ...") come along as placeholders.
                         let (en_icons, icons_found, block) =
                             crop.as_ref().map(|cr| ocr::text_with_icons(cr, &words)).unwrap_or((String::new(), Vec::new(), None));
-                        let (en, icons) = if icons_found.is_empty() { (st.current.clone(), Vec::new()) } else { (en_icons, icons_found) };
+                        // (stacked subtitle lines have no button icons: one "found" beside them, a dark mark
+                        // or the start of a pale name, made the lines one instruction, translated whole)
+                        // (and none when the line as read without them is one the memory has: the "icon" was a word)
+                        let plain_known = !icons_found.is_empty() && {
+                            let m = ctx.memory.lock().unwrap();
+                            m.knows(&st.current) || speaker::without_name(&st.current).is_some_and(|r| m.knows(r))
+                        };
+                        let (en, icons) = if icons_found.is_empty() || stacks || plain_known { (st.current.clone(), Vec::new()) } else { (en_icons, icons_found) };
                         // stacked subtitle lines (not with button icons: those are instructions)
                         let parts = match &crop {
                             // (subtitles only: an instructions box's sentences read as one text)
-                            Some(cr) if icons.is_empty() && area.centered_only => ocr::speaker_lines(cr, &words),
+                            Some(cr) if icons.is_empty() && area.centered_only => stack_parts(cr, &words),
                             _ => Vec::new(),
                         };
                         // the block in frame fractions (the crop starts at the area's top-left)
@@ -1187,18 +1783,26 @@ impl Reader {
                         let text_box = block.map(to_frame);
                         // the game's own box (only placed below it: "under_text")
                         let game_box = match (&crop, block) {
-                            (Some(cr), Some(b)) if area.placement == "under_text" => {
+                            (Some(cr), Some(b)) if area.placement == "under_text" || (c.cover_look() && c.fx(&area.id).cover_min) => {
                                 let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
                                 hs.sort_unstable();
                                 ocr::box_around(cr, b, hs.get(hs.len() / 2).copied().unwrap_or(20)).map(to_frame)
                             }
                             _ => None,
                         };
+                        // (an area of the game's own box: the box it was read in, also when its edges
+                        // weren't found this time but where it was found last)
+                        let game_box = if area.needs_box { help_box.map(to_frame).or(game_box) } else { game_box };
                         seq_counter += 1;
                         latest.lock().unwrap().insert(area.id.clone(), seq_counter);
                         // the previous English line ended when this one appeared
                         let en_start = if recolor { st.current_start.unwrap_or(now) } else { st.candidate_since.unwrap_or(now) };
-                        if st.current_seq != 0 {
+                        // (stacked lines: the block up isn't over, a line joined or left it; the new block's
+                        // translation replaces it as soon as it's ready, not a blank meanwhile)
+                        // (lines all new, none of the ones up still there: those end now, not stay until
+                        // the new ones' translation comes)
+                        let goes_on = stacks && st.candidate_lines.iter().any(|l| prev_lines.iter().any(|p| ocr::similar(l, p)));
+                        if st.current_seq != 0 && !goes_on {
                             let _ = present.send(PMsg::Ended { area: area.id.clone(), seq: st.current_seq, at: if recolor { now } else { en_start } });
                         }
                         st.current_seq = seq_counter;
@@ -1209,10 +1813,23 @@ impl Reader {
                         // same size for every line of this area
                         let line_h = sizes.size(&area.id, measured);
                         st.current_start = Some(en_start);
+                        // (the text seen there now has its seq: its translation takes its black box down)
+                        {
+                            let mut covers = ctx.live.covers.lock().unwrap();
+                            if let Some(v) = covers.get_mut(&area.id).filter(|v| v["seq"].as_u64() == Some(0)) {
+                                v["seq"] = seq_counter.into();
+                            }
+                        }
+                        // (the same line sent again, its colours seen: its boxes as first sent)
+                        let (text_box, game_box) = match (recolor, st.line_boxes) {
+                            (true, Some(b)) => b,
+                            _ => (text_box, game_box),
+                        };
+                        st.line_boxes = Some((text_box, game_box));
                         let _ = jobs.send(Job { area: area.id.clone(), seq: seq_counter, en, phrases, icons, line_h, en_start, text_box, game_box, parts });
                     }
                 } else if !st.current.is_empty()
-                    && st.last_seen.is_some_and(|s| now - s > Duration::from_millis(clear_after_ms))
+                    && st.last_seen.is_some_and(|s| now - s > Duration::from_millis(clear_ms))
                 {
                     // The English is gone (not just an OCR blink). It really ended when last seen; the
                     // presenter keeps the Arabic up for as long as the English was on screen.
@@ -1221,23 +1838,28 @@ impl Reader {
                     }
                     st.current_start = None;
                     st.current.clear();
+                    st.current_lines.clear();
                     st.candidate.clear();
+                    st.candidate_lines.clear();
                     st.candidate_since = None;
                     st.current_seq = 0;
+                    set_cover(&*ctx.sink, &ctx.live, &area.id, None);
                 } else if st.current.is_empty()
                     && !st.candidate.is_empty()
-                    && st.last_seen.is_some_and(|s| now - s > Duration::from_millis(clear_after_ms))
+                    && st.last_seen.is_some_and(|s| now - s > Duration::from_millis(clear_ms))
                 {
                     // Text that came and went before it was ever translated: forget it, or its old start
                     // time would be reused when similar text shows up minutes later.
                     st.candidate.clear();
+                    st.candidate_lines.clear();
                     st.candidate_since = None;
+                    set_cover(&*ctx.sink, &ctx.live, &area.id, None);
                 }
             }
         }
         let spent = t0.elapsed();
         perf_note(PerfKind::Read, spent.as_secs_f64() * 1000.0);
-        done!(Duration::from_millis(interval_ms.max(50)).saturating_sub(spent));
+        done!(Duration::from_millis(interval_ms.max(MIN_INTERVAL_MS)).saturating_sub(spent));
     }
 }
 
@@ -1396,7 +2018,9 @@ fn translate_loop(ctx: Context, latest: Arc<Mutex<HashMap<String, u64>>>, jobs: 
         if ev.area == SCREEN_REASON || ev.error.is_some() {
             sink.emit("translation", serde_json::to_value(&ev).unwrap_or_default()); // errors go straight to the log
         } else {
-            let _ = present.send(PMsg::Ready { seq, en_start, ev });
+            // (stacked lines: the new block replaces the one up at once)
+            let now = c.fx(&ev.area).stacks(&ev.area);
+            let _ = present.send(PMsg::Ready { seq, en_start, ev, now });
         }
     }
 }

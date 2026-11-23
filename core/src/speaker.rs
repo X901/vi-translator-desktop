@@ -15,7 +15,7 @@ pub const NAME_PREFIX: &str = "name:";
 /// A line starting with a speaker name: (name, its colour, the rest). The name must be coloured in the
 /// game (a highlighted phrase starting with it): a white "Tip:" or "Note:" is part of the text.
 pub fn split<'a>(en: &'a str, phrases: &[(String, String)]) -> Option<(String, String, &'a str)> {
-    let (tagged, rest) = crate::ocr::split_name(en)?;
+    let Some((tagged, rest)) = crate::ocr::split_name(en) else { return split_lost_colon(en, phrases) };
     // the phrase is the name, or a highlighted run that starts with it. Compared without the colon
     // (and the dots OCR reads next to it): the game colours the name, and its colour may stop before
     // the colon ("Andrew" for "Andrew:"), which as a whole line went to the translator, the colon
@@ -35,6 +35,27 @@ pub fn split<'a>(en: &'a str, phrases: &[(String, String)]) -> Option<(String, S
         return None;
     }
     Some((bare_name(&tagged), color, rest))
+}
+
+/// The OCR lost the colon after a coloured name ("Local. What is wrong with you?", "Local What is…":
+/// the name, read on its own, is paler than the line): a highlighted phrase at the start that is one
+/// of the game's speakers is the name, when the line goes on after it.
+fn split_lost_colon<'a>(en: &'a str, phrases: &[(String, String)]) -> Option<(String, String, &'a str)> {
+    let (p, color) = phrases.iter().find(|(p, _)| {
+        let name = bare_name(p.trim());
+        !name.is_empty() && en.starts_with(name.as_str()) && is_known(&name)
+    })?;
+    let name = bare_name(p.trim());
+    let after = &en[name.len()..];
+    // (the name's end: a dot, a colon or a space, not a longer word "Locally")
+    if !after.starts_with(|c: char| c.is_whitespace() || matches!(c, '.' | ':' | '…' | ',')) {
+        return None;
+    }
+    let rest = after.trim_start_matches(|c: char| matches!(c, '.' | ':' | '…' | ',')).trim_start();
+    if rest.chars().filter(|c| c.is_alphabetic()).count() < 2 {
+        return None;
+    }
+    Some((name, color.clone(), rest))
 }
 
 /// "Lucia.:" / "Jason…:" -> "Lucia" / "Jason": the name without its colon or the dots the OCR reads
@@ -679,6 +700,23 @@ mod tests {
     fn a_coloured_name_is_split_off() {
         let (name, color, rest) = split("Dobbs: Not to be annoying, can you fix my leg?", &gold()).unwrap();
         assert_eq!((name.as_str(), color.as_str(), rest), ("Dobbs", "#ffd69f", "Not to be annoying, can you fix my leg?"));
+    }
+
+    #[test]
+    fn a_coloured_speaker_whose_colon_the_ocr_lost_is_split_off() {
+        // "Local: What is wrong with you?" read "Local. What…" or "Local What…" (the pale name read on its
+        // own): it went whole to the translator ("محلي، ما خطبك؟")
+        let ph = vec![("Local".to_string(), "#d98cff".to_string())];
+        for en in ["Local. What is wrong with you?", "Local What is wrong with you?"] {
+            let (name, color, rest) = split(en, &ph).unwrap();
+            assert_eq!((name.as_str(), color.as_str(), rest), ("Local", "#d98cff", "What is wrong with you?"));
+        }
+        // a coloured word at the start that isn't one of the game's speakers: no name
+        let ph = vec![("Careful".to_string(), "#ff0".to_string())];
+        assert!(split("Careful. It's hot.", &ph).is_none());
+        // the name's letters starting a longer word: no name
+        let ph = vec![("Local".to_string(), "#d98cff".to_string())];
+        assert!(split("Locally grown, they said.", &ph).is_none());
     }
 
     #[test]

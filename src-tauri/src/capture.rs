@@ -187,7 +187,7 @@ impl Shared {
     }
     /// Time for the next full frame (the one text is read from)?
     pub fn full_due(&self, last: Instant) -> bool {
-        last.elapsed() >= Duration::from_millis(self.capture_ms.load(Ordering::Relaxed).max(30))
+        last.elapsed() >= Duration::from_millis(self.capture_ms.load(Ordering::Relaxed).max(15))
     }
     /// Is anyone watching the preview: an open stream, or the window asked for a frame in the last 2 s?
     pub fn watching(&self) -> bool {
@@ -379,7 +379,7 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
     loop {
         let (want, obs_port, obs_password, source_crop, overlay_window, overlay_crop, picture_4k) = {
             let c = cfg.lock().unwrap();
-            shared.capture_ms.store(1000 / c.capture_fps.clamp(1, 30) as u64, Ordering::Relaxed);
+            shared.capture_ms.store(1000 / c.capture_fps.clamp(1, 60) as u64, Ordering::Relaxed);
             shared.preview_ms.store(1000 / c.preview_fps.clamp(1, 60) as u64, Ordering::Relaxed);
             PREVIEW_MAX.store(if c.picture_4k { PREVIEW_W_4K } else { PREVIEW_W }, Ordering::Relaxed);
             (c.window_title.clone(), c.obs_port, c.obs_password.clone(), c.source_crop, c.overlay_window.clone(), c.overlay_crop, c.picture_4k)

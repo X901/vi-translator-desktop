@@ -101,6 +101,11 @@ pub struct Area {
     /// the credits' names, a sign — is not this area's. The translation also takes the box's edges.
     #[serde(default)]
     pub needs_box: bool,
+    /// With needs_box: where the game's box always is, as fractions of the picture: its left edge, its
+    /// top and its widest (it grows to the right and down with its text). None: GTA VI's help box for
+    /// the "help" area (see `box_anchor`), else found by its edges alone.
+    #[serde(default)]
+    pub box_anchor: Option<[f64; 3]>,
     /// This area's own text style (colours, box, outline, size …). None: the profile's style, which
     /// is what an area starts from (settings and layouts from before areas had their own).
     pub style: Option<Style>,
@@ -151,6 +156,7 @@ impl Default for Area {
             match_size: true,
             centered_only: false,
             needs_box: false,
+            box_anchor: None,
             font_family: String::new(),
             text_pos: String::new(),
             background: String::new(),
@@ -284,6 +290,8 @@ pub struct Config {
     #[serde(default)]
     pub timing_custom: Option<bool>,
     pub overlays_enabled: bool,
+    /// GTA VI's phone in the player's hand (WhatUp, Snapmatic): its text translated beside it.
+    pub phone_text: bool,
     /// The list of live translations (in the app and on the home-network page) keeps filling,
     /// whether or not the overlays are on.
     pub live_translations: bool,
@@ -372,6 +380,106 @@ pub struct Config {
     pub profile_opts: ProfileOpts,
     pub areas: Vec<Area>,
     pub style: Style,
+    /// How each read area's translation comes on screen, by area id (Read Areas): the player's own,
+    /// kept for every profile, built-in ones too (their areas can't be changed). Missing: the defaults.
+    pub area_fx: std::collections::BTreeMap<String, AreaFx>,
+}
+
+/// How a read area's translation comes on screen (see `Config::area_fx`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct AreaFx {
+    /// With the "over the game's text" look: the black box is at least as big as the game's text
+    /// (its own box around it, when the game draws one), so none of the English shows past it.
+    pub cover_min: bool,
+    /// With that look: the black box is up as soon as the text is seen, before its translation
+    /// is ready (the translation then comes into it).
+    pub cover_early: bool,
+    /// The translation fades in over this many ms (0 = it just appears).
+    pub fade_ms: u32,
+    /// The game's lines stack up from a bottom line (GTA VI's subtitles: up to six lines and more):
+    /// the area's text is read only when a line sits in the area, and the lines above it only when
+    /// they're joined to it, up to STACK_H above the area. None: the area's default (`stack_default`).
+    pub stack_up: Option<bool>,
+    /// With the "above the game's text" look: right above the stacked lines' top (the area that
+    /// stacks up), moving up as more lines come; the stacking area's translation goes above the
+    /// others'. None: the area's default (`ride_default`).
+    pub ride: Option<bool>,
+    /// A border in Vice City colours around this area's translation, to tell it apart from the others
+    /// (GTA VI's bottom instructions from the subtitles). None: the area's default (`accent_default`).
+    pub accent: Option<bool>,
+    /// Only reviewed translations: a reading that matches no reviewed line (an OCR misreading of the
+    /// line over bright ground) isn't translated; what's up stays, then goes. For text the reviewed
+    /// translations cover whole (GTA VI's bottom instructions). None: the area's default
+    /// (`reviewed_only_default`).
+    pub reviewed_only: Option<bool>,
+}
+
+impl Default for AreaFx {
+    fn default() -> Self {
+        Self { cover_min: true, cover_early: true, fade_ms: 150, stack_up: None, ride: None, accent: None, reviewed_only: None }
+    }
+}
+
+/// How far above its area a stacking area reads (fraction of the picture's height): ten lines of
+/// GTA VI's subtitles.
+pub const STACK_H: f64 = 0.36;
+
+/// GTA VI's help box (top left), measured on 2,700 frames of a 1080p stream (124 with its edges
+/// clear, to the pixel): its left edge at 32 px, its top at 288, at most 445 px wide (its width and
+/// height follow its text: its right edge a line height past the text's, its bottom 11 px under it; a
+/// line is 33 px).
+pub const GTA6_HELP_BOX: [f64; 3] = [32.0 / 1920.0, 288.0 / 1080.0, 0.232];
+
+/// Where an area's game box always is (Area::box_anchor), GTA VI's help box for "help".
+pub fn box_anchor(a: &Area) -> Option<[f64; 3]> {
+    a.box_anchor.or_else(|| (a.needs_box && a.id == "help").then_some(GTA6_HELP_BOX))
+}
+
+/// The part of the picture an area whose lines stack up is read in: up to STACK_H above its bottom.
+pub fn stack_grown(a: &Area) -> Area {
+    let bottom = (a.y + a.h).clamp(0.0, 1.0);
+    let top = (bottom - STACK_H).max(0.0).min(a.y);
+    Area { y: top, h: bottom - top, ..a.clone() }
+}
+
+/// GTA VI's subtitles stack up from their bottom line (the built-in areas' ids).
+pub fn stack_default(area: &str) -> bool {
+    area == "subtitles"
+}
+/// …and their translation and the bottom instructions' move together above them.
+pub fn ride_default(area: &str) -> bool {
+    area == "subtitles" || area == "instructions"
+}
+
+impl AreaFx {
+    /// GTA VI's bottom instructions: all of them are in the reviewed translations.
+    pub fn reviewed_only(&self, area: &str) -> bool {
+        self.reviewed_only.unwrap_or(area == "instructions")
+    }
+    pub fn stacks(&self, area: &str) -> bool {
+        self.stack_up.unwrap_or_else(|| stack_default(area))
+    }
+    pub fn rides(&self, area: &str) -> bool {
+        self.ride.unwrap_or_else(|| ride_default(area))
+    }
+}
+
+impl Config {
+    /// An area's effects (the defaults when it has none of its own).
+    pub fn fx(&self, area: &str) -> AreaFx {
+        let mut f = self.area_fx.get(area).cloned().unwrap_or_default();
+        f.fade_ms = f.fade_ms.min(2000);
+        f
+    }
+    /// The phone's text translated beside it: GTA VI's (its built-in profile, or a copy of it).
+    pub fn phone_text(&self) -> bool {
+        self.phone_text && self.game() == "gta6"
+    }
+    /// The game profile's look puts each translation over the game's lines, on a black box.
+    pub fn cover_look(&self) -> bool {
+        self.profile_opts.more.get("translation_cover") == Some(&true)
+    }
 }
 
 /// The player's own show/hide of one profile's read areas and game pages (see `Config::shown`).
@@ -412,9 +520,9 @@ impl Timing {
     /// Within the Timing sliders' ranges (0 = the app's own value).
     pub fn sanitize(&mut self) {
         let fit = |v: u64, lo: u64, hi: u64| if v == 0 { 0 } else { v.clamp(lo, hi) };
-        self.interval_ms = fit(self.interval_ms, 100, 1000);
+        self.interval_ms = fit(self.interval_ms, 16, 1000);
         self.stable_ms = self.stable_ms.min(1500);
-        self.clear_after_ms = fit(self.clear_after_ms, 200, 3000);
+        self.clear_after_ms = fit(self.clear_after_ms, 50, 3000);
     }
 }
 
@@ -511,10 +619,12 @@ pub fn builtin_profile(id: &str) -> Option<Profile> {
                 text_pos: "top-left".into(),
                 font_family: "Tajawal".into(),
                 style: Some(gta6_text()),
-                // square, dark see-through box like GTA's own instructions box
+                // square, dark box like GTA's own instructions box
                 background: "game".into(),
-                // matched size × 92% looks the same as GTA's instruction text
-                font_scale: 0.92,
+                // matched size × 116% looks the same as GTA's instruction text: the size measured is the
+                // median word's (19 px at 1080p: most of its words are short, lower-case), the text's
+                // capitals are 24 px (92 % had the Arabic a fifth smaller than the English)
+                font_scale: 1.16,
                 // the opening credits' names in this corner have no box: not help text
                 needs_box: true,
                 ..Area::default()
@@ -628,6 +738,7 @@ impl Default for Config {
             clear_after_ms: 800,
             timing_custom: Some(false),
             overlays_enabled: true,
+            phone_text: true,
             live_translations: true,
             fps_badge: false,
             fps_corner: "top-right".into(),
@@ -675,6 +786,7 @@ impl Default for Config {
             profile_opts: builtin_profile("gta6").expect("built-in").pages,
             areas: builtin_profile("gta6").expect("built-in").areas,
             style: Style::default(),
+            area_fx: Default::default(),
         }
     }
 }
@@ -686,7 +798,7 @@ impl Default for Config {
 /// a four-line box's last line was cut off, so the translation stopped short and covered it;
 /// 4 = the live preview at 60 frames a second (was 30: a capture card sends 60, and the preview looked
 /// choppy next to the card's own app).
-pub const DEFAULTS_VERSION: u32 = 4;
+pub const DEFAULTS_VERSION: u32 = 5;
 
 /// The height of GTA VI's top-left instructions area (and the one before `DEFAULTS_VERSION` 3).
 const HELP_H: f64 = 0.30;
@@ -729,6 +841,24 @@ impl Config {
         if self.defaults_version < 4 && self.preview_fps == 30 {
             self.preview_fps = 60;
             moved = true;
+        }
+        if self.defaults_version < 5 {
+            // GTA VI's top-left instructions: 116 % of the matched size, not 92 % (the Arabic was a fifth
+            // smaller than the English); in the built-in profile, and in use while it's the one in use
+            let gta6 = self.profile == "gta6";
+            let old = |a: &Area| a.id == "help" && (a.font_scale - 0.92).abs() < 1e-9;
+            for p in self.builtins.iter_mut().filter(|p| p.id == "gta6") {
+                for a in p.areas.iter_mut().filter(|a| old(a)) {
+                    a.font_scale = 1.16;
+                    moved = true;
+                }
+            }
+            if gta6 {
+                for a in self.areas.iter_mut().filter(|a| old(a)) {
+                    a.font_scale = 1.16;
+                    moved = true;
+                }
+            }
         }
         let bumped = self.defaults_version < DEFAULTS_VERSION;
         self.defaults_version = self.defaults_version.max(DEFAULTS_VERSION);
@@ -782,9 +912,9 @@ impl Config {
         let pick = |mine: u64, game: u64| if own || game == 0 { mine } else { game };
         // (within the Timing sliders' ranges, whatever a settings file or a layout says)
         (
-            pick(self.interval_ms, t.interval_ms).clamp(100, 1000),
+            pick(self.interval_ms, t.interval_ms).clamp(16, 1000),
             pick(self.stable_ms, t.stable_ms).min(1500),
-            pick(self.clear_after_ms, t.clear_after_ms).clamp(200, 3000),
+            pick(self.clear_after_ms, t.clear_after_ms).clamp(50, 3000),
         )
     }
 
@@ -986,7 +1116,7 @@ mod profile_tests {
         assert_eq!(p.areas.len(), 1, "an id line uploads can't take, and a repeated one, go");
         assert_eq!((p.areas[0].x, p.areas[0].font_family.as_str(), p.areas[0].placement.as_str()), (1.0, "Tajawal", "above"));
         assert_eq!(p.pages.more.keys().collect::<Vec<_>>(), vec!["camp"]);
-        assert_eq!((p.timing.interval_ms, p.timing.clear_after_ms), (100, 3000));
+        assert_eq!((p.timing.interval_ms, p.timing.clear_after_ms), (16, 3000));
     }
 
     #[test]

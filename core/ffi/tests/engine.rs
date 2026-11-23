@@ -8,18 +8,19 @@ use std::time::{Duration, Instant};
 
 use vi_translator_ffi::{Engine, EngineListener, OcrWord, PairError, TextRecognizer, TranslatedLine};
 
-/// "Meet me at the docks." in the middle of whatever picture it's given.
+/// "Meet me at the docks." centred at the bottom of whatever picture it's given (where GTA VI's
+/// line 1 is: the subtitles area is read up from there).
 struct Fake;
 
 impl TextRecognizer for Fake {
     fn recognize(&self, _bgra: Vec<u8>, width: u32, height: u32) -> Vec<OcrWord> {
         let words = ["Meet", "me", "at", "the", "docks."];
-        let (ww, h) = (width as f64 * 0.05, (height as f64 * 0.3).min(40.0));
+        let (ww, h) = (width as f64 * 0.05, 24.0); // (a 1080p subtitle line's height)
         let start = width as f64 / 2.0 - ww * words.len() as f64 / 2.0;
         words
             .iter()
             .enumerate()
-            .map(|(i, t)| OcrWord { line: 0, text: t.to_string(), x: start + i as f64 * ww, y: height as f64 / 2.0 - h / 2.0, w: ww * 0.9, h })
+            .map(|(i, t)| OcrWord { line: 0, text: t.to_string(), x: start + i as f64 * ww, y: height as f64 - h * 1.5, w: ww * 0.9, h })
             .collect()
     }
     fn max_dimension(&self) -> u32 {

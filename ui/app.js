@@ -10,6 +10,7 @@ const lastSegs = {}; // area id -> latest Arabic segments
 const lastLineH = {}; // area id -> English line height (fraction of the frame), for size matching
 const lastTextBox = {}; // area id -> English text block [x, y, w, h] (fractions of the frame)
 const lastGameBox = {}; // area id -> the game's own box around it, when found (same units)
+const lastSeen = {}; // area id -> the game's text seen there, not translated yet ({text_box, game_box, line_h})
 
 // ------------------------------------------------------------------------------------- saving
 
@@ -149,6 +150,20 @@ function drawLayer() {
     return;
   }
   const k = shown.h / 1080;
+  if (overlays && phoneNow) {
+    const ph = document.createElement("div");
+    Object.assign(ph.style, { position: "absolute", left: "0", top: "0", width: `${shown.w}px`, height: `${shown.h}px`, pointerEvents: "none" });
+    layer.appendChild(ph);
+    AS.renderPhone(ph, phoneNow);
+  }
+  // Every area's translation now shown, for the ones that ride above stacked lines (AS.ridePlace),
+  // and a hidden box to measure them in.
+  const shownNow = {};
+  for (const a of cfg.areas) {
+    if (overlays && lastSegs[a.id]?.length) shownNow[a.id] = { segments: lastSegs[a.id], text_box: lastTextBox[a.id], game_box: lastGameBox[a.id], line_h: lastLineH[a.id] };
+  }
+  const probe = document.createElement("div");
+  layer.appendChild(probe);
   for (const a of cfg.areas) {
     const px = { x: a.x * shown.w, y: a.y * shown.h, w: a.w * shown.w, h: a.h * shown.h };
     // Arabic region (same placement maths as the real overlay). Drag it to place the Arabic anywhere.
@@ -162,14 +177,19 @@ function drawLayer() {
       const box = document.createElement("div");
       band.appendChild(box);
       AS.anchor(band, a.placement, a);
-      // matched size only for real translations (the sample text has no English line to match)
-      const fontPx = lastSegs[a.id]?.length ? AS.matchedPx(a, lastLineH[a.id], shown.h) : 0;
-      const tb = lastSegs[a.id]?.length ? lastTextBox[a.id] : null;
-      // (the profile's look: over the game's lines on a black box, or the area's own placement)
-      const L = AS.look(a, AS.styleOf(a, cfg.style), cfg.profile_opts, tb);
-      AS.renderBox(box, segs, L.style, k, a.font_scale, L.placement, L.area, fontPx);
-      if (AS.atText(L.placement)) {
-        AS.placeAtText(box, L.placement, tb, lastLineH[a.id], shown.w, shown.h, r.x, r.y, px.w, px.h, tb ? lastGameBox[a.id] : null);
+      const seen = overlays ? lastSeen[a.id] || null : null;
+      if (shownNow[a.id] || seen) {
+        // A real line: drawn as the overlays draw it (the profile's look, riding above the stacked lines,
+        // the black box over text seen and not translated yet)
+        const ride = AS.ridePlace(a, cfg.areas, cfg.area_fx, cfg.profile_opts, shownNow, overlays ? lastSeen : {}, shown.w, shown.h,
+          (f, e) => AS.measureBox(probe, f, cfg.style, cfg.profile_opts, e, k, shown.h, a.w * shown.w));
+        AS.drawLine(box, a, cfg.style, cfg.profile_opts, cfg.area_fx, shownNow[a.id] || null, seen, k, shown.h,
+          { W: shown.w, H: shown.h, ox: r.x, oy: r.y, areaW: px.w, areaH: px.h, ride });
+      } else {
+        // the sample text (no English line to match: the style's size), in the area's own place
+        const L = AS.look(a, AS.styleOf(a, cfg.style), cfg.profile_opts, null);
+        AS.renderBox(box, segs, L.style, k, a.font_scale, L.placement, L.area, 0);
+        if (AS.atText(L.placement)) AS.placeAtText(box, L.placement, null, 0, shown.w, shown.h, r.x, r.y, px.w, px.h, null);
       }
       band.insertAdjacentHTML("beforeend", `<div class="tag">${AS.esc(t("Translation · {name}", { name: a.name }))}</div>`);
       addHandles(band, a, "out");
@@ -1170,6 +1190,43 @@ function bindPosGrid(card, a, keys, cls) {
   }
 }
 
+// How an area's translation comes on screen (config.rs AreaFx): kept for every profile, built-in
+// ones too (whose areas can't be changed: data-more keeps these on), by area id.
+const FADES = [0, 100, 150, 250, 400, 600];
+function fxFields(a) {
+  const fx = AS.fxOf(cfg.area_fx, a.id);
+  const cover = AS.coverLook(cfg.profile_opts);
+  const dis = cover ? "" : "disabled";
+  return `
+      <div class="sub">${t("Showing the translation")}</div>
+      <label class="check"><input type="checkbox" class="fx-min" data-more="1" ${fx.cover_min ? "checked" : ""} ${dis}/> ${t("Black box at least as big as the game's text")}</label>
+      <label class="check"><input type="checkbox" class="fx-early" data-more="1" ${fx.cover_early ? "checked" : ""} ${dis}/> ${t("Black box as soon as the text appears, before its translation")}</label>
+      ${cover ? "" : `<p class="muted small">${t("The black box is for the look \"Over the game's text\" (Game profile).")}</p>`}
+      <label class="check"><input type="checkbox" class="fx-stack" data-more="1" ${fx.stack_up ? "checked" : ""}/> ${t("Lines stack up from the bottom line: the lines above are read only when the bottom one is there")}</label>
+      <label class="check"><input type="checkbox" class="fx-ride" data-more="1" ${fx.ride ? "checked" : ""} ${cover ? "disabled" : ""}/> ${t("Right above the stacked lines, moving up with them (with the subtitles and the bottom instructions as one block)")}</label>
+      ${cover ? `<p class="muted small">${t("Moving above the lines is for the look \"Above the game's text\" (Game profile).")}</p>` : ""}
+      <label class="check"><input type="checkbox" class="fx-accent" data-more="1" ${fx.accent ? "checked" : ""}/> ${t("A border in Vice City colours, to tell it apart")}</label>
+      <label class="check"><input type="checkbox" class="fx-reviewed" data-more="1" ${fx.reviewed_only ? "checked" : ""}/> ${t("Only reviewed translations: a reading that matches none isn't shown")}</label>
+      <div class="row field inline-label">
+        <label>${t("Fade in")}</label>
+        <select class="fx-fade grow" data-more="1">${FADES.map((ms) => `<option value="${ms}" ${fx.fade_ms === ms ? "selected" : ""}>${ms ? `${ms} ms` : t("Off")}</option>`).join("")}</select>
+      </div>`;
+}
+function bindFx(c, a) {
+  const set = (k, v) => {
+    cfg.area_fx = cfg.area_fx || {};
+    cfg.area_fx[a.id] = Object.assign(AS.fxOf(cfg.area_fx, a.id), { [k]: v });
+    save();
+  };
+  c.querySelector(".fx-min").addEventListener("change", (e) => set("cover_min", e.target.checked));
+  c.querySelector(".fx-early").addEventListener("change", (e) => set("cover_early", e.target.checked));
+  c.querySelector(".fx-fade").addEventListener("change", (e) => set("fade_ms", Number(e.target.value)));
+  c.querySelector(".fx-stack").addEventListener("change", (e) => set("stack_up", e.target.checked));
+  c.querySelector(".fx-ride").addEventListener("change", (e) => set("ride", e.target.checked));
+  c.querySelector(".fx-accent").addEventListener("change", (e) => set("accent", e.target.checked));
+  c.querySelector(".fx-reviewed").addEventListener("change", (e) => set("reviewed_only", e.target.checked));
+}
+
 function renderAreas() {
   const list = $("area-list");
   list.innerHTML = "";
@@ -1197,6 +1254,7 @@ function renderAreas() {
       </div>
       <label class="check"><input type="checkbox" class="ms" ${a.match_size !== false ? "checked" : ""}/> ${t("Match the game's text size")}</label>
       <label class="check"><input type="checkbox" class="co" ${a.centered_only ? "checked" : ""}/> ${t("Only text centred in the picture (subtitles)")}</label>
+      ${fxFields(a)}
       <div class="row field inline-label">
         <label>${a.match_size !== false ? t("Fine-tune") : t("Text size")}</label>
         <input type="range" class="fs" min="0.5" max="2" step="0.05" value="${a.font_scale}" />
@@ -1242,6 +1300,7 @@ function renderAreas() {
     renderStyleForm(det.querySelector(".form"), a);
     c.querySelector(".ms").addEventListener("change", (e) => { a.match_size = e.target.checked; renderAreas(); save(); });
     c.querySelector(".co").addEventListener("change", (e) => { a.centered_only = e.target.checked; save(); });
+    bindFx(c, a);
     const ff = c.querySelector(".ff");
     paintFonts(ff);
     ff.style.fontFamily = fontCss(a.font_family || cfg.style.font_family);
@@ -1452,11 +1511,11 @@ function renderTiming() {
   k4.querySelector("input").addEventListener("change", (e) => { cfg.picture_4k = e.target.checked; save(false); });
   form.appendChild(k4);
   const fields = [
-    ["capture_fps", "Frames captured for reading text (per second)", 1, 30, 1, "Full-size frames used for reading text, game pages and saved frames. Also how often the pause menu checks whether its text changed. 12 is plenty; more costs CPU, especially at 4K. From OBS, about 12 is the most it can deliver."],
+    ["capture_fps", "Frames captured for reading text (per second)", 1, 60, 1, "Full-size frames used for reading text, game pages and saved frames. Also how often the pause menu checks whether its text changed. 12 is plenty; more costs CPU, especially at 4K. From OBS, about 12 is the most it can deliver."],
     ["preview_fps", "Live preview frame rate (per second)", 5, 60, 5, "Only the picture in this app (small frames, made only while it's visible). Doesn't change how text is read."],
-    ["interval_ms", "How often areas are read (ms)", 100, 1000, 50, "Lower = faster reaction, more CPU."],
+    ["interval_ms", "How often areas are read (ms)", 16, 1000, 2, "Lower = faster reaction, more CPU."],
     ["stable_ms", "Wait for text to settle before translating (ms)", 0, 1500, 50, "Avoids translating half-faded lines."],
-    ["clear_after_ms", "Treat the English as gone after (ms)", 200, 3000, 100, "Ignores short OCR blinks. The translation then stays as long as the English was on screen, and switches to the next line as soon as it is ready."],
+    ["clear_after_ms", "Treat the English as gone after (ms)", 50, 3000, 10, "Ignores short OCR blinks. The translation then stays as long as the English was on screen, and switches to the next line as soon as it is ready."],
   ];
   // The last three: the game profile's timing unless the player chose their own (Config::timing).
   const TIMED = ["interval_ms", "stable_ms", "clear_after_ms"];
@@ -2116,6 +2175,13 @@ listen("translation", (e) => {
   if (ev.segments.length && cfg.live_translations !== false) log(ev);
   drawLayer();
 });
+// The game's text seen in an area before its translation: its black box, and the translations riding
+// above stacked lines move up to it (as on the overlays)
+listen("cover", (e) => {
+  if (e.payload.cover) lastSeen[e.payload.area] = e.payload.cover;
+  else delete lastSeen[e.payload.area];
+  if (cfg) drawLayer();
+});
 listen("status-msg", (e) => log({ info: I18N.tMsg(e.payload) }));
 // A new pages script was saved (a layout update, test versions turned on or off): Game pages asks again.
 listen("pages", () => {
@@ -2190,6 +2256,9 @@ listen("config", (e) => {
     renderProfile();
   }
 });
+// GTA VI's phone held up: its translations beside it, on the picture here too
+let phoneNow = null;
+listen("phone", (e) => { phoneNow = e.payload; drawLayer(); });
 listen("screen", (e) => {
   const was = !!screen.layout;
   screen.layout = e.payload;
@@ -2329,6 +2398,7 @@ function renderProfile() {
     cfg.profile_opts.more[AS.COVER] = on;
     setShown("page", AS.COVER, on);
     drawLayer();
+    renderAreas(); // (its black-box options are for this look)
     save();
   }));
   drawLookPreviews(f);
@@ -2374,7 +2444,7 @@ async function drawLookPreviews(form) {
     // (the game's size, as "Match the game's text size" gives it; the style's look otherwise)
     const px = AS.matchedPx(Object.assign({}, area, { match_size: true }), tb[3], H);
     AS.renderBox(box, [[text || LOOK_LINE, null]], L.style, H / 360, area.font_scale, L.placement, L.area, px);
-    AS.placeAtText(box, L.placement, tb, tb[3], W, H, 0, 0, W, H, null);
+    AS.placeAtText(box, L.placement, tb, tb[3], W, H, 0, 0, W, H, null, { min: AS.fxOf(cfg.area_fx, area.id).cover_min });
   }
 }
 
@@ -2435,7 +2505,7 @@ function applyTheme() {
 function lockControls() {
   const on = locked();
   document.querySelectorAll("#tab-areas, #tab-pages").forEach((tab) =>
-    tab.querySelectorAll("input:not(.en):not([data-more]), select, textarea, button:not([data-copy])").forEach((el) => { el.disabled = on || el.dataset.matched === "1"; }));
+    tab.querySelectorAll("input:not(.en):not([data-more]), select:not([data-more]), textarea, button:not([data-copy])").forEach((el) => { el.disabled = on || el.dataset.matched === "1"; }));
   $("add-area").disabled = on;
   // (its boxes can't be moved or resized, so the hint about doing that is gone too)
   $("drag-hint").hidden = on;
