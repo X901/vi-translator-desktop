@@ -1,26 +1,43 @@
-// pages-version: 4
+// pages-version: 11
 // requires-app: 1.0.0
 // Grand Theft Auto VI: the game's own pages the app translates (see src/pagescript.rs for the API).
 // The pages' switch names and descriptions in the app's other interface languages (English and Arabic are with each).
 const PAGE_NAMES = {"wasted": {"name": {"hi": "आप मारे गए", "bn": "আপনি মারা গেছেন", "ur": "آپ مارے گئے", "id": "Anda tewas", "tr": "Öldünüz", "vi": "Bạn đã chết", "fa": "کشته شدید", "th": "คุณตายแล้ว", "ta": "நீங்கள் இறந்துவிட்டீர்கள்", "te": "మీరు చనిపోయారు", "mr": "तुम्ही मेलात", "uk": "Вам кінець", "nl": "Je bent dood", "fil": "Patay ka na", "ms": "Anda mati", "sw": "Umekufa", "ro": "Ai murit", "el": "Πεθάνατε", "cs": "Je po vás", "fr": "Vous êtes mort", "it": "Sei morto", "de": "Du bist tot", "ru": "Потрачено", "ja": "死亡", "pl": "Nie żyjesz", "ko": "사망", "zh-Hans": "死亡", "zh-Hant": "死亡", "es-MX": "Moriste", "es-ES": "Has muerto", "pt-BR": "Você morreu"}, "about": {"hi": "मरने पर दिखने वाले बड़े “wasted” का अनुवाद।", "bn": "মারা গেলে দেখানো বড় “wasted” লেখার অনুবাদ।", "ur": "مرنے پر نظر آنے والے بڑے “wasted” کا ترجمہ۔", "id": "Menerjemahkan tulisan besar “wasted” saat Anda tewas.", "tr": "Öldüğünüzde çıkan büyük “wasted” yazısını çevirir.", "vi": "Dịch chữ “wasted” lớn hiện ra khi bạn chết.", "fa": "ترجمهٔ «wasted» بزرگی که هنگام مرگ نشان داده می‌شود.", "th": "แปลคำ “wasted” ตัวใหญ่ที่ขึ้นเมื่อคุณตาย", "ta": "நீங்கள் இறக்கும்போது தோன்றும் பெரிய “wasted” என்பதை மொழிபெயர்க்கிறது.", "te": "మీరు చనిపోయినప్పుడు కనిపించే పెద్ద “wasted”ను అనువదిస్తుంది.", "mr": "तुम्ही मेल्यावर दिसणाऱ्या मोठ्या “wasted” चे भाषांतर.", "uk": "Перекладає великий напис «wasted», коли ви гинете.", "nl": "Vertaalt de grote ‘wasted’ als je doodgaat.", "fil": "Isinasalin ang malaking “wasted” kapag namatay ka.", "ms": "Menterjemah perkataan besar “wasted” apabila anda mati.", "sw": "Hutafsiri neno kubwa “wasted” unapokufa.", "ro": "Traduce marele „wasted” când mori.", "el": "Μεταφράζει το μεγάλο «wasted» όταν πεθαίνετε.", "cs": "Překládá velký nápis „wasted“, když zemřete.", "fr": "Traduit le grand « wasted » quand vous mourez.", "it": "Traduce la grande scritta “wasted” quando muori.", "de": "Übersetzt das große „wasted“, wenn du stirbst.", "ru": "Переводит большую надпись «wasted», когда вы погибаете.", "ja": "死んだときに出る大きな「wasted」を翻訳します。", "pl": "Tłumaczy wielki napis „wasted”, gdy zginiesz.", "ko": "죽었을 때 나오는 큰 “wasted”를 번역합니다.", "zh-Hans": "翻译死亡时出现的大字“wasted”。", "zh-Hant": "翻譯死亡時出現的大字「wasted」。", "es-MX": "Traduce el gran “wasted” cuando mueres.", "es-ES": "Traduce el gran «wasted» cuando mueres.", "pt-BR": "Traduz o grande “wasted” quando você morre."}}, "pause_menu": {"name": {"hi": "पॉज़ मेनू", "bn": "পজ মেনু", "ur": "پاز مینو", "id": "Menu jeda", "tr": "Duraklatma menüsü", "vi": "Menu tạm dừng", "fa": "منوی توقف", "th": "เมนูหยุดชั่วคราว", "ta": "இடைநிறுத்த மெனு", "te": "పాజ్ మెనూ", "mr": "पॉज मेनू", "uk": "Меню паузи", "nl": "Pauzemenu", "fil": "Pause menu", "ms": "Menu jeda", "sw": "Menyu ya kusitisha", "ro": "Meniul de pauză", "el": "Μενού παύσης", "cs": "Menu pauzy", "fr": "Menu pause", "it": "Menu di pausa", "de": "Pausenmenü", "ru": "Меню паузы", "ja": "ポーズメニュー", "pl": "Menu pauzy", "ko": "일시 정지 메뉴", "zh-Hans": "暂停菜单", "zh-Hant": "暫停選單", "es-MX": "Menú de pausa", "es-ES": "Menú de pausa", "pt-BR": "Menu de pausa"}, "about": {"hi": "पॉज़ मेनू का अनुवाद: टैब, सूचियाँ, सहायता पेज, सेटिंग्स और बटन।", "bn": "পজ মেনুর অনুবাদ: ট্যাব, তালিকা, সাহায্যের পেজ, সেটিংস ও বোতাম।", "ur": "پاز مینو کا ترجمہ: ٹیبز، فہرستیں، مدد کے صفحات، سیٹنگز اور بٹن۔", "id": "Menerjemahkan menu jeda: tab, daftar, halaman bantuan, pengaturan, dan tombol.", "tr": "Duraklatma menüsünü çevirir: sekmeler, listeler, yardım sayfaları, ayarlar ve düğmeler.", "vi": "Dịch menu tạm dừng: các tab, danh sách, trang trợ giúp, cài đặt và nút.", "fa": "ترجمهٔ منوی توقف: زبانه‌ها، فهرست‌ها، صفحه‌های راهنما، تنظیمات و دکمه‌ها.", "th": "แปลเมนูหยุดชั่วคราว: แท็บ รายการ หน้าวิธีใช้ การตั้งค่า และปุ่ม", "ta": "இடைநிறுத்த மெனுவை மொழிபெயர்க்கிறது: தாவல்கள், பட்டியல்கள், உதவிப் பக்கங்கள், அமைப்புகள், பொத்தான்கள்.", "te": "పాజ్ మెనూను అనువదిస్తుంది: ట్యాబ్‌లు, జాబితాలు, సహాయ పేజీలు, సెట్టింగ్‌లు, బటన్‌లు.", "mr": "पॉज मेनूचे भाषांतर: टॅब, याद्या, मदत पाने, सेटिंग्ज आणि बटणे.", "uk": "Перекладає меню паузи: вкладки, списки, сторінки довідки, налаштування й кнопки.", "nl": "Vertaalt het pauzemenu: tabbladen, lijsten, helppagina's, instellingen en knoppen.", "fil": "Isinasalin ang pause menu: mga tab, listahan, pahina ng tulong, setting at button.", "ms": "Menterjemah menu jeda: tab, senarai, halaman bantuan, tetapan dan butang.", "sw": "Hutafsiri menyu ya kusitisha: vichupo, orodha, kurasa za msaada, mipangilio na vitufe.", "ro": "Traduce meniul de pauză: file, liste, pagini de ajutor, setări și butoane.", "el": "Μεταφράζει το μενού παύσης: καρτέλες, λίστες, σελίδες βοήθειας, ρυθμίσεις και κουμπιά.", "cs": "Překládá menu pauzy: karty, seznamy, stránky nápovědy, nastavení a tlačítka.", "fr": "Traduit le menu pause : onglets, listes, pages d’aide, paramètres et boutons.", "it": "Traduce il menu di pausa: schede, elenchi, pagine di aiuto, impostazioni e pulsanti.", "de": "Übersetzt das Pausenmenü: Tabs, Listen, Hilfeseiten, Einstellungen und Tasten.", "ru": "Переводит меню паузы: вкладки, списки, страницы справки, настройки и кнопки.", "ja": "ポーズメニューを翻訳します：タブ、リスト、ヘルプ画面、設定、ボタン。", "pl": "Tłumaczy menu pauzy: karty, listy, strony pomocy, ustawienia i przyciski.", "ko": "일시 정지 메뉴를 번역합니다: 탭, 목록, 도움말 화면, 설정, 버튼.", "zh-Hans": "翻译暂停菜单：标签页、列表、帮助页面、设置和按钮。", "zh-Hant": "翻譯暫停選單：分頁、清單、說明頁面、設定和按鈕。", "es-MX": "Traduce el menú de pausa: pestañas, listas, páginas de ayuda, ajustes y botones.", "es-ES": "Traduce el menú de pausa: pestañas, listas, páginas de ayuda, ajustes y botones.", "pt-BR": "Traduz o menu de pausa: abas, listas, páginas de ajuda, configurações e botões."}}, "game_notices": {"name": {"hi": "गेम की सूचनाएँ", "bn": "গেমের বিজ্ঞপ্তি", "ur": "گیم کی اطلاعات", "id": "Pemberitahuan game", "tr": "Oyun bildirimleri", "vi": "Thông báo của game", "fa": "اعلان‌های بازی", "th": "การแจ้งเตือนของเกม", "ta": "விளையாட்டு அறிவிப்புகள்", "te": "గేమ్ నోటీసులు", "mr": "गेमच्या सूचना", "uk": "Сповіщення гри", "nl": "Gamemeldingen", "fil": "Mga abiso ng laro", "ms": "Notis permainan", "sw": "Arifa za mchezo", "ro": "Notificările jocului", "el": "Ειδοποιήσεις παιχνιδιού", "cs": "Upozornění hry", "fr": "Avis du jeu", "it": "Avvisi del gioco", "de": "Spielhinweise", "ru": "Уведомления игры", "ja": "ゲームのお知らせ", "pl": "Komunikaty gry", "ko": "게임 알림", "zh-Hans": "游戏提示", "zh-Hant": "遊戲提示", "es-MX": "Avisos del juego", "es-ES": "Avisos del juego", "pt-BR": "Avisos do jogo"}, "about": {"hi": "गेम की सूचनाओं का अनुवाद, जैसे “कंट्रोलर डिस्कनेक्ट हो गया”।", "bn": "গেমের বিজ্ঞপ্তির অনুবাদ, যেমন “কন্ট্রোলারের সংযোগ বিচ্ছিন্ন”।", "ur": "گیم کی اطلاعات کا ترجمہ، جیسے “کنٹرولر منقطع ہو گیا”۔", "id": "Menerjemahkan pemberitahuan game, seperti “Kontroler terputus”.", "tr": "Oyunun bildirimlerini çevirir; örneğin “Kumanda bağlantısı kesildi”.", "vi": "Dịch các thông báo của game, như “Tay cầm đã ngắt kết nối”.", "fa": "ترجمهٔ اعلان‌های بازی، مثل «اتصال دسته قطع شد».", "th": "แปลการแจ้งเตือนของเกม เช่น “คอนโทรลเลอร์ถูกตัดการเชื่อมต่อ”", "ta": "“கட்டுப்படுத்தி துண்டிக்கப்பட்டது” போன்ற விளையாட்டு அறிவிப்புகளை மொழிபெயர்க்கிறது.", "te": "“కంట్రోలర్ డిస్‌కనెక్ట్ అయింది” వంటి గేమ్ నోటీసులను అనువదిస్తుంది.", "mr": "गेमच्या सूचनांचे भाषांतर, जसे “कंट्रोलर डिस्कनेक्ट झाला”.", "uk": "Перекладає сповіщення гри, як-от «Контролер від’єднано».", "nl": "Vertaalt de meldingen van de game, zoals ‘Controller losgekoppeld’.", "fil": "Isinasalin ang mga abiso ng laro, gaya ng “Nadiskonekta ang controller”.", "ms": "Menterjemah notis permainan, seperti “Pengawal terputus”.", "sw": "Hutafsiri arifa za mchezo, kama “Kidhibiti kimetenganishwa”.", "ro": "Traduce notificările jocului, cum ar fi „Controler deconectat”.", "el": "Μεταφράζει τις ειδοποιήσεις του παιχνιδιού, όπως «Το χειριστήριο αποσυνδέθηκε».", "cs": "Překládá upozornění hry, například „Ovladač odpojen“.", "fr": "Traduit les avis du jeu, comme « Manette déconnectée ».", "it": "Traduce gli avvisi del gioco, come “Controller scollegato”.", "de": "Übersetzt die Hinweise des Spiels, etwa „Controller getrennt“.", "ru": "Переводит уведомления игры, например «Контроллер отключён».", "ja": "「コントローラーが切断されました」などのゲームのお知らせを翻訳します。", "pl": "Tłumaczy komunikaty gry, np. „Odłączono kontroler”.", "ko": "“컨트롤러 연결이 끊어졌습니다” 같은 게임 알림을 번역합니다.", "zh-Hans": "翻译游戏的提示，例如“控制器已断开连接”。", "zh-Hant": "翻譯遊戲的提示，例如「控制器已中斷連線」。", "es-MX": "Traduce los avisos del juego, como “Control desconectado”.", "es-ES": "Traduce los avisos del juego, como «Mando desconectado».", "pt-BR": "Traduz os avisos do jogo, como “Controle desconectado”."}}, "weapon_wheel": {"name": {"hi": "हथियार चक्र", "bn": "অস্ত্রের চাকা", "ur": "ہتھیاروں کا پہیہ", "id": "Roda senjata", "tr": "Silah çarkı", "vi": "Vòng vũ khí", "fa": "چرخ سلاح‌ها", "th": "วงล้ออาวุธ", "ta": "ஆயுதச் சக்கரம்", "te": "ఆయుధాల చక్రం", "mr": "शस्त्रांचे चक्र", "uk": "Колесо зброї", "nl": "Wapenwiel", "fil": "Weapon wheel", "ms": "Roda senjata", "sw": "Gurudumu la silaha", "ro": "Roata armelor", "el": "Τροχός όπλων", "cs": "Kolo zbraní", "fr": "Roue des armes", "it": "Ruota delle armi", "de": "Waffenrad", "ru": "Колесо оружия", "ja": "武器ホイール", "pl": "Koło broni", "ko": "무기 휠", "zh-Hans": "武器轮盘", "zh-Hant": "武器輪盤", "es-MX": "Rueda de armas", "es-ES": "Rueda de armas", "pt-BR": "Roda de armas"}, "about": {"hi": "हथियार और आइटम चक्र का अनुवाद: उसके टैब, चुना गया आइटम, हथियार के आँकड़े और बटन।", "bn": "অস্ত্র ও আইটেমের চাকার অনুবাদ: এর ট্যাব, বাছাই করা আইটেম, অস্ত্রের পরিসংখ্যান ও বোতাম।", "ur": "ہتھیاروں اور آئٹمز کے پہیے کا ترجمہ: اس کے ٹیبز، منتخب آئٹم، ہتھیار کے اعداد و شمار اور بٹن۔", "id": "Menerjemahkan roda senjata dan item: tab, item yang dipilih, statistik senjata, dan tombol.", "tr": "Silah ve eşya çarkını çevirir: sekmeleri, seçili eşyayı, silahın istatistiklerini ve düğmeleri.", "vi": "Dịch vòng vũ khí và vật phẩm: các tab, vật phẩm đang chọn, chỉ số vũ khí và nút.", "fa": "ترجمهٔ چرخ سلاح‌ها و وسایل: زبانه‌ها، وسیلهٔ انتخاب‌شده، آمار سلاح و دکمه‌ها.", "th": "แปลวงล้ออาวุธและไอเทม: แท็บ ไอเทมที่เลือก ค่าสถานะของอาวุธ และปุ่ม", "ta": "ஆயுதம் மற்றும் பொருள் சக்கரத்தை மொழிபெயர்க்கிறது: அதன் தாவல்கள், தேர்ந்தெடுத்த பொருள், ஆயுதத்தின் புள்ளிவிவரங்கள், பொத்தான்கள்.", "te": "ఆయుధాలు, వస్తువుల చక్రాన్ని అనువదిస్తుంది: దాని ట్యాబ్‌లు, ఎంచుకున్న వస్తువు, ఆయుధ గణాంకాలు, బటన్‌లు.", "mr": "शस्त्रे आणि वस्तूंच्या चक्राचे भाषांतर: त्याचे टॅब, निवडलेली वस्तू, शस्त्राची आकडेवारी आणि बटणे.", "uk": "Перекладає колесо зброї та предметів: вкладки, вибраний предмет, характеристики зброї й кнопки.", "nl": "Vertaalt het wapen- en itemwiel: de tabbladen, het gekozen item, de statistieken van een wapen en de knoppen.", "fil": "Isinasalin ang wheel ng armas at item: ang mga tab nito, ang napiling item, ang stats ng armas at ang mga button.", "ms": "Menterjemah roda senjata dan item: tab, item yang dipilih, statistik senjata dan butang.", "sw": "Hutafsiri gurudumu la silaha na vitu: vichupo vyake, kitu kilichochaguliwa, takwimu za silaha na vitufe.", "ro": "Traduce roata armelor și a obiectelor: filele, obiectul selectat, statisticile unei arme și butoanele.", "el": "Μεταφράζει τον τροχό όπλων και αντικειμένων: τις καρτέλες του, το επιλεγμένο αντικείμενο, τα στατιστικά ενός όπλου και τα κουμπιά.", "cs": "Překládá kolo zbraní a předmětů: jeho karty, vybraný předmět, statistiky zbraně a tlačítka.", "fr": "Traduit la roue des armes et des objets : ses onglets, l’objet sélectionné, les statistiques d’une arme et les boutons.", "it": "Traduce la ruota di armi e oggetti: le schede, l’oggetto selezionato, le statistiche di un’arma e i pulsanti.", "de": "Übersetzt das Waffen- und Gegenstandsrad: seine Tabs, den gewählten Gegenstand, die Werte einer Waffe und die Tasten.", "ru": "Переводит колесо оружия и предметов: его вкладки, выбранный предмет, характеристики оружия и кнопки.", "ja": "武器とアイテムのホイールを翻訳します：タブ、選択中のアイテム、武器の性能、ボタン。", "pl": "Tłumaczy koło broni i przedmiotów: jego karty, wybrany przedmiot, statystyki broni i przyciski.", "ko": "무기 및 아이템 휠을 번역합니다: 탭, 선택한 아이템, 무기 능력치, 버튼.", "zh-Hans": "翻译武器和物品轮盘：其标签页、选中的物品、武器属性和按钮。", "zh-Hant": "翻譯武器和物品輪盤：其分頁、選取的物品、武器屬性和按鈕。", "es-MX": "Traduce la rueda de armas y objetos: sus pestañas, el objeto seleccionado, las estadísticas de un arma y los botones.", "es-ES": "Traduce la rueda de armas y objetos: sus pestañas, el objeto seleccionado, las estadísticas de un arma y los botones.", "pt-BR": "Traduz a roda de armas e itens: suas abas, o item selecionado, as estatísticas de uma arma e os botões."}}};
 
-// ------------------------------------------------------------------ Wasted
+// ------------------------------------------------------------------ Wasted, Failed
 // The big "wasted" in the middle of the picture: first white over the scene (which turns red), then
-// red on a black screen. The translation is drawn just above it, in the word's colour of the moment.
+// red on a black screen. The translation is drawn just above it, in the word's colour of the moment,
+// and stays up while the word turns from white to red (only its colour changes).
+// The big red "failed" in the same place when a mission is lost, its reason under it ("YOU ABANDONED
+// LUCIA.") and its buttons at the bottom right, one under the other: the title above it, the reason's
+// translation under the reason, each button's beside it with its icon.
 
 pages.option({
   id: "wasted",
-  name: Object.assign({ en: "Wasted", ar: "انتهى أمرك (Wasted)" }, PAGE_NAMES.wasted.name),
-  about: Object.assign({ en: "Translate the big “wasted” when you die.", ar: "ترجمة كلمة «wasted» الكبيرة عند موتك." }, PAGE_NAMES.wasted.about),
+  name: Object.assign({}, PAGE_NAMES.wasted.name, { en: "Wasted, Busted and Failed", ar: "انتهى أمرك، القبض عليك، فشل المهمة (Wasted، Busted، Failed)" }),
+  about: Object.assign({}, PAGE_NAMES.wasted.about, { en: "Translate the big “wasted” when you die, “busted” when you're arrested, and the “failed” page when a mission is lost: its reason and buttons.", ar: "ترجمة كلمة «wasted» الكبيرة عند موتك، و«busted» عند القبض عليك، وصفحة «failed» عند فشل المهمة: سببها وأزرارها." }),
   on: true,
 });
 
 // the word's shape, white on black (cut from a frame of the red phase): it matches both phases
 pages.image("wasted", "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");
+// the "failed" word, white on black (cut from a frame, its red letters)
+pages.image("failed", "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");
+// the "busted" word, white on black (cut from a frame of the blue phase)
+pages.image("busted", "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");
 const TPL_W = 400;
 
 // "Wasted", as the title over it: short, and for anyone (no he / she)
 const WASTED = { ar: "انتهى أمرك" };
+// "Failed": the mission
+const FAILED = { ar: "فشلت المهمة" };
+// "Busted": arrested, for anyone (no he / she)
+const BUSTED = { ar: "تمّ القبض عليك" };
+const BLUE = "#14a1dc";
+const TPL_F = 400;
+const FAILED_RED = "#eb2537";
+// the failed page's buttons (others: the layout's words, the memory, the translator)
+const FAILED_BUTTONS = { ar: { "RETRY CHECKPOINT": "إعادة المحاولة من نقطة الحفظ", "SKIP CHECKPOINT": "تخطّي نقطة الحفظ", "RESTART MISSION": "إعادة بدء المهمة", "RETRY": "إعادة المحاولة", "QUIT": "خروج" } };
 
 const WHITE = "#ffffff";
 const RED = "#d7303a";
@@ -43,43 +60,155 @@ function findWasted(f) {
   // white letters, over whatever the scene is
   const white = f.pixels(R, { step, bright: [225, 255], spread: [0, 40] });
   if (looksLikeTheWord(white)) return { box: white.box, color: WHITE };
-  // red letters on a black screen
+  // red letters ("wasted", "failed") or blue ones ("busted") on a black screen
+  const top = () => f.pixels({ x: 0, y: 0, w: f.w, h: Math.floor(f.h * 0.25) }, { step: 8, bright: [60, 255] }).count < Math.floor(f.w / 8) * Math.floor((f.h * 0.25) / 8) * 0.05;
   const red = f.pixels(R, { step, near: [215, 48, 56], tol: 60 });
-  if (looksLikeTheWord(red)) {
-    const top = f.pixels({ x: 0, y: 0, w: f.w, h: Math.floor(f.h * 0.25) }, { step: 8, bright: [60, 255] });
-    const all = Math.floor(f.w / 8) * Math.floor((f.h * 0.25) / 8);
-    if (top.count < all * 0.05) return { box: red.box, color: RED };
-  }
+  if (looksLikeTheWord(red) && top()) return { box: red.box, color: RED };
+  const blue = f.pixels(R, { step, near: [20, 161, 220], tol: 60 });
+  if (looksLikeTheWord(blue) && top()) return { box: blue.box, color: BLUE };
   return null;
 }
 
+/** A big word's page ("wasted", "busted"): first white over the scene, then in its colour on a black
+ *  screen; the translation just above it, in the word's colour of the moment. `tpl`: its picture's name
+ *  (the shape compared: a mission's big title in the same place is not this page). */
+function bigWordPage(id, tpl, en, words) {
+  return {
+    id,
+    option: "wasted",
+
+    present(f) {
+      return findWasted(f);
+    },
+
+    read(f, k) {
+      if (!k) return null;
+      const b = k.box;
+      const pad = Math.floor(b.h * 0.15);
+      // (too big and too stylised for the OCR: its shape is compared instead)
+      const s = b.w / TPL_W;
+      const hit = f.find({ x: Math.max(b.x - pad, 0), y: Math.max(b.y - pad, 0), w: b.w + 2 * pad, h: b.h + 2 * pad }, tpl, { scales: [s * 0.94, s, s * 1.06], step: 2 });
+      if (!hit || hit.score < 0.75) return null;
+      this.miss = 0;
+      // the word in the player's language (others: the app's translator)
+      return { title: f.box(b.x, b.y, b.w, b.h), title_color: k.color, title_en: en, title_ar: words[vi.lang()] || "" };
+    },
+
+    // While it's up: the same word in the same colour; turned to its colour, read again in it (no gap: the
+    // new one replaces the white one). Between the two its colour is neither (and dimmer for a moment):
+    // kept while the word's shape is still there, and for a few frames with nothing at all.
+    same(f, old) {
+      const k = findWasted(f);
+      const t = old.title;
+      if (k) {
+        if (k.color !== old.title_color) return false;
+        this.miss = 0;
+        const r = f.box(k.box.x, k.box.y, k.box.w, k.box.h), tol = 0.02;
+        return Math.abs(r.x - t.x) < tol && Math.abs(r.y - t.y) < tol && Math.abs(r.w - t.w) < tol;
+      }
+      const b = { x: Math.round(t.x * f.w), y: Math.round(t.y * f.h), w: Math.round(t.w * f.w), h: Math.round(t.h * f.h) };
+      const pad = Math.floor(b.h * 0.15);
+      const hit = f.find({ x: Math.max(b.x - pad, 0), y: Math.max(b.y - pad, 0), w: b.w + 2 * pad, h: b.h + 2 * pad }, tpl, { scales: [b.w / TPL_W], step: 2 });
+      if (hit && hit.score >= 0.6) {
+        this.miss = 0;
+        return true;
+      }
+      this.miss = (this.miss || 0) + 1;
+      return this.miss < 20;
+    },
+  };
+}
+
+pages.add(bigWordPage("gta6_wasted", "wasted", "Wasted", WASTED));
+pages.add(bigWordPage("gta6_busted", "busted", "Busted", BUSTED));
+
+/** The failed page's buttons at the bottom right, one under the other ("RETRY CHECKPOINT ✕"): each word
+ *  with its icon after it (the game's, cut out), the translation drawn beside the English. Top first. */
+function readStackedButtons(f) {
+  const zone = pxRect(f, { x: 0.7, y: 0.78, w: 0.29, h: 0.21 });
+  const o = f.ocr(zone, { scale: 2 });
+  if (!o || !o.words) return [];
+  // lines: words whose middles are within half a word's height
+  const words = o.words.filter((w) => /\p{L}{2}/u.test(w.text)).sort((a, b) => a.y + a.h / 2 - (b.y + b.h / 2));
+  const lines = [];
+  for (const w of words) {
+    const m = w.y + w.h / 2;
+    const l = lines.find((l) => Math.abs(l.m - m) < w.h / 2);
+    if (l) l.words.push(w);
+    else lines.push({ m, words: [w] });
+  }
+  const own = FAILED_BUTTONS[vi.lang()] || {};
+  const out = [];
+  for (const l of lines) {
+    l.words.sort((a, b) => a.x - b.x);
+    const en = l.words.map((w) => w.text.replace(/[^\p{L}\p{N}'&]/gu, "")).filter((t) => t).join(" ").toUpperCase();
+    if (!/\p{L}{3}/u.test(en)) continue;
+    const x0 = Math.min(...l.words.map((w) => w.x)), x1 = Math.max(...l.words.map((w) => w.x + w.w));
+    const y0 = Math.min(...l.words.map((w) => w.y)), y1 = Math.max(...l.words.map((w) => w.y + w.h));
+    const h = y1 - y0;
+    // its icon: the first shape just right of the word
+    const ic = f.blobs({ x: x1 + 2, y: Math.max(y0 - h, 0), w: Math.round(h * 3), h: h * 3 }, { gap: 2, bright: [90, 255], spread: [0, 28] }).find((b) => b.h >= h * 0.8 && b.w >= h * 0.6 && b.w <= h * 2.8);
+    const known = ic && typeof f.gameIconAt === "function" && f.gameIconAt(ic);
+    const t = vi.buttonWord(en);
+    const b = { en, ar: own[en] || (t && t[1]) || "", fg: "#ffffff", text_rect: f.box(x0, y0, x1 - x0, h), beside: true };
+    if (ic) {
+      b.icon_rect = f.box(ic.x, ic.y, ic.w, ic.h);
+      const icon = (known && vi.gameIcon(known)) || f.icon(ic, 140);
+      if (icon) b.icon = icon;
+    }
+    out.push(b);
+  }
+  return out;
+}
+
+/** The big red "failed" (the word, compared by its shape: a mission's title in the same place is not it). */
+function failedWord(f, k) {
+  if (!k || k.color !== RED) return null;
+  const b = k.box;
+  const pad = Math.floor(b.h * 0.15);
+  const s = b.w / TPL_F;
+  const hit = f.find({ x: Math.max(b.x - pad, 0), y: Math.max(b.y - pad, 0), w: b.w + 2 * pad, h: b.h + 2 * pad }, "failed", { scales: [s * 0.94, s, s * 1.06], step: 2 });
+  return hit && hit.score >= 0.75 ? b : null;
+}
+
 pages.add({
-  id: "gta6_wasted",
+  id: "gta6_failed",
   option: "wasted",
+  // (read again now and then: the reason and the buttons come a moment after the word)
+  hold: { rereadMs: 1500 },
 
   present(f) {
     return findWasted(f);
   },
 
-  // Only "wasted" itself: a mission's big title in the same place is not this page.
   read(f, k) {
-    if (!k) return null;
-    const b = k.box;
-    const pad = Math.floor(b.h * 0.15);
-    // (too big and too stylised for the OCR: its shape is compared instead)
-    const s = b.w / TPL_W;
-    const hit = f.find({ x: Math.max(b.x - pad, 0), y: Math.max(b.y - pad, 0), w: b.w + 2 * pad, h: b.h + 2 * pad }, "wasted", { scales: [s * 0.94, s, s * 1.06], step: 2 });
-    if (!hit || hit.score < 0.75) return null;
-    // the word in the player's language (others: the app's translator)
-    const ar = WASTED[vi.lang()] || "";
-    return { title: f.box(b.x, b.y, b.w, b.h), title_color: k.color, title_en: "Wasted", title_ar: ar };
+    const b = failedWord(f, k);
+    if (!b) return null;
+    const out = { title: f.box(b.x, b.y, b.w, b.h), title_color: FAILED_RED, title_en: "Failed", title_ar: FAILED[vi.lang()] || "" };
+    // the reason, under the word: its translation goes under it
+    const o = f.ocr({ x: Math.floor(f.w * 0.15), y: b.y + b.h + Math.floor(f.h * 0.005), w: Math.floor(f.w * 0.7), h: Math.floor(f.h * 0.1) }, { scale: 2 });
+    const words = ((o && o.words) || []).filter((w) => /\p{L}/u.test(w.text));
+    if (words.length && /\p{L}{2}/u.test(o.text)) {
+      const x0 = Math.min(...words.map((w) => w.x)), x1 = Math.max(...words.map((w) => w.x + w.w));
+      const y0 = Math.min(...words.map((w) => w.y)), y1 = Math.max(...words.map((w) => w.y + w.h));
+      const hs = words.map((w) => w.h).sort((a, c) => a - c);
+      out.reason = f.box(x0, y0, x1 - x0, y1 - y0);
+      out.reason_line_h = hs[Math.floor(hs.length / 2)] / f.h;
+      out.reason_en = o.text.trim();
+    }
+    const buttons = readStackedButtons(f);
+    if (buttons.length) {
+      out.buttons = buttons;
+      out.buttons_row = buttonsRow(buttons);
+    }
+    return out;
   },
 
-  // While it's up: the same word in the same colour (white → red reads it again, in red).
+  // While it's up: the red word where it was.
   same(f, old) {
-    const k = findWasted(f);
-    if (!k || k.color !== old.title_color) return false;
-    const r = f.box(k.box.x, k.box.y, k.box.w, k.box.h), t = old.title, tol = 0.02;
+    const b = failedWord(f, findWasted(f));
+    if (!b) return false;
+    const r = f.box(b.x, b.y, b.w, b.h), t = old.title, tol = 0.02;
     return Math.abs(r.x - t.x) < tol && Math.abs(r.y - t.y) < tol && Math.abs(r.w - t.w) < tol;
   },
 });
@@ -118,6 +247,14 @@ const WORDS = {
     "REMOVE MARKER": "إزالة العلامة", "SET DESTINATION": "تحديد الوجهة", "CLOSE MENU": "إغلاق القائمة", "LEGEND": "دليل الرموز", "YES": "نعم", "NO": "لا",
     // first page
     "Game": "اللعبة", "Store": "المتجر", "Help": "المساعدة", "Settings": "الإعدادات",
+    // the first page during a mission (right), and the Game page
+    "Retry Checkpoint": "إعادة المحاولة من نقطة الحفظ", "Restart Mission": "إعادة بدء المهمة", "Skip Checkpoint": "تخطّي نقطة الحفظ",
+    "Quit Mission": "الخروج من المهمة", "GAME": "اللعبة", "Save Game": "حفظ اللعبة", "Load Game": "تحميل لعبة", "New Game": "لعبة جديدة",
+    "LOAD": "تحميل", "SAVE": "حفظ", "DELETE": "حذف", "OVERWRITE": "استبدال", "GAME /": "اللعبة /",
+    // the Game page's questions
+    "LOAD SAVED GAME?": "تحميل اللعبة المحفوظة؟", "START NEW GAME?": "بدء لعبة جديدة؟", "SAVE GAME?": "حفظ اللعبة؟",
+    "OVERWRITE SAVED GAME?": "استبدال اللعبة المحفوظة؟", "DELETE SAVED GAME?": "حذف اللعبة المحفوظة؟",
+    "Any unsaved progress will be lost.": "سيضيع أي تقدّم غير محفوظ.",
     "JUST A SCRATCH": "مجرد خدش", "JUST SCRATCH": "مجرد خدش",
     "PROGRESS / STATS": "التقدّم / الإحصاءات", "STATS": "الإحصاءات",
     // Brief
@@ -128,6 +265,13 @@ const WORDS = {
     "BODY FAT": "دهون الجسم", "STRENGTH": "القوة", "CARDIO": "اللياقة القلبية", "FOCUS": "التركيز",
     "HARDENED": "متمرّس", "WELL RESTED": "مرتاح", "FED": "شبعان", "HUNGRY": "جائع", "BALANCED": "متوازن", "RIPPED": "مفتول العضلات",
     "HIGH": "مرتفع", "LOW": "منخفض", "MEDIUM": "متوسط",
+    "MONEY SPENT": "المال المُنفَق", "CALORIE BALANCE": "سعرات متوازنة", "CALORIE SURPLUS": "فائض في السعرات",
+    "CALORIE DEFICIT": "نقص في السعرات", "LEAN": "نحيف", "SLIM": "نحيف", "SKINNY": "نحيل", "AVERAGE": "متوسط",
+    "ATHLETIC": "رياضي", "TONED": "متناسق", "MUSCULAR": "عضلي", "HEAVY": "ممتلئ", "OVERWEIGHT": "زائد الوزن",
+    "RESTED": "مرتاح", "TIRED": "متعب", "EXHAUSTED": "منهك", "STARVING": "جائع جدًا", "FULL": "ممتلئ", "STUFFED": "متخم",
+    "LVL": "المستوى",
+    // (how things are between the two, under them on the first view: "NOT SO HOT (2/4)")
+    "NOT SO HOT": "فاترة", "COLD": "باردة", "COOL": "باردة", "WARM": "دافئة", "HOT": "ملتهبة", "ON FIRE": "مشتعلة",
     "Professional": "محترف", "Violent": "عنيف", "Psycho": "مختلّ", "Irredeemable": "ميؤوس منه",
     // Progress
     "WEAPONS": "الأسلحة", "ANIMALS": "الحيوانات", "EQUIPMENT": "المعدّات", "COLLECTIONS": "المجموعات", "ACTIVITIES": "الأنشطة",
@@ -262,7 +406,7 @@ const WORDS = {
 // The script's own few words in each language (filled with the menu's translations): "the button" (a button's
 // picture that can't be shown, in a sentence that presses it), the buttons written out, "Chapter".
 const SCRIPT_WORDS = {
-  ar: { button: "الزر", chapter: "الفصل", TOUCHPAD: "«لوحة اللمس»", OPTIONS: "«زر الخيارات»", DPAD: "«أزرار الاتجاه»",
+  ar: { button: "الزر", chapter: "الفصل", units: { lvl: "المستوى", lb: "رطل", ft: "قدم", in: "بوصة" }, TOUCHPAD: "«لوحة اللمس»", OPTIONS: "«زر الخيارات»", DPAD: "«أزرار الاتجاه»",
     "LEFT-STICK": "«العصا اليسرى»", "RIGHT-STICK": "«العصا اليمنى»" },
 };
 /** Written right to left (its paragraphs lined up on the right). */
@@ -5200,6 +5344,23 @@ function ownWord(en, exact) {
       if (Math.abs(key.length - k.length) <= 1 && /\D/.test(key) && vi.similar(key, k)) return t;
     }
   }
+  // a value with its numbers: "LVL 3/4" (OCR's "LVL 314", an icon after it), "217 LB", "6 FT 1 IN",
+  // "NOT SO HOT (2/4)"
+  const unit = (SCRIPT_WORDS[lang] || {}).units;
+  if (unit) {
+    const t = String(en).trim();
+    let m = /^LV[LI1|]\s*(\d)\s*[\/1Il|]\s*(\d)(?:\s+\S{1,2})?$/i.exec(t);
+    if (m) return `${unit.lvl} ${m[1]}/${m[2]}`;
+    m = /^(\d{2,3})\s*LBS?$/i.exec(t);
+    if (m) return `${m[1]} ${unit.lb}`;
+    m = /^(\d)\s*FT\s*(\d{1,2})\s*[I1l|]N$/i.exec(t);
+    if (m) return `${m[1]} ${unit.ft} ${m[2]} ${unit.in}`;
+    m = /^(.*\p{L})\s*\(\s*(\d)\s*[\/1Il|]\s*(\d)\s*\)?$/u.exec(t);
+    if (m) {
+      const w = WORD_INDEX[lang][wordKey(m[1])];
+      if (w) return `${w} (${m[2]}/${m[3]})`;
+    }
+  }
   // "CHAPTER 2"
   const ch = /^CHAPTER\s+(\d+)$/i.exec(en.trim());
   const chapter = (SCRIPT_WORDS[lang] || {}).chapter;
@@ -5232,7 +5393,7 @@ const TAB_NAMES = [
 const BUTTON_NAMES = [
   "BACK", "EXIT", "SELECT", "SCROLL", "PHOTO STUDIO", "RESTORE ALL", "RESTORE DEFAULT", "PAUSE PREVIEW",
   "RECENTER", "2D VIEW", "3D VIEW", "ADD MARKER", "REMOVE MARKER", "SET DESTINATION", "CLOSE MENU", "LEGEND",
-  "YES", "NO",
+  "YES", "NO", "LOAD", "DELETE", "SAVE", "OVERWRITE",
 ];
 const HOME_ITEMS = ["Map", "Game", "Store", "Help", "Photo Studio", "Settings"];
 // Rows of tabs and short lists in the game's order: OCR can't read a very short word on the white of the
@@ -5286,9 +5447,9 @@ function backIcon(f) {
 
 /** The selected row of a list: a white bar from the left edge (x ≈ 0.017) fading to the right,
  *  ~0.06 of the height. {x, y, w, h} in pixels (w: its white part), or null. */
-function selectionBar(f) {
+function selectionBar(f, rule) {
   const R = pxRect(f, { x: 0, y: 0.12, w: 0.45, h: 0.83 });
-  const runs = f.runs(R, P_WHITE);
+  const runs = f.runs(R, rule || P_WHITE);
   const s0 = f.w * 0.012, s1 = f.w * 0.022, minLen = f.w * 0.05, gap = f.h * 0.035;
   const groups = [];
   let g = null;
@@ -5328,6 +5489,20 @@ function hubBar(f) {
   return pink.count >= 12 && white.count >= 30 && pink.box ? pink.box : null;
 }
 
+/** The same dark bar with its white tab names, its pink hidden: PS Remote Play's "Remote Play connected" sits
+ *  over the middle tab (MAP) for as long as it's connected. */
+function hubBarHidden(f) {
+  const band = pxRect(f, { x: 0, y: 0.005, w: 1, h: 0.07 });
+  const step = 6;
+  const dark = f.pixels(band, { step, bright: [0, 70] });
+  if (dark.count < Math.floor(band.w / step) * Math.floor(band.h / step) * 0.85) return false;
+  // (the tab names either side of the notice: its own white words don't count)
+  const rule = { step: 2, bright: [210, 255], spread: [0, 30] };
+  const left = f.pixels(pxRect(f, { x: 0.2, y: 0.02, w: 0.21, h: 0.045 }), rule);
+  const right = f.pixels(pxRect(f, { x: 0.59, y: 0.02, w: 0.21, h: 0.045 }), rule);
+  return left.count >= 15 && right.count >= 15;
+}
+
 /** The VI logo top left (the menu's first page). In a smaller picture (720p: the phone app's PS5 stream,
  *  PS Remote Play's default) the shrunk logo matches less closely: looked for at every pixel, and taken
  *  from 0.5 (the first page also needs the Back icon and the selected row's white bar). */
@@ -5339,13 +5514,95 @@ function homeLogo(f) {
 
 /** Which page of the menu is up: {kind, ...} or null. */
 function pauseKind(f) {
-  if (!backIcon(f)) return null;
+  // the hub: its dark bar on top, with the Back ◎ — or, on the map (its Exit ◎ over the light map doesn't
+  // match), the map's column of icons on the left (a cutscene's black band on top has neither)
+  const back = backIcon(f);
+  const pink = hubBar(f);
+  if (pink && (back || mapStrip(f))) return { kind: "hub", pink };
+  if (!back) return hubBarHidden(f) && mapStrip(f) ? { kind: "hub", pink: null } : null;
   const pill = pillTab(f);
   if (pill) return { kind: "tabs", pill };
-  const pink = hubBar(f);
-  if (pink) return { kind: "hub", pink };
-  if (homeLogo(f) && selectionBar(f)) return { kind: "home" };
+  if (homeLogo(f) && (selectionBar(f) || rightListBar(f))) return { kind: "home" };
+  if (hubBarHidden(f)) return { kind: "hub", pink: null };
+  // a page of its own (the first page's Game: "GAME" over Save Game / Load Game / New Game): a white title
+  // top left where the first page has its logo, the list's white bar under it, no tabs
+  // (its bar a little dimmer than the other pages', 227 at its start, its title grey)
+  if (plainTitle(f) && selectionBar(f, { low: [200, 255], spread: [0, 24] })) return { kind: "plain" };
+  // a question ("LOAD SAVED GAME?", "START NEW GAME?"): its title over a thin line, YES / NO
+  const line = dialogLine(f);
+  if (line) return { kind: "dialog", line };
   return null;
+}
+
+/** The map's column of icons on the left (filters: places, shops, food …): a dark strip with white icons. */
+function mapStrip(f) {
+  const r = pxRect(f, { x: 0.009, y: 0.1, w: 0.037, h: 0.37 });
+  const step = 3;
+  const all = Math.floor(r.w / step) * Math.floor(r.h / step);
+  const dark = f.pixels(r, { step, bright: [0, 70] });
+  const icons = f.pixels(r, { step, bright: [200, 255], spread: [0, 30] });
+  return dark.count > all * 0.55 && icons.count > all * 0.04 && icons.count < all * 0.4;
+}
+
+/** The first page's right-hand list with a row selected (during a mission: Retry Checkpoint …): its white bar. */
+function rightListBar(f) {
+  // (rows with a long white run, together a bar a row tall: the white letters of the next row are short runs)
+  const R = pxRect(f, { x: 0.72, y: 0.2, w: 0.27, h: 0.25 });
+  // (it fades in from the left: its white end is the right one, a few hundredths of the width)
+  const runs = f.runs(R, { low: [205, 255], spread: [0, 24] });
+  let top = -1, best = 0;
+  runs.forEach(([s, n], i) => {
+    if (n >= f.w * 0.05 && s + n >= R.w * 0.85) {
+      if (top < 0) top = i;
+      best = Math.max(best, i - top + 1);
+    } else top = -1;
+  });
+  return best >= f.h * 0.025 && best <= f.h * 0.07;
+}
+
+/** A question's thin line under its title: a row much brighter than the rows just above and below it, a
+ *  long way across, with bold white letters over it. {x, y, w} in pixels, or null. */
+function dialogLine(f) {
+  const R = pxRect(f, { x: 0.02, y: 0.25, w: 0.73, h: 0.7 });
+  let best = null;
+  for (const bright of [[180, 255], [100, 255]]) {
+    // (a pink line on the pink page, 239 / 137 / 185, is colourful)
+    const runs = f.runs(R, { bright, spread: [0, 130] });
+    for (let i = 4; i + 4 < runs.length; i++) {
+      const [s0, n] = runs[i];
+      if (n < f.w * 0.12) continue;
+      // thin: the rows a few above and below have no such run
+      if (runs[i - 4][1] > n * 0.3 || runs[i + 4][1] > n * 0.3) continue;
+      const y = R.y + i;
+      // the title over it: bold white letters within a line's height above
+      const title = f.pixels({ x: R.x + s0, y: Math.max(y - Math.round(f.h * 0.07), 0), w: n, h: Math.round(f.h * 0.065) }, { step: 2, bright: [215, 255], spread: [0, 40] });
+      if (title.count < 40) continue;
+      if (!best || title.count > best.score) best = { x: R.x + s0, y, w: n, score: title.count };
+    }
+    if (best) break;
+  }
+  return best;
+}
+
+/** A question: its title over the line, the sentence under it, and its buttons. */
+function readDialog(f, k) {
+  const L = k.line;
+  // (from a little left of the line: the words start right at its start, and a first letter cut is a word lost)
+  const x0 = Math.max(L.x - Math.round(f.w * 0.05), 0);
+  const title = textBoxes(f, segments(f, { x: x0, y: Math.max(L.y - Math.round(f.h * 0.075), 0), w: Math.round(L.w * 1.4), h: Math.round(f.h * 0.07) }, { scale: 2 }), 0)
+    .map((b) => Object.assign(b, { item: false, heading: true, weight: 700 }));
+  const text = textBoxes(f, segments(f, { x: x0, y: L.y + 3, w: Math.round(f.w * 0.6), h: Math.round(f.h * 0.1) }, { scale: 2 }), 0)
+    .map((b) => Object.assign(b, { item: false }));
+  if (!title.length) return null;
+  return { tabs: [], menu: [...title, ...text] };
+}
+
+/** The white title top left of a page of its own ("GAME"): bright, colourless letters there. */
+function plainTitle(f) {
+  const r = pxRect(f, { x: 0.012, y: 0.02, w: 0.2, h: 0.07 });
+  const ink = f.pixels(r, { step: 2, bright: [160, 255], spread: [0, 40] });
+  const all = Math.floor(r.w / 2) * Math.floor(r.h / 2);
+  return ink.count > all * 0.02 && ink.count < all * 0.5 && !!ink.box && ink.box.h > f.h * 0.02;
 }
 
 // ---- reading
@@ -5825,7 +6082,7 @@ function readButtons(f) {
         const count = /\s*\(\s*(\d+?)\s*[\/|1Il]\s*(\d+)\s*\)?\s*$/.exec(part.text);
         const hit = known(count ? part.text.slice(0, count.index) : part.text, BUTTON_NAMES);
         const box = { x: part.x0, y: part.y0, w: part.x1 - part.x0, h: part.y1 - part.y0 };
-        if (hit && !hit.cut && !parts.some((o) => overlaps(box, { x: o.x0, y: o.y0, w: o.x1 - o.x0, h: o.y1 - o.y0 }))) parts.push(Object.assign(part, { en: hit.en, count: count ? `(${count[1]}/${count[2]})` : "" }));
+        if (hit && !hit.cut && !parts.some((o) => o.en === hit.en || overlaps(box, { x: o.x0, y: o.y0, w: o.x1 - o.x0, h: o.y1 - o.y0 }))) parts.push(Object.assign(part, { en: hit.en, count: count ? `(${count[1]}/${count[2]})` : "" }));
       }
     }
   }
@@ -5927,7 +6184,31 @@ function readHome(f) {
   for (const b of textBoxes(f, segments(f, pxRect(f, { x: 0.7, y: 0.1, w: 0.29, h: 0.1 }), { scale: 2 }), 0)) {
     menu.push(Object.assign(b, { item: false, right: true, align: "right" }));
   }
+  // during a mission, under it: Retry Checkpoint, Restart Mission … (known words only: the game is behind)
+  const list = [];
+  for (const b of textBoxes(f, segments(f, pxRect(f, { x: 0.7, y: 0.21, w: 0.29, h: 0.22 }), { scale: 2 }), 0)) {
+    const ar = ownWord(b.en, true);
+    if (!ar) continue;
+    list.push(Object.assign(b, { ar, fixed: true, item: false, right: true, align: "right" }));
+  }
+  // (all on the list's one right edge, as the game's: a mark at the picture's edge read with a row ran its
+  // box out to the edge, and its translation with it)
+  if (list.length) {
+    const edge = Math.min(...list.map((b) => b.rect.x + b.rect.w));
+    for (const b of list) b.rect = Object.assign({}, b.rect, { w: edge - b.rect.x });
+  }
+  menu.push(...list);
   return { tabs: [], menu };
+}
+
+/** A page of its own ("GAME"): its title, and its list on the left (the build number under it stays). */
+function readPlain(f) {
+  // (two lines on a page further in: "GAME /" over "LOAD")
+  const title = [pxRect(f, { x: 0.012, y: 0.008, w: 0.3, h: 0.05 }), pxRect(f, { x: 0.012, y: 0.052, w: 0.3, h: 0.06 })]
+    .flatMap((r) => textBoxes(f, segments(f, r, { scale: 2 }), 0))
+    .map((b) => Object.assign(b, { item: false, heading: true, weight: 700 }));
+  const menu = textBoxes(f, contentSegments(f, pxRect(f, { x: 0.012, y: 0.115, w: 0.976, h: 0.775 })), split(f));
+  return { tabs: [], menu: [...title, ...menu] };
 }
 
 const HELP_TABS = ["BASICS", "INVENTORY", "VEHICLES", "WANTED & HEAT", "COMBAT & MOVEMENT", "MONEY", "EXPLORATION"];
@@ -5959,12 +6240,34 @@ function readHub(f, k) {
       const px = Math.round((y1 - y0) * 0.4), py = Math.round((y1 - y0) * 0.3);
       return { x: x0 - px, y: y0 - py, w: x1 - x0 + 2 * px, h: y1 - y0 + 2 * py };
     },
-    (w) => overlaps(w, pink), TAB_NAMES, 8);
-  const tab = (tabs.find((t) => t.selected) || {}).en;
+    (w) => !!pink && overlaps(w, pink), TAB_NAMES, 8);
+  // (under Remote Play's notice: only the tabs known by name, not its own words read as one, "101 JI")
+  if (!pink) tabs.splice(0, tabs.length, ...tabs.filter((t) => TAB_NAMES.includes(t.en)));
+  let tab = (tabs.find((t) => t.selected) || {}).en;
+  // (its tab hidden under Remote Play's notice: the map when its column of buttons is there)
+  const buttons = !tab && mapPieces(f);
+  if (!tab && buttons.length >= 2) tab = "MAP";
   // the map's own pieces (legend, places) come later: only the tabs and buttons for now
-  if (tab === "MAP") return { tabs, menu: mapPieces(f), mapButtons: true };
+  if (tab === "MAP") {
+    const card = objectiveCard(f);
+    return { tabs, menu: mapPieces(f), mapButtons: true, cards: card ? [card] : [] };
+  }
   if (tab === "PROGRESS") return { tabs, menu: progressCards(f) };
   const menu = textBoxes(f, contentSegments(f, pxRect(f, { x: 0.012, y: 0.11, w: 0.976, h: 0.815 })), split(f));
+  // (a level read without its numbers, "LVL" of "LVL 1/4": its line again, closer, up to its icon)
+  for (const b of menu) {
+    if (!/^LV[LI1|]$/i.test(b.en.trim())) continue;
+    const x = Math.round(b.rect.x * f.w), y = Math.round(b.rect.y * f.h), h = Math.round(b.rect.h * f.h);
+    const again = segments(f, { x, y, w: Math.round(f.w * 0.07), h }, { scale: 3 }).map((g) => g.words.map((w) => w.text).join(" "));
+    const ar = again.map((t) => ownWord(t)).find((t) => /\d/.test(t));
+    if (ar) Object.assign(b, { ar, fixed: true, rect: f.box(x, y, Math.max(Math.round(b.rect.w * f.w), Math.round(f.w * 0.065)), h) });
+  }
+  // (Jason & Lucia's first view: how things are between them, in a dark box at the bottom, "💔 NOT SO HOT (2/4)")
+  if (tab === "JASON & LUCIA") {
+    const low = textBoxes(f, segments(f, pxRect(f, { x: 0.3, y: 0.9, w: 0.4, h: 0.085 }), { scale: 2 }), 0)
+      .filter((b) => b.ar && !menu.some((m) => overlaps(m.rect, b.rect)));
+    menu.push(...low.map((b) => Object.assign(b, { align: "center", item: false, right: false })));
+  }
   return { tabs, menu };
 }
 
@@ -5991,6 +6294,52 @@ function mapPieces(f) {
     });
   }
   return out;
+}
+
+/** The map's objective, top left: the mission's name beside its character's picture, over what to do, on a dark
+ *  see-through box under a pink line. Its translation: a box just like it, under it (the game's stays readable). */
+function objectiveCard(f) {
+  const zone = pxRect(f, { x: 0.05, y: 0.06, w: 0.36, h: 0.1 });
+  // (its top: the picture under it may be pink too; the line itself measured in a thin band there)
+  const any = f.pixels(zone, { step: 1, near: [253, 135, 176], tol: 55 });
+  if (!any.box) return null;
+  const line = f.pixels({ x: zone.x, y: any.box.y, w: zone.w, h: Math.ceil(f.h * 0.008) }, { step: 1, near: [253, 135, 176], tol: 55, median: true });
+  if (!line.box || line.box.w < f.w * 0.15) return null;
+  const x0 = line.box.x, x1 = line.box.x + line.box.w, top = line.box.y + line.box.h;
+  const segs = segments(f, { x: x0 + 2, y: top + 2, w: x1 - x0 - 4, h: Math.floor(f.h * 0.2) }, { scale: 2 }, 3)
+    .filter((s) => s.words.some((w) => /\p{L}{2}/u.test(w.text)));
+  if (!segs.length) return null;
+  // the lines that belong to it: each a line's pitch under the one before (the map's own names further down don't)
+  const lines = [segs[0]];
+  for (const s of segs.slice(1)) {
+    const prev = lines[lines.length - 1];
+    if (s.y0 - prev.y1 > prev.h * 1.4) break;
+    lines.push(s);
+  }
+  const words = (s) => s.words.map((w) => w.text).join(" ");
+  // (the picture before the name reads as a stray letter, "n COMING HOME": the name's own words only)
+  const tw = lines[0].words.filter((w) => /\p{L}{2}/u.test(w.text));
+  if (!tw.length) return null;
+  const title = { words: tw, y0: Math.min(...tw.map((w) => w.y)), y1: Math.max(...tw.map((w) => w.y + w.h)) };
+  title.h = title.y1 - title.y0;
+  const body = lines.slice(1);
+  const tx = Math.min(...tw.map((w) => w.x));
+  const bottom = Math.max(...lines.map((s) => s.y1)) + Math.round(title.h * 0.9);
+  // the character's picture: left of the name, about as tall as two of its lines
+  const s = Math.round((tx - x0) * 0.66), py = Math.round((title.y0 + title.y1) / 2 - s / 2);
+  const pic = s >= 8 ? f.icon({ x: x0 + Math.round((tx - x0) * 0.24), y: py, w: s, h: s }, 0) : null;
+  const hs = body.map((b) => b.h).sort((a, b) => a - b);
+  return {
+    rect: f.box(x0, line.box.y, x1 - x0, bottom - line.box.y),
+    bg: "rgba(14, 16, 30, 0.8)",
+    border: hex(line.median || { r: 253, g: 135, b: 176 }),
+    border_h: line.box.h / f.h,
+    pic: pic || "",
+    title_en: words(title),
+    title_h: title.h / f.h,
+    text_en: body.map(words).join(" "),
+    text_h: (hs.length ? hs[Math.floor(hs.length / 2)] : title.h) / f.h,
+  };
 }
 
 /** Progress: a row of cards, each named along its foot ("STATS", "VEHICLES" …): each name where it stands, in
@@ -6128,8 +6477,9 @@ pages.add({
 
   read(f, k) {
     if (!k) return null;
-    const r = k.kind === "home" ? readHome(f) : k.kind === "tabs" ? readTabsPage(f, k) : readHub(f, k);
-    if (k.kind !== "home" && r.tabs.length < 2) return null;
+    const r = k.kind === "home" ? readHome(f) : k.kind === "plain" ? readPlain(f) : k.kind === "dialog" ? readDialog(f, k) : k.kind === "tabs" ? readTabsPage(f, k) : readHub(f, k);
+    if (!r) return null;
+    if (!["home", "plain", "dialog"].includes(k.kind) && r.tabs.length < 2 && !r.mapButtons) return null;
     // the list's selection still sliding to its row: read when it has settled (colours and places taken
     // mid-slide would stay on screen)
     const bar = selectionBar(f);
@@ -6151,6 +6501,7 @@ pages.add({
       title: { x: 0, y: 0, w: 0, h: 0 },
       labels: r.tabs,
       menu: r.menu,
+      cards: r.cards || [],
       buttons,
       buttons_row: buttonsRow(buttons),
       follow: "menu",

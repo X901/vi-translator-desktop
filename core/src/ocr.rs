@@ -1840,6 +1840,9 @@ pub enum Prep {
     WhiteOrColour,
     /// Only the bright pixels inside a dark outline (see `outlined_letters`).
     Outlined,
+    /// Darkest colour channel: white letters on a bright blue (GTA VI's phone, the character's own
+    /// messages), whose brightest channel is as bright as the letters.
+    Darkest,
 }
 
 fn prep_value(mode: Prep, r: i32, g: i32, b: i32) -> u8 {
@@ -1851,6 +1854,7 @@ fn prep_value(mode: Prep, r: i32, g: i32, b: i32) -> u8 {
             (((v - 150).max(0) * 255) / 105).min(255) as u8
         }
         Prep::Outlined => r.max(g).max(b) as u8, // (prepared as a whole picture in preprocess)
+        Prep::Darkest => r.min(g).min(b) as u8,
     }
 }
 

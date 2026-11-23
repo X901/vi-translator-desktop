@@ -275,8 +275,76 @@ window.AS = (() => {
   // pick dark blue), on the same side as on the phone; a header or a label ("Suggested", "New
   // message") plain, in its colour. A piece pushed down by a taller one above it doesn't overlap it.
   // root: an element covering exactly the game picture.
+  // GTA VI's message bubble at the bottom right: its translation in a bubble just like it (its grey, the
+  // contact's picture and name over the message, a tail at its bottom left), right above it, as wide,
+  // growing upward for a longer text. C: {rect, name, ar, bg, fg, name_fg, avatar} (see chat.rs).
+  // A message's text with its emojis: each slot "{n}" in it the n-th picture (copied from the game's), a
+  // letter's height, on the line as text is.
+  function withEmoji(text, pics) {
+    // (emojis in a row stay together on one line: 🔥🔥🔥)
+    return esc(text).replace(/(?:\{\d+\}\s*)+/g, (run) => {
+      const imgs = run.match(/\d+/g).map((n) => {
+        const src = (pics || [])[Number(n) - 1];
+        return src ? `<img src="${src}" style="height:1.2em;vertical-align:-0.25em;margin:0 0.08em">` : "";
+      });
+      return `<span style="white-space:nowrap">${imgs.join("")}</span>${/\s$/.test(run) ? " " : ""}`;
+    });
+  }
+
+  function renderChat(root, C) {
+    const W = root.clientWidth, H = root.clientHeight;
+    if (!C || !C.ar || !W || !H) return;
+    const [gx, gy, gw] = [C.rect[0] * W, C.rect[1] * H, C.rect[2] * W];
+    const fs = Math.max(11, 0.0185 * H);
+    const pad = 0.6 * fs;
+    const d = document.createElement("div");
+    Object.assign(d.style, {
+      position: "absolute",
+      right: `${W - (gx + gw)}px`,
+      bottom: `${H - gy + 0.45 * fs}px`,
+      width: `${gw}px`,
+      boxSizing: "border-box",
+      padding: `${0.55 * pad}px ${pad}px ${0.75 * pad}px`,
+      background: C.bg || "#c8c9cc",
+      opacity: "0.97",
+      borderRadius: `${0.45 * fs}px`,
+      // (square where the tail joins it, as the game's)
+      borderBottomLeftRadius: "0",
+      direction: dir(),
+      fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`,
+      fontSize: `${fs}px`,
+      lineHeight: "1.5",
+      color: C.fg || "#1e1f24",
+    });
+    const av = 1.75 * fs;
+    const pic = C.avatar ? `<img src="${C.avatar}" style="width:${av}px;height:${av}px;border-radius:50%;object-fit:cover;flex:none">` : "";
+    // (the mark in the game's top corner, a map pin or a camera: at the name row's end, as there)
+    const mark = C.badge ? `<img src="${C.badge}" style="height:${(1.3 * fs).toFixed(1)}px;flex:none;margin-inline-start:auto">` : "";
+    d.innerHTML =
+      (C.name || mark ? `<div style="display:flex;align-items:center;gap:${(0.45 * fs).toFixed(1)}px;margin-bottom:${(0.2 * fs).toFixed(1)}px">${pic}${C.name ? `<span style="font-weight:700;color:${C.name_fg || "#15161a"};unicode-bidi:plaintext">${esc(C.name)}</span>` : ""}${mark}</div>` : "") +
+      `<div style="unicode-bidi:plaintext;text-align:${rtl() ? "right" : "left"};white-space:pre-wrap">${withEmoji(C.ar, C.emoji)}</div>`;
+    // the tail at the bottom left, as the game's
+    const tail = document.createElement("div");
+    Object.assign(tail.style, {
+      position: "absolute",
+      // (overlapping the bubble's edge a little: no seam between them)
+      left: `${-0.5 * fs}px`,
+      bottom: "0",
+      width: "0",
+      height: "0",
+      borderTop: `${0.7 * fs}px solid transparent`,
+      borderRight: `${0.52 * fs}px solid ${C.bg || "#c8c9cc"}`,
+    });
+    d.appendChild(tail);
+    root.appendChild(d);
+  }
+
+  // where each of the phone's buttons was first seen (see renderPhone)
+  const PHONE_BUTTON_AT = {};
+
   function renderPhone(root, P) {
     root.innerHTML = "";
+    if (P && P.chat) renderChat(root, P.chat);
     if (!P || !P.pieces || !P.pieces.length) return;
     const W = root.clientWidth, H = root.clientHeight;
     if (!W || !H) return;
@@ -300,7 +368,8 @@ window.AS = (() => {
       height: `${sh}px`,
       overflow: "hidden",
       background: P.screen_bg || "#f2f3f6",
-      borderRadius: `${0.5 * fs}px`,
+      // (square corners, as the phone's screen)
+      borderRadius: "0",
       boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
       opacity: "0.97",
     });
@@ -308,13 +377,22 @@ window.AS = (() => {
     const put = (d, left, top) => Object.assign(d.style, { left: `${left - x}px`, top: `${top - sy}px` });
     // the buttons at the bottom right ("SELECT", "BACK"): each one's word beside the game's, in its style
     for (const b of P.buttons || []) {
-      const capH = b.rect[3] * H;
+      // (the game's buttons stay put: the place a button was first seen at is kept while it's read within a
+      // few pixels of it, the reading's box shifting a pixel or two from frame to frame)
+      const key = b.en || b.ar;
+      const was = PHONE_BUTTON_AT[key];
+      const near = was && Math.abs(was[0] - b.rect[0]) < 0.006 && Math.abs(was[1] - b.rect[1]) < 0.01 && Math.abs(was[3] - b.rect[3]) < 0.006;
+      const r = near ? was : (PHONE_BUTTON_AT[key] = b.rect);
+      const capH = r[3] * H;
       const d = document.createElement("div");
       Object.assign(d.style, {
         position: "absolute",
-        right: `${W - b.rect[0] * W + capH * 0.6}px`,
-        top: `${(b.rect[1] + b.rect[3] / 2) * H}px`,
+        right: `${W - r[0] * W + capH * 1.2}px`,
+        top: `${(r[1] + r[3] / 2) * H}px`,
         transform: "translateY(-50%)",
+        display: "flex",
+        alignItems: "center",
+        gap: `${capH * 0.45}px`,
         whiteSpace: "nowrap",
         direction: dir(),
         fontFamily: `"Noto Sans Arabic", ${fonts()}`,
@@ -324,7 +402,17 @@ window.AS = (() => {
         color: "#ffffff",
         textShadow: "0 1px 3px rgba(0,0,0,0.85)",
       });
-      d.textContent = b.ar;
+      // (its icon first: on the right in a right-to-left row, as the game's after its word)
+      if (b.icon) {
+        const img = document.createElement("img");
+        img.src = b.icon;
+        const ih = b.icon_rect ? b.icon_rect[3] * H : capH * 1.3;
+        Object.assign(img.style, { height: `${ih}px`, width: `${ih}px`, objectFit: "contain", flex: "none", display: "block" });
+        d.appendChild(img);
+      }
+      const label = document.createElement("span");
+      label.textContent = b.ar;
+      d.appendChild(label);
       root.appendChild(d);
     }
     let below = -1e9;
@@ -353,7 +441,7 @@ window.AS = (() => {
           const one = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;unicode-bidi:plaintext";
           const lineH = 1.3 * fs;
           // (the message: its translation; one that is no text, an emoji, as it is; none yet: an empty line)
-          const msg = p.ar ? esc(p.ar) : p.preview ? `<img src="${p.preview}" style="height:${(0.95 * fs).toFixed(1)}px;vertical-align:middle">` : "&nbsp;";
+          const msg = p.ar ? withEmoji(p.ar, p.emoji) : p.preview ? `<img src="${p.preview}" style="height:${(0.95 * fs).toFixed(1)}px;vertical-align:middle">` : "&nbsp;";
           const mark = p.badge ? `<img src="${p.badge}" style="height:${(1.15 * fs).toFixed(1)}px;flex:none;align-self:flex-start;margin-top:${(0.15 * fs).toFixed(1)}px">` : "";
           d.innerHTML =
             pic +
@@ -372,8 +460,26 @@ window.AS = (() => {
         below = top + d.offsetHeight;
         continue;
       }
+      // the chat's header, as the phone's: a bar across the top, the back arrow, the contact's name in the
+      // middle, their picture at the end
+      if (p.title) {
+        const bar = document.createElement("div");
+        const bh = 2.6 * fs;
+        Object.assign(bar.style, {
+          position: "absolute", left: "0", top: "0", width: `${colW}px`, height: `${bh}px`, boxSizing: "border-box",
+          display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${pad}px`,
+          background: p.bg || "#f4f4f7", borderBottom: "1px solid rgba(0,0,0,0.08)", direction: dir(),
+          fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`, fontSize: `${fs}px`, color: p.fg || "#26272d",
+        });
+        const pic = p.avatar ? `<img src="${p.avatar}" style="width:${(1.7 * fs).toFixed(1)}px;height:${(1.7 * fs).toFixed(1)}px;border-radius:50%;object-fit:cover">` : `<span style="width:${(1.7 * fs).toFixed(1)}px"></span>`;
+        // (the arrow points back: to the right in a right-to-left page)
+        bar.innerHTML = `<span style="color:#3d6fe0;font-size:${(1.5 * fs).toFixed(1)}px;line-height:1">${rtl() ? "›" : "‹"}</span><b style="unicode-bidi:plaintext">${esc(p.ar)}</b>${pic}`;
+        panel.appendChild(bar);
+        below = sy + bh;
+        continue;
+      }
       const d = document.createElement("div");
-      d.innerHTML = (p.name ? `<div style="font-weight:700;margin-bottom:${(0.15 * fs).toFixed(1)}px">${esc(p.name)}</div>` : "") + esc(p.ar);
+      d.innerHTML = (p.name ? `<div style="font-weight:700;margin-bottom:${(0.15 * fs).toFixed(1)}px">${esc(p.name)}</div>` : "") + withEmoji(p.ar, p.emoji);
       Object.assign(d.style, {
         position: "absolute",
         boxSizing: "border-box",
@@ -381,32 +487,59 @@ window.AS = (() => {
         unicodeBidi: "plaintext",
         textAlign: rtl() ? "right" : "left",
         fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`,
-        fontSize: `${fs}px`,
-        lineHeight: "1.55",
+        fontSize: `${fs * 0.94}px`,
+        lineHeight: "1.4",
         whiteSpace: "pre-wrap",
         color: p.fg || "#2b2d34",
         maxWidth: `${colW - 2 * pad}px`,
         width: "max-content",
       });
-      if (p.title) {
-        Object.assign(d.style, { fontWeight: "700", textAlign: "center", width: `${colW - 2 * pad}px` });
+      // (a bubble as wide as the game's: its words' width, its padding round them)
+      const wide = Math.min(colW - 2 * pad, p.rect[2] * W * (colW / sw) + 1.4 * fs);
+      if (p.boxed) {
+        // a map pin's card: bordered, its pin before the words
+        Object.assign(d.style, {
+          width: `${colW - 2 * pad}px`, background: p.bg || "#e9e9ee", border: "1px solid rgba(0,0,0,0.18)",
+          borderRadius: `${0.25 * fs}px`, padding: `${0.55 * fs}px ${0.8 * fs}px`, fontWeight: "600",
+        });
+        // (the phone's pin: a small pale-blue disc)
+        const pin = `<span style="display:inline-block;width:${(0.9 * fs).toFixed(1)}px;height:${(0.9 * fs).toFixed(1)}px;border-radius:50%;background:#d3e3f6;border:1px solid #a9c5e8;vertical-align:-0.1em;margin-inline-end:${(0.5 * fs).toFixed(1)}px"></span>`;
+        d.innerHTML = pin + d.innerHTML;
       } else if (p.label) {
         // ("New message", a day's date: centred, as on the phone)
         Object.assign(d.style, { fontSize: `${0.85 * fs}px`, fontWeight: "600", textAlign: "center" });
       } else {
         Object.assign(d.style, {
           background: p.bg || "#f8f9fb",
-          borderRadius: `${0.6 * fs}px`,
-          padding: `${0.45 * fs}px ${0.7 * fs}px`,
+          // (the character's own, blue: rounder, as the phone's)
+          borderRadius: `${(p.end ? 0.9 : 0.45) * fs}px`,
+          padding: `${0.35 * fs}px ${0.7 * fs}px`,
+          width: `${wide}px`,
           // (a reply to pick: outlined, as on the phone)
           border: p.edge ? `${Math.max(2, 0.12 * fs).toFixed(1)}px solid ${p.edge}` : "none",
+          boxShadow: p.edge ? "none" : "0 1px 1px rgba(0,0,0,0.06)",
         });
       }
       panel.appendChild(d);
+      // (the reply to pick: its send button beside it)
+      if (p.edge && p.end) {
+        const send = document.createElement("div");
+        const ss = 1.3 * fs;
+        Object.assign(send.style, {
+          position: "absolute", width: `${ss}px`, height: `${ss}px`, borderRadius: "50%", background: "#4d8ff0",
+          color: "#fff", fontSize: `${(0.7 * fs).toFixed(1)}px`, display: "flex", alignItems: "center", justifyContent: "center",
+        });
+        send.textContent = "▶";
+        d._send = send;
+        panel.appendChild(send);
+      }
       // (the character's own messages on the right, as on the phone; the rest on the left; labels centred)
-      const left = p.label ? x + (colW - d.offsetWidth) / 2 : p.end ? x + colW - pad - d.offsetWidth : x + pad;
-      const top = Math.max(p.rect[1] * H, below + 0.35 * fs);
+      // (the reply to pick leaves room for its send button)
+      const room = d._send ? 1.6 * fs : 0;
+      const left = p.label ? x + (colW - d.offsetWidth) / 2 : p.end ? x + colW - pad - room - d.offsetWidth : x + pad;
+      const top = Math.max(p.rect[1] * H - 0.4 * fs, below + 0.25 * fs);
       put(d, left, top);
+      if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
     }
   }
@@ -538,6 +671,46 @@ window.AS = (() => {
       );
     }
 
+    // A box of the game's drawn again under it, translated (the map's objective): its see-through background
+    // and coloured top line, the picture beside the name, the sentence under them.
+    for (const c of L.cards || []) {
+      if (!c.title_ar && !c.text_ar) continue;
+      const th = c.title_h * H, xh = (c.text_h || c.title_h) * H;
+      const pad = xh * 0.7;
+      const card = mk({
+        left: `${c.rect.x * W}px`,
+        top: `${(c.rect.y + c.rect.h) * H + xh * 0.5}px`,
+        width: `${c.rect.w * W}px`,
+        boxSizing: "border-box",
+        padding: `${pad * 0.8}px ${pad}px ${pad}px`,
+        background: c.bg || "rgba(14, 16, 30, 0.8)",
+        borderTop: `${Math.max(2, (c.border_h || 0.004) * H).toFixed(1)}px solid ${c.border || "#fd87b0"}`,
+        whiteSpace: "normal",
+        color: "#ffffff",
+        textAlign: rtl() ? "right" : "left",
+        fontFamily: `"${opts.text_font}", ${fonts()}`,
+      }, "");
+      const head = document.createElement("div");
+      Object.assign(head.style, { display: "flex", alignItems: "center", gap: `${xh * 0.5}px`, marginBottom: `${xh * 0.25}px` });
+      if (c.pic) {
+        const img = document.createElement("img");
+        img.src = c.pic;
+        Object.assign(img.style, { width: `${th * 1.9}px`, height: `${th * 1.9}px`, objectFit: "cover", flex: "none", display: "block" });
+        head.appendChild(img);
+      }
+      const name = document.createElement("span");
+      Object.assign(name.style, { fontWeight: "700", fontSize: `${th * 1.25}px`, lineHeight: "1.2", unicodeBidi: "plaintext" });
+      name.textContent = c.title_ar || c.title_en;
+      head.appendChild(name);
+      card.appendChild(head);
+      if (c.text_ar) {
+        const text = document.createElement("div");
+        Object.assign(text.style, { fontSize: `${xh * 1.2}px`, lineHeight: "1.45", unicodeBidi: "plaintext" });
+        text.textContent = c.text_ar;
+        card.appendChild(text);
+      }
+    }
+
     // Pause menu, top right: character name, day and time, in Arabic just left of the English.
     if (L.player && L.player.ar.length) {
       const p = L.player;
@@ -608,7 +781,40 @@ window.AS = (() => {
     // English one, icon over icon (so they line up with the game's), in the word's color (a greyed-out
     // button stays grey).
     // (an icon too faint to cut out still has its place: the label goes there, without the picture)
-    const placed = L.buttons && L.buttons.length && L.buttons.every((b) => b.icon_rect && b.text_rect);
+    // Buttons one under the other (a failed mission's): each one's Arabic and its icon just left of the
+    // English, on its line, in the word's colour.
+    const beside = L.buttons && L.buttons.length && L.buttons.every((b) => b.beside && b.text_rect);
+    if (beside) {
+      for (const b of L.buttons) {
+        if (!b.ar) continue;
+        const capH = b.text_rect.h * H;
+        const bfs = capH * 1.35;
+        const item = mk({
+          right: `${W - b.text_rect.x * W + capH * 1.6}px`,
+          top: `${(b.text_rect.y + b.text_rect.h / 2) * H}px`,
+          transform: "translateY(-50%)",
+          display: "flex",
+          alignItems: "center",
+          gap: `${capH * 0.45}px`,
+          fontFamily: `"${opts.text_font}", ${fonts()}`,
+          fontWeight: "700",
+          fontSize: `${bfs}px`,
+          color: b.fg || "#ffffff",
+          textShadow: shadow(bfs),
+        }, "");
+        // (right to left: the icon on the right, as the game's after its word)
+        if (b.icon && b.icon_rect) {
+          const img = document.createElement("img");
+          img.src = b.icon;
+          Object.assign(img.style, { height: `${b.icon_rect.h * H}px`, width: `${b.icon_rect.w * W}px`, objectFit: "contain", flex: "none", display: "block" });
+          item.appendChild(img);
+        }
+        const label = document.createElement("span");
+        label.textContent = b.ar;
+        item.appendChild(label);
+      }
+    }
+    const placed = !beside && L.buttons && L.buttons.length && L.buttons.every((b) => b.icon_rect && b.text_rect);
     if (placed) {
       // right to left; a label longer than its English pushes the ones to its left further left
       let room = Infinity; // where the item to the right begins (px from the left)
@@ -652,7 +858,7 @@ window.AS = (() => {
       }
     }
     // Buttons: the game's own icons + Arabic labels, a row just above the English one, right-aligned to it.
-    if (!placed && L.buttons && L.buttons.length && L.buttons_row) {
+    if (!placed && !beside && L.buttons && L.buttons.length && L.buttons_row) {
       const row = L.buttons_row;
       const capH = Math.min(...L.buttons.map((b) => b.text_rect.h)) * H; // word without descenders
       const bfs = capH * 1.45;

@@ -733,9 +733,9 @@ impl Default for Config {
             openai_key: String::new(),
             openai_model: "gpt-6-luna".into(),
             dialect: "msa".into(),
-            interval_ms: 250,
-            stable_ms: 300,
-            clear_after_ms: 800,
+            interval_ms: DEFAULT_TIMING.interval_ms,
+            stable_ms: DEFAULT_TIMING.stable_ms,
+            clear_after_ms: DEFAULT_TIMING.clear_after_ms,
             timing_custom: Some(false),
             overlays_enabled: true,
             phone_text: true,
@@ -758,15 +758,15 @@ impl Default for Config {
             obs_port: 4455,
             obs_password: String::new(),
             obs_page_port: 8790,
-            capture_fps: 12,
-            preview_fps: 60,
+            capture_fps: DEFAULT_TIMING.capture_fps,
+            preview_fps: DEFAULT_TIMING.preview_fps,
             picture_4k: false,
             snap_service: String::new(),
             snap_azure_endpoint: String::new(),
             snap_azure_key: String::new(),
             snap_gemini_model: "gemini-nano-banana-2.1".into(),
             snap_gemini_key: String::new(),
-            shown: Default::default(),
+            shown: cover_shown(),
             lan_control: true,
             snap_save: true,
             snap_lan: true,
@@ -798,7 +798,28 @@ impl Default for Config {
 /// a four-line box's last line was cut off, so the translation stopped short and covered it;
 /// 4 = the live preview at 60 frames a second (was 30: a capture card sends 60, and the preview looked
 /// choppy next to the card's own app).
-pub const DEFAULTS_VERSION: u32 = 5;
+pub const DEFAULTS_VERSION: u32 = 6;
+
+/// The app's timing (Source → Timing): frames captured and shown per second, how often the areas are
+/// read, the wait for text to settle, and when the English counts as gone (ms). Fast enough for GTA
+/// VI's stacked subtitles and its black box over the English.
+pub struct DefaultTiming {
+    pub capture_fps: u32,
+    pub preview_fps: u32,
+    pub interval_ms: u64,
+    pub stable_ms: u64,
+    pub clear_after_ms: u64,
+}
+pub const DEFAULT_TIMING: DefaultTiming = DefaultTiming { capture_fps: 60, preview_fps: 60, interval_ms: 16, stable_ms: 80, clear_after_ms: 100 };
+
+/// The built-in GTA VI profile with its look "Over the game's text" (the black box over the English).
+fn cover_shown() -> std::collections::BTreeMap<String, Shown> {
+    let mut shown = std::collections::BTreeMap::new();
+    let mut s = Shown::default();
+    s.pages.insert("translation_cover".into(), true);
+    shown.insert("gta6".to_string(), s);
+    shown
+}
 
 /// The height of GTA VI's top-left instructions area (and the one before `DEFAULTS_VERSION` 3).
 const HELP_H: f64 = 0.30;
@@ -859,6 +880,20 @@ impl Config {
                     moved = true;
                 }
             }
+        }
+        if self.defaults_version < 6 {
+            // v1.4.0, for everyone once: the built-in GTA VI profile, its look over the game's text,
+            // and the app's timing (the profile's own when it has one)
+            self.profile = "gta6".into();
+            self.shown.entry("gta6".into()).or_default().pages.insert("translation_cover".into(), true);
+            self.capture_fps = DEFAULT_TIMING.capture_fps;
+            self.preview_fps = DEFAULT_TIMING.preview_fps;
+            self.picture_4k = false;
+            self.interval_ms = DEFAULT_TIMING.interval_ms;
+            self.stable_ms = DEFAULT_TIMING.stable_ms;
+            self.clear_after_ms = DEFAULT_TIMING.clear_after_ms;
+            self.timing_custom = Some(false);
+            moved = true;
         }
         let bumped = self.defaults_version < DEFAULTS_VERSION;
         self.defaults_version = self.defaults_version.max(DEFAULTS_VERSION);
@@ -1125,17 +1160,41 @@ mod profile_tests {
         let mut c: Config = serde_json::from_str(r#"{"capture_fps": 8}"#).unwrap();
         assert_eq!(c.defaults_version, 0);
         assert!(c.move_to_new_defaults());
-        assert_eq!((c.capture_fps, c.defaults_version), (12, DEFAULTS_VERSION));
+        assert_eq!((c.capture_fps, c.defaults_version), (60, DEFAULTS_VERSION));
         // set back to 8 by the player afterwards: stays
         c.capture_fps = 8;
         assert!(!c.move_to_new_defaults());
         assert_eq!(c.capture_fps, 8);
-        // a value the player had chosen stays
-        let mut c: Config = serde_json::from_str(r#"{"capture_fps": 20}"#).unwrap();
-        c.move_to_new_defaults();
-        assert_eq!(c.capture_fps, 20);
         // a new install already has the new defaults
-        assert_eq!((Config::default().capture_fps, Config::default().defaults_version), (12, DEFAULTS_VERSION));
+        assert_eq!((Config::default().capture_fps, Config::default().defaults_version), (60, DEFAULTS_VERSION));
+    }
+
+    #[test]
+    fn version_1_4_0_moves_everyone_to_gta6_over_the_text_with_the_new_timing() {
+        // a player on their own profile, the look under the text, slow timing of their own, 4K
+        let mut c: Config = serde_json::from_str(
+            r#"{"defaults_version": 5, "profile": "mine", "interval_ms": 400, "stable_ms": 500, "clear_after_ms": 900,
+                "timing_custom": true, "capture_fps": 12, "preview_fps": 30, "picture_4k": true,
+                "shown": {"gta6": {"pages": {"translation_cover": false}}}}"#,
+        )
+        .unwrap();
+        assert!(c.move_to_new_defaults());
+        c.normalize();
+        assert_eq!(c.profile, "gta6");
+        assert!(c.cover_look());
+        assert_eq!((c.interval_ms, c.stable_ms, c.clear_after_ms, c.capture_fps, c.preview_fps, c.picture_4k), (16, 80, 100, 60, 60, false));
+        assert_eq!(c.timing(), (16, 80, 100));
+        // once: what they choose afterwards stays
+        c.interval_ms = 200;
+        c.shown.get_mut("gta6").unwrap().pages.insert("translation_cover".into(), false);
+        assert!(!c.move_to_new_defaults());
+        c.normalize();
+        assert_eq!((c.interval_ms, c.cover_look()), (200, false));
+        // a new install has it all already
+        let mut d = Config::default();
+        d.normalize();
+        assert!(d.cover_look());
+        assert_eq!(d.timing(), (16, 80, 100));
     }
 
     #[test]
@@ -1269,12 +1328,16 @@ mod profile_tests {
         let dir = std::env::temp_dir().join(format!("vit-timing-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("config.json");
-        // moved off the default before `timing_custom` existed: their own
+        // from before v1.4.0: everyone's timing became the app's once (defaults v6), their own or not
         std::fs::write(&path, r#"{"clear_after_ms": 900}"#).unwrap();
-        assert_eq!(Config::load(&path).timing_custom, Some(true));
-        // never moved: the game's
+        let c = Config::load(&path);
+        assert_eq!((c.timing_custom, c.clear_after_ms), (Some(false), DEFAULT_TIMING.clear_after_ms));
         std::fs::write(&path, r#"{}"#).unwrap();
         assert_eq!(Config::load(&path).timing_custom, Some(false));
+        // since then, their own stays their own
+        std::fs::write(&path, r#"{"defaults_version": 6, "clear_after_ms": 900, "timing_custom": true}"#).unwrap();
+        let c = Config::load(&path);
+        assert_eq!((c.timing_custom, c.clear_after_ms), (Some(true), 900));
         // chosen since: kept as it is, even with values off the default
         std::fs::write(&path, r#"{"clear_after_ms": 900, "timing_custom": false}"#).unwrap();
         assert_eq!(Config::load(&path).timing_custom, Some(false));

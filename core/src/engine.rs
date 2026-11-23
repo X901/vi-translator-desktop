@@ -1342,7 +1342,11 @@ impl Reader {
             // shown when it comes); the contacts' names written as the speakers' are.
             if let (Some(f), Some(ocr)) = (frame, ocr_now) {
                 let found = if c.phone_text() {
-                    crate::phone::find_screen(&f.rgba, f.w, f.h).map(|scr| (scr, crate::phone::read_screen(ocr, &f.rgba, f.w, f.h, scr))).filter(|(_, p)| !p.is_empty())
+                    crate::phone::find_screen(&f.rgba, f.w, f.h)
+                        // (a short light part, a Snapmatic post's caption: a phone only with its buttons up)
+                        .or_else(|| crate::phone::find_screen_unsure(&f.rgba, f.w, f.h).filter(|_| crate::phone::phone_buttons(&crate::phone::read_buttons(ocr, &f.rgba, f.w, f.h))))
+                        .map(|scr| (scr, crate::phone::read_screen(ocr, &f.rgba, f.w, f.h, scr)))
+                        .filter(|(_, p)| !p.is_empty())
                 } else {
                     None
                 };
@@ -1371,7 +1375,18 @@ impl Reader {
                                     .or_else(|| cache.map.get(&title).cloned());
                                 match ar {
                                     // (a button's word plain: "تراجع!" is "تراجع")
-                                    Some(ar) => btns.push(serde_json::json!({ "rect": frac(*r), "ar": ar.trim_end_matches(['!', '.', '!']).trim() })),
+                                    Some(ar) => {
+                                        // (its icon after it, as the game's: "SEND ✕")
+                                        let icon = crate::phone::button_icon(&f.rgba, f.w, f.h, *r).and_then(|ic| crate::phone::part_png(&f.rgba, f.w, f.h, ic, (0, 0, ic.2, ic.3), 40).map(|png| (ic, png)));
+                                        btns.push(serde_json::json!({
+                                            "rect": frac(*r), "en": en, "ar": ar.trim_end_matches(['!', '.', '!']).trim(),
+                                            "icon": icon.as_ref().map(|(_, png)| {
+                                                use base64::Engine as _;
+                                                format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                                            }),
+                                            "icon_rect": icon.map(|(ic, _)| frac(ic)),
+                                        }))
+                                    }
                                     None => {
                                         if menu_asked.insert(title.clone()) {
                                             seq_counter += 1;
@@ -1383,15 +1398,34 @@ impl Reader {
                             for p in &pieces {
                                 if p.title {
                                     let fg = p.look.fg;
-                                    out.push(serde_json::json!({ "rect": frac(p.rect), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]) }));
+                                    let bg = p.look.bg;
+                                    // (the chat's header: its contact's picture at its end)
+                                    let pic = p.avatar.and_then(|a| crate::phone::part_png(&f.rgba, f.w, f.h, p.rect, (a.0, a.1, a.2, a.2), 56)).map(|png| {
+                                        use base64::Engine as _;
+                                        format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                                    });
+                                    out.push(serde_json::json!({ "rect": frac(p.rect), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]), "bg": format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2]), "avatar": pic }));
                                     continue;
                                 }
-                                let ar = m
-                                    .get(&p.en, &[], &[])
-                                    .map(|(segs, _)| segs.iter().map(|s| s.0.as_str()).collect::<String>().trim().to_string())
+                                // (its emojis as slots after its words, as the game's lines have them: "… babe ⟦1⟧")
+                                let with_emoji = if p.emoji.is_empty() { p.en.clone() } else { format!("{} {}", p.en, (1..=p.emoji.len()).map(ocr::icon_token).collect::<Vec<_>>().join(" ")) };
+                                let exact = m.get(&with_emoji, &crate::memory::slots(p.emoji.len()), &[]).map(|(segs, src)| (crate::memory::slot_text(&segs), src));
+                                // (a chat list's row shows only its message's start, cut to fit: "Hey Jason. You
+                                // good? I saw": the whole line it starts, the row cutting it to one line again; a
+                                // reviewed whole line before a machine translation of the cut start)
+                                let whole = if p.avatar.is_some() && exact.as_ref().is_none_or(|(_, src)| src != "reviewed") { m.starting_with(&p.en) } else { None };
+                                let ar = match (exact, whole) {
+                                    (_, Some((_, ar, src))) if src == "reviewed" => Some(ar),
+                                    (Some((ar, _)), _) => Some(ar),
+                                    (None, Some((_, ar, _))) => Some(ar),
+                                    (None, None) => None,
+                                };
+                                let ar = ar
                                     .or_else(|| cache.map.get(&p.en).cloned())
                                     .or_else(|| cache.map.iter().find(|(k, _)| ocr::similar(k, &p.en)).map(|(_, v)| v.clone()));
                                 let hex = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
+                                // (a translation without its slots: the emojis after it)
+                                let ar = ar.map(|a| if p.emoji.is_empty() || a.contains('{') { a } else { format!("{a} {}", (1..=p.emoji.len()).map(|i| format!("{{{i}}}")).collect::<String>()) });
                                 // (a chat list's row shows while its message's translation comes: its contact, its picture)
                                 let ar = if p.avatar.is_some() && p.en.is_empty() { Some(String::new()) } else { ar };
                                 let png = |o: (i32, i32, u32, u32), h: u32| {
@@ -1418,10 +1452,15 @@ impl Reader {
                                         "label": p.look.label,
                                         "end": p.look.end,
                                         "edge": p.look.edge.map(hex),
+                                        "boxed": p.look.boxed,
                                         // (a chat list's row: its contact's picture, as on the phone)
                                         "avatar": p.avatar.and_then(|a| png((a.0, a.1, a.2, a.2), 56)),
                                         "preview": p.preview.and_then(|b| png(b, 28)),
                                         "badge": p.badge.and_then(|b| png(b, 28)),
+                                        "emoji": p.emoji.iter().filter_map(|e| crate::phone::part_png(&f.rgba, f.w, f.h, *e, (0, 0, e.2, e.3), 40)).map(|png| {
+                                            use base64::Engine as _;
+                                            format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                                        }).collect::<Vec<_>>(),
                                     })),
                                     None => {
                                         if !menu_asked.contains(&p.en) && !menu_asked.iter().any(|a| ocr::similar(a, &p.en)) && menu_asked.insert(p.en.clone()) {
@@ -1442,13 +1481,108 @@ impl Reader {
                         }
                     }
                     None => {
-                        // (put away: gone a moment after it was last seen, not on a frame it was missed)
-                        let gone = ctx.live.phone_seen.lock().unwrap().is_none_or(|t| now.saturating_duration_since(t) > Duration::from_millis(300));
+                        // GTA VI's message bubble at the bottom right (see chat.rs): its translation in a
+                        // bubble like it, above it. Read again only when its box changes.
+                        let chat = if c.phone_text() { crate::chat::find_bubble(&f.rgba, f.w, f.h) } else { None };
+                        let bubble = chat.and_then(|r| {
+                            let frac_r = screens::Rect { x: r.0 as f64 / f.w as f64, y: r.1 as f64 / f.h as f64, w: r.2 as f64 / f.w as f64, h: r.3 as f64 / f.h as f64 };
+                            let sig = screens::region_sig(f, &frac_r);
+                            let mut memo = ctx.live.chat_read.lock().unwrap();
+                            let same = memo.as_ref().is_some_and(|(s, mr, _)| {
+                                let near = mr.0.abs_diff(r.0) <= 12 && mr.1.abs_diff(r.1) <= 12 && mr.2.abs_diff(r.2) <= 12 && mr.3.abs_diff(r.3) <= 12;
+                                near && s.iter().zip(&sig).map(|(a, b)| a.abs_diff(*b) as u32).sum::<u32>() / (sig.len().max(1) as u32) < 6
+                            });
+                            if !same {
+                                *memo = Some((sig, r, crate::chat::read_bubble(ocr, &f.rgba, f.w, f.h, r)));
+                            }
+                            memo.as_ref().and_then(|m| m.2.clone()).map(|b| crate::chat::Bubble { rect: r, ..b })
+                        });
+                        let chat_v = bubble.and_then(|b| {
+                            let lang = c.target_lang.clone();
+                            let hex = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
+                            let m = ctx.memory.lock().unwrap();
+                            let cache = ctx.live.menu_cache.lock().unwrap();
+                            // (its emojis as slots "{1}" … in the Arabic, their pictures drawn there)
+                            let exact = m.get(&b.en, &crate::memory::slots(b.emoji.len()), &[]).map(|(segs, src)| (crate::memory::slot_text(&segs), src));
+                            // (the words alone, for the translator)
+                            let plain = b.en.split_whitespace().filter(|w| !w.starts_with('⟦')).collect::<Vec<_>>().join(" ");
+                            // (a message the game cut off: the whole line it's the start of, cut as the game cut
+                            // it; a reviewed whole line before a machine translation of the cut start)
+                            let whole = if b.cut() && exact.as_ref().is_none_or(|(_, src)| src != "reviewed") {
+                                m.starting_with(&b.en).map(|(en, ar, src)| (crate::chat::cut_like(&ar, &b.en, &en), src))
+                            } else {
+                                None
+                            };
+                            let ar = match (exact, whole) {
+                                (_, Some((ar, src))) if src == "reviewed" => Some(ar),
+                                (Some((ar, _)), _) => Some(ar),
+                                (None, Some((ar, _))) => Some(ar),
+                                (None, None) => None,
+                            }
+                            .or_else(|| cache.map.get(&plain).cloned());
+                            if ar.is_none() && menu_asked.insert(plain.clone()) {
+                                seq_counter += 1;
+                                let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: plain.clone(), phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
+                            }
+                            // (a translation without its slots: the emojis after it, as they come)
+                            let ar = ar.map(|a| {
+                                if b.emoji.is_empty() || a.contains('{') {
+                                    a
+                                } else {
+                                    format!("{a} {}", (1..=b.emoji.len()).map(|i| format!("{{{i}}}")).collect::<Vec<_>>().join(""))
+                                }
+                            });
+                            let emoji: Vec<String> = b
+                                .emoji
+                                .iter()
+                                .filter_map(|e| crate::phone::part_png(&f.rgba, f.w, f.h, *e, (0, 0, e.2, e.3), 40))
+                                .map(|png| {
+                                    use base64::Engine as _;
+                                    format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                                })
+                                .collect();
+                            let avatar = b.avatar.and_then(|a| crate::phone::part_png(&f.rgba, f.w, f.h, a, (0, 0, a.2, a.3), 56)).map(|png| {
+                                use base64::Engine as _;
+                                format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                            });
+                            let badge = b.badge.and_then(|a| crate::phone::part_png(&f.rgba, f.w, f.h, a, (0, 0, a.2, a.3), 28)).map(|png| {
+                                use base64::Engine as _;
+                                format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
+                            });
+                            let (w, h) = (f.w as f64, f.h as f64);
+                            ar.map(|ar| {
+                                serde_json::json!({
+                                    "rect": [b.rect.0 as f64 / w, b.rect.1 as f64 / h, b.rect.2 as f64 / w, b.rect.3 as f64 / h],
+                                    "name": b.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
+                                    "ar": ar,
+                                    "bg": hex(b.bg), "fg": hex(b.fg), "name_fg": hex(b.name_fg),
+                                    "avatar": avatar,
+                                    "badge": badge,
+                                    "emoji": emoji,
+                                })
+                            })
+                        });
                         let mut up = ctx.live.phone.lock().unwrap();
-                        if gone && up.is_some() {
-                            *up = None;
-                            ctx.live.phone_active.store(false, std::sync::atomic::Ordering::Relaxed);
-                            ctx.sink.emit("phone", serde_json::Value::Null);
+                        match chat_v {
+                            Some(cv) => {
+                                *ctx.live.phone_seen.lock().unwrap() = Some(now);
+                                let v = serde_json::json!({ "chat": cv });
+                                if up.as_ref() != Some(&v) {
+                                    *up = Some(v.clone());
+                                    ctx.live.phone_active.store(true, std::sync::atomic::Ordering::Relaxed);
+                                    ctx.sink.emit("phone", v);
+                                }
+                            }
+                            None => {
+                                // (put away: gone a moment after it was last seen, not on a frame it was missed)
+                                let gone = ctx.live.phone_seen.lock().unwrap().is_none_or(|t| now.saturating_duration_since(t) > Duration::from_millis(300));
+                                if gone && up.is_some() {
+                                    *up = None;
+                                    *ctx.live.chat_read.lock().unwrap() = None;
+                                    ctx.live.phone_active.store(false, std::sync::atomic::Ordering::Relaxed);
+                                    ctx.sink.emit("phone", serde_json::Value::Null);
+                                }
+                            }
                         }
                     }
                 }
@@ -2363,6 +2497,14 @@ fn localize_screen(l: &mut screens::ScreenLayout, cache: &HashMap<String, String
     let untranslated = |ar: &str, en: &str| ar.is_empty() || ar == en;
     if !l.title_en.is_empty() && untranslated(&l.title_ar, &l.title_en) {
         l.title_ar = get(&l.title_en, &mut missing).unwrap_or_default();
+    }
+    for c in l.cards.iter_mut() {
+        if !c.title_en.is_empty() && untranslated(&c.title_ar, &c.title_en) {
+            c.title_ar = get(&c.title_en, &mut missing).unwrap_or_default();
+        }
+        if !c.text_en.is_empty() && untranslated(&c.text_ar, &c.text_en) {
+            c.text_ar = get(&c.text_en, &mut missing).unwrap_or_default();
+        }
     }
     for lb in l.labels.iter_mut() {
         if untranslated(&lb.ar, &lb.en) {

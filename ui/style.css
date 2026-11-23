@@ -462,9 +462,8 @@ body.no-preview .fs-btn { display: none; }
   border-block: 1px solid var(--line); }
 /* (last in the menu: nothing below it to separate from) */
 .rail-group:last-child { border-bottom: 0; }
-/* a built-in profile in use: the parts it can't change show a small lock */
-/* the lock on its own line under the name, whether the name wraps or not ("Text style" fits on one) */
-body.locked .rail-group button:not([data-tab="profile"]) span::after { content: "🔒"; display: block; font-size: 9px; margin-top: 2px; }
+/* (no lock in the menu for a built-in profile's parts: players took it for a paid feature; each part's
+   own page says it's built in and offers a copy) */
 
 /* "… is built in and can't be changed. [Make a copy]" at the top of each part */
 .lock-note:empty { display: none; }

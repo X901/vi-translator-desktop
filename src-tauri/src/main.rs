@@ -1201,6 +1201,43 @@ fn read_lines(dir: &str, area_id: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `--read-chat <dir>`: each saved frame's message bubble at the bottom right (see the core's chat.rs):
+/// its box, the name and the message, its picture and colours, and how long finding and reading took.
+fn read_chat(dir: &str) -> anyhow::Result<()> {
+    Ocr::init_thread();
+    let ocr = Ocr::new()?;
+    let mut files: Vec<_> = std::fs::read_dir(dir)?.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "png" || x == "jpg") && !p.to_string_lossy().ends_with("_overlay.png")).collect();
+    files.sort();
+    for path in files {
+        let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let img = image::open(&path)?.to_rgba8();
+        let (w, h) = img.dimensions();
+        let t = Instant::now();
+        let Some(rect) = vi_translator_core::chat::find_bubble(img.as_raw(), w, h) else {
+            println!("{name}: no bubble ({} ms)", t.elapsed().as_millis());
+            continue;
+        };
+        let found_ms = t.elapsed().as_millis();
+        match vi_translator_core::chat::read_bubble(&ocr, img.as_raw(), w, h, rect) {
+            Some(b) => println!(
+                "{name}: bubble {rect:?} ({found_ms} + {} ms)\n   name {:?} message {:?}{}\n   avatar {:?} badge {:?} bg {:?} fg {:?} name fg {:?}\n   emoji {:?}",
+                t.elapsed().as_millis() - found_ms,
+                b.name,
+                b.en,
+                if b.cut() { " CUT" } else { "" },
+                b.avatar,
+                b.badge,
+                b.bg,
+                b.fg,
+                b.name_fg,
+                b.emoji
+            ),
+            None => println!("{name}: bubble {rect:?}, no text read ({} ms)", t.elapsed().as_millis()),
+        }
+    }
+    Ok(())
+}
+
 /// `--read-phone <dir>`: each saved frame's phone screen (where it was found) and its text in pieces,
 /// as the reading finds them.
 fn read_phone(dir: &str) -> anyhow::Result<()> {
@@ -1218,7 +1255,9 @@ fn read_phone(dir: &str) -> anyhow::Result<()> {
         let img = image::open(&path)?.to_rgba8();
         let (w, h) = img.dimensions();
         let t = Instant::now();
-        let Some(screen) = vi_translator_core::phone::find_screen(img.as_raw(), w, h) else {
+        let screen = vi_translator_core::phone::find_screen(img.as_raw(), w, h)
+            .or_else(|| vi_translator_core::phone::find_screen_unsure(img.as_raw(), w, h).filter(|_| vi_translator_core::phone::phone_buttons(&vi_translator_core::phone::read_buttons(&ocr, img.as_raw(), w, h))));
+        let Some(screen) = screen else {
             println!("{name}: no phone ({} ms)", t.elapsed().as_millis());
             continue;
         };
@@ -1228,11 +1267,11 @@ fn read_phone(dir: &str) -> anyhow::Result<()> {
         let sbg = vi_translator_core::phone::screen_bg(img.as_raw(), w, h, screen, screen.1, screen.1 + screen.3);
         println!("   screen bg {sbg:?}");
         for (r, en) in vi_translator_core::phone::read_buttons(&ocr, img.as_raw(), w, h) {
-            println!("   BUTTON {r:?} {en:?}");
+            println!("   BUTTON {r:?} {en:?} icon {:?}", vi_translator_core::phone::button_icon(img.as_raw(), w, h, r));
         }
         for p in pieces {
             let l = &p.look;
-            println!("   {}{:?} {:?}{} bg {:?} fg {:?}{}{}{}", if p.title { "TITLE " } else { "" }, p.rect, p.en, p.name.as_ref().map(|n| format!(" (name {n:?})")).unwrap_or_default(), l.bg, l.fg, if l.label { " LABEL" } else { "" }, if l.end { " END" } else { "" }, l.edge.map(|e| format!(" EDGE {e:?}")).unwrap_or_default() + &p.avatar.map(|a| format!(" AVATAR {a:?}")).unwrap_or_default() + &p.preview.map(|a| format!(" PREVIEW {a:?}")).unwrap_or_default() + &p.badge.map(|a| format!(" BADGE {a:?}")).unwrap_or_default());
+            println!("   {}{:?} {:?}{} bg {:?} fg {:?}{}{}{}", if p.title { "TITLE " } else { "" }, p.rect, p.en, p.name.as_ref().map(|n| format!(" (name {n:?})")).unwrap_or_default(), l.bg, l.fg, if l.label { " LABEL" } else { "" }, if l.end { " END" } else { "" }, l.edge.map(|e| format!(" EDGE {e:?}")).unwrap_or_default() + &p.avatar.map(|a| format!(" AVATAR {a:?}")).unwrap_or_default() + &p.preview.map(|a| format!(" PREVIEW {a:?}")).unwrap_or_default() + &p.badge.map(|a| format!(" BADGE {a:?}")).unwrap_or_default() + &(if p.emoji.is_empty() { String::new() } else { format!(" EMOJI {:?}", p.emoji) }));
         }
     }
     Ok(())
@@ -1618,6 +1657,13 @@ fn main() {
             Ok(())
         };
         if let Err(e) = run() {
+            eprintln!("error: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if let Some(dir) = args.iter().position(|a| a == "--read-chat").and_then(|i| args.get(i + 1)) {
+        if let Err(e) = read_chat(dir) {
             eprintln!("error: {e:#}");
             std::process::exit(1);
         }

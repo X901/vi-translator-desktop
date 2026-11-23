@@ -66,8 +66,9 @@ pub struct Memory {
 const NEAR_CACHE: usize = 2048;
 /// How many of a text's rarest words find the lines it's compared with.
 const RARE_WORDS: usize = 3;
-/// How many of those lines (most words in common first) are compared letter by letter.
-const NEAR_TRIES: usize = 40;
+/// How many of those lines (most words in common first) are compared letter by letter (many: a line
+/// misread twice, "Get ih your vehiéle", shares only its common words with its own, among hundreds alike).
+const NEAR_TRIES: usize = 600;
 
 /// How much we trust each source: a better translation is never replaced by a worse one.
 fn rank(source: &str) -> u8 {
@@ -169,6 +170,23 @@ fn to_template(segs: &Segments) -> String {
         }
     }
     out
+}
+
+/// The icons as their slots ("1", "2" …: see `slot_text`), for a translation shown with its own pictures.
+pub fn slots(n: usize) -> Vec<String> {
+    (1..=n.max(1)).map(|i| i.to_string()).collect()
+}
+
+/// Segments as text, each icon as its slot "{n}" (filled with `slots`): the drawing puts the pictures in.
+pub fn slot_text(segs: &Segments) -> String {
+    segs.iter()
+        .map(|(t, c)| match c.as_deref().and_then(|c| c.strip_prefix("icon:")) {
+            Some(n) => format!("{{{n}}}"),
+            None => t.clone(),
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
 }
 
 /// Template -> segments with this frame's icons and highlight colours.
@@ -365,6 +383,37 @@ impl Memory {
             return None;
         }
         self.find(&key).map(|e| (fill(&e.ar, icons, phrases), e.source.clone()))
+    }
+
+    /// A remembered line that starts with `start`, a line the game cut off ("Me again. Can't wait
+    /// to ge..."): its whole English key, its Arabic (filled with no icons) and its source, the most trusted
+    /// first, then the shortest. The last word may be cut too ("ge" of "get"). Lines with at least
+    /// three whole words only: a shorter start fits too many lines.
+    pub fn starting_with(&self, start: &str) -> Option<(String, String, String)> {
+        let start = start.trim_end().trim_end_matches(['.', '…']).trim_end();
+        let key = key_of(start);
+        let mut words: Vec<&str> = key.split(' ').filter(|w| !w.is_empty()).collect();
+        // (a cut word: "ge"; a whole one would match too, as its own start)
+        let part = words.pop()?;
+        if words.len() < 3 {
+            return None;
+        }
+        let rarest = words.iter().filter_map(|w| self.index.get(*w)).min_by_key(|keys| keys.len())?;
+        let head = words.join(" ");
+        let mut best: Option<&Entry> = None;
+        for k in rarest {
+            let Some(rest) = k.strip_prefix(head.as_str()) else { continue };
+            let Some(next) = rest.strip_prefix(' ').and_then(|r| r.split(' ').next()) else { continue };
+            if !next.starts_with(part) {
+                continue;
+            }
+            let Some(e) = self.map.get(k) else { continue };
+            let better = |b: &Entry| (rank(&e.source), std::cmp::Reverse(e.en.len())) > (rank(&b.source), std::cmp::Reverse(b.en.len()));
+            if best.is_none_or(better) {
+                best = Some(e);
+            }
+        }
+        best.map(|e| (e.en.clone(), slot_text(&fill(&e.ar, &slots(9), &[])), e.source.clone()))
     }
 
     /// The line the memory takes `line` for (its own text, as kept: a misreading finds the line it's
@@ -662,6 +711,20 @@ mod tests {
         assert_eq!((text(&segs).as_str(), src.as_str()), ("احتمِ بساتر!", "reviewed"));
         m.clear();
         assert!(m.knows("Take cover."));
+        let _ = std::fs::remove_dir_all(&path);
+    }
+
+    #[test]
+    fn a_cut_off_line_finds_the_whole_one() {
+        let path = tmp().with_extension("4");
+        let _ = std::fs::remove_dir_all(&path);
+        let mut m = Memory::load(path.clone(), "ar");
+        m.put("Me again. Can't wait to get out of here.", &vec![("أنا مجددًا. لا أطيق صبرًا للخروج من هنا.".into(), None)], "claude");
+        m.put("Me again. Can't wait to see you.", &vec![("أنا مجددًا. لا أطيق صبرًا لرؤيتك.".into(), None)], "local");
+        let (en, ar, _) = m.starting_with("Me again. Can't wait to ge...").unwrap();
+        assert_eq!((en.as_str(), ar.as_str()), ("me again can't wait to get out of here", "أنا مجددًا. لا أطيق صبرًا للخروج من هنا."));
+        // (too short a start to tell)
+        assert!(m.starting_with("Me ag...").is_none());
         let _ = std::fs::remove_dir_all(&path);
     }
 }

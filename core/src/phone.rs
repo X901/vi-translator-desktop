@@ -26,6 +26,8 @@ pub struct Piece {
     pub preview: Option<(i32, i32, u32, u32)>,
     /// A chat list's row's mark at its end (a pin, a reply arrow): where it is, as `preview`.
     pub badge: Option<(i32, i32, u32, u32)>,
+    /// The emojis by its text (frame pixels, in reading order; see chat::emoji_in).
+    pub emoji: Vec<(u32, u32, u32, u32)>,
 }
 
 /// A piece's look on the phone: its bubble's colour and its text's (a message from the other person:
@@ -40,6 +42,8 @@ pub struct Look {
     pub end: bool,
     /// A coloured outline round it (a reply to pick: the chosen one's, a suggestion's), when it has one.
     pub edge: Option<[u8; 3]>,
+    /// A card with a border round it (a chat's "Map Pin Unavailable", "Map Pin Expired").
+    pub boxed: bool,
 }
 
 fn px(rgba: &[u8], fw: u32, x: u32, y: u32) -> [u8; 3] {
@@ -67,11 +71,45 @@ fn dist(a: [u8; 3], b: [u8; 3]) -> i32 {
 /// The screen's own background colour (beside its bubbles, along its left edge, from `y0` to `y1`).
 pub fn screen_bg(rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32), y0: u32, y1: u32) -> [u8; 3] {
     let (sx, sy, sw, sh) = screen;
-    let x = (sx + 6).min(fw - 1);
     let (a, b) = (y0.max(sy), y1.min(sy + sh).min(fh - 1));
-    let mut v: Vec<[u8; 3]> = (a..b.max(a + 1)).step_by(2).map(|y| px(rgba, fw, x, y.min(fh - 1))).collect();
-    let _ = sw;
+    // (on each row, a little in from where the screen's light starts: held tilted, walking, the box's left
+    // edge is the ground beside the phone)
+    let light = |p: [u8; 3]| {
+        let (lo, hi) = (*p.iter().min().unwrap(), *p.iter().max().unwrap());
+        lo >= 90 && hi - lo <= 45
+    };
+    let mut v: Vec<[u8; 3]> = Vec::new();
+    for y in (a..b.max(a + 1)).step_by(2) {
+        let y = y.min(fh - 1);
+        if let Some(x) = (sx..(sx + sw / 3).min(fw)).find(|&x| light(px(rgba, fw, x, y))) {
+            let p = px(rgba, fw, (x + 6).min(fw - 1), y);
+            if light(p) {
+                v.push(p);
+            }
+        }
+    }
+    if v.is_empty() {
+        let x = (sx + 6).min(fw - 1);
+        v = (a..b.max(a + 1)).step_by(2).map(|y| px(rgba, fw, x, y.min(fh - 1))).collect();
+    }
     median(&mut v)
+}
+
+/// The character's own message, white on a bright blue: much of the box round its words is that blue
+/// (measured inside the words' box: held tilted, the margin round it is partly off the bubble).
+fn own_blue(rgba: &[u8], fw: u32, r: (u32, u32, u32, u32)) -> bool {
+    let (x, y, w, h) = r;
+    let (mut n, mut blue) = (0u32, 0u32);
+    for yy in (y..y + h).step_by(2) {
+        for xx in (x..(x + w).min(fw)).step_by(2) {
+            n += 1;
+            let p = px(rgba, fw, xx, yy);
+            if p[2] as i32 - p[0] as i32 > 100 && p[2] > 140 {
+                blue += 1;
+            }
+        }
+    }
+    n > 0 && blue * 10 >= n * 3
 }
 
 /// A piece's look, measured in the frame: its bubble's colour (around its text, a margin out), its
@@ -108,7 +146,14 @@ pub fn look_of(rgba: &[u8], fw: u32, fh: u32, r: (u32, u32, u32, u32), screen: (
     // (a white bubble in sunset shade is only some 10 brighter than the screen around it: a label is within 8)
     let edge = edge_of(rgba, fw, fh, r, bg, m);
     // (a white box with a blue outline is a reply to pick, not text on the screen)
-    Look { bg, fg, label: dist(bg, sbg) < 8 && edge.is_none(), end: x + w / 2 > sx + sw * 58 / 100 && x > sx + sw / 5, edge }
+    // (a label stands clear of both sides, "New message" in the middle; a message in a bubble as light as
+    // the screen, in the sun, starts near one side)
+    // (and short, in the middle: a tilted phone's box is wider than its screen, a bubble looks clear of it)
+    let mid = (x + w / 2) as i32 - (sx + sw / 2) as i32;
+    let clear = x > sx + sw * 15 / 100 && x + w + sw * 15 / 100 < sx + sw && w * 100 < sw * 45 && mid.unsigned_abs() * 100 < sw * 4;
+    // (the character's own messages, a bright blue: on the right, the reply to pick too)
+    let own = bg[2] as i32 - bg[0] as i32 > 100 || own_blue(rgba, fw, r);
+    Look { bg, fg, label: dist(bg, sbg) < 8 && edge.is_none() && clear, end: own || (x + w / 2 > sx + sw * 58 / 100 && x > sx + sw / 5), edge, boxed: false }
 }
 
 /// A blue outline round the text's bubble (a reply to pick: a suggestion's, the chosen one's).
@@ -149,6 +194,26 @@ const SCALE: u32 = 6;
 /// picture, at least as tall as it is wide), filled for the most part. Its photos (Snapmatic) are not
 /// bright: the screen is then its bright parts above and below, in the same column, together.
 pub fn find_screen(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)> {
+    // (a white screen in sunset shade is about 200; at night, in a dark car, 150 down to 80: the brighter
+    // first, the dimmer only when no phone is found so)
+    [175, 130, 100, 75].into_iter().find_map(|light_from| find_screen_at(rgba, fw, fh, light_from, true))
+}
+
+/// A light part of a screen too short to be sure of by its shape alone: a Snapmatic post's caption
+/// under its photo (the photo fills the screen's top). Only a phone when its buttons are up too
+/// (see `phone_buttons`).
+pub fn find_screen_unsure(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)> {
+    find_screen_at(rgba, fw, fh, 175, false)
+}
+
+/// The phone's own buttons at the bottom right ("VIEW COMMENTS", "OPTIONS", "SCROLL", "SEND", or
+/// "SELECT" with "BACK"), read: what tells a phone's short light part from a light wall.
+pub fn phone_buttons(buttons: &[((u32, u32, u32, u32), String)]) -> bool {
+    let has = |w: &str| buttons.iter().any(|(_, t)| t == w);
+    ["VIEW COMMENTS", "OPTIONS", "SCROLL", "SEND"].iter().any(|w| has(w)) || (has("SELECT") && has("BACK"))
+}
+
+fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) -> Option<(u32, u32, u32, u32)> {
     let (cw, ch) = (fw / SCALE, fh / SCALE);
     if cw < 16 || ch < 16 {
         return None;
@@ -163,8 +228,8 @@ pub fn find_screen(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)
                 let i = ((y * fw + x) * 4) as usize;
                 let (r, g, b) = (rgba[i] as i32, rgba[i + 1] as i32, rgba[i + 2] as i32);
                 let (lo, hi) = (r.min(g).min(b), r.max(g).max(b));
-                // (a white screen in sunset shade is about 200: 175 and up, with little colour)
-                if lo >= 175 && hi - lo <= 30 {
+                // (lit enough, with little colour: see find_screen)
+                if lo >= light_from && hi - lo <= 30 {
                     n += 1;
                 }
             }
@@ -235,10 +300,49 @@ pub fn find_screen(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)
     // a phone held upright: its bright part at least 0.6 as tall as wide (a Snapmatic post's caption
     // under its photo is wider than tall; its text must be read to tell it from scenery anyway)
     let (bw, bh) = (x1 - x0 + 1, y1 - y0 + 1);
-    if bh * 10 < bw * 6 {
+    // a phone held up: tall and narrow as one (its screen 1.6–1.7 times as tall as wide, more than half
+    // the picture's height in GTA VI's hand; 1.25 and 45 % at the least, for a tilt or a scroll) — a
+    // light wall, a shirt, the message bubble, a lit window are wider or shorter
+    // (`sure` false: at least 0.6 as tall as wide and a fifth of the picture, for a post's caption)
+    if (sure && (bh * 4 < bw * 5 || bh * 100 < ch * 45)) || (!sure && (bh * 10 < bw * 6 || bh * 5 < ch)) {
         return None;
     }
-    Some((x0 * SCALE, y0 * SCALE, (bw * SCALE).min(fw - x0 * SCALE), (bh * SCALE).min(fh - y0 * SCALE)))
+    // (below the picture's top, clear of its sides: a phone in the hand never reaches them; a bright sky
+    // running down into the message bubble, a wall at the side, do)
+    if y0 == 0 || x0 == 0 || x1 + 1 >= cw {
+        return None;
+    }
+    let rect = (x0 * SCALE, y0 * SCALE, (bw * SCALE).min(fw - x0 * SCALE), (bh * SCALE).min(fh - y0 * SCALE));
+    // a dim screen (at night): lit in the dark, its sides (the phone's black edge, the hand, the car)
+    // much darker than it, and all of it in the picture: dim sky, road or wall is none of that
+    if light_from < 175 {
+        if x0 == 0 || y0 == 0 || x1 + 1 >= cw || y1 + 1 >= ch {
+            return None;
+        }
+        let luma = |x: u32, y: u32| {
+            let i = ((y * fw + x) * 4) as usize;
+            (rgba[i] as u32 * 3 + rgba[i + 1] as u32 * 6 + rgba[i + 2] as u32) / 10
+        };
+        let (rx, ry, rw, rh) = rect;
+        let (mut inside, mut n_in, mut sides, mut n_out) = (0u32, 0u32, 0u32, 0u32);
+        let band = (rw / 8).max(6);
+        for k in 1..20 {
+            let y = ry + rh * k / 20;
+            for j in 1..8 {
+                inside += luma(rx + rw * j / 8, y);
+                n_in += 1;
+            }
+            for x in [rx.saturating_sub(band), (rx + rw + band).min(fw - 1)] {
+                sides += luma(x, y);
+                n_out += 1;
+            }
+        }
+        let (inside, sides) = (inside / n_in.max(1), sides / n_out.max(1));
+        if sides + 50 > inside {
+            return None;
+        }
+    }
+    Some(rect)
 }
 
 /// The screen's text in pieces (each in frame pixels), top to bottom: lines one under the other (a
@@ -247,10 +351,29 @@ pub fn find_screen(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)
 pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32)) -> Vec<Piece> {
     let (sx, sy, sw, sh) = screen;
     let Some(crop) = Crop::from_frame(rgba, fw, fh, sx as f64 / fw as f64, sy as f64 / fh as f64, sw as f64 / fw as f64, sh as f64 / fh as f64) else { return Vec::new() };
-    let words = match ocr.recognize_checked(&crop) {
+    let mut words = match ocr.recognize_checked(&crop) {
         Ok((w, _)) => w,
         Err(_) => return Vec::new(),
     };
+    // the character's own messages, white on a bright blue: read again by the darkest channel (by the
+    // brightest, the blue is as bright as the letters), what the first reading missed added
+    let (mut blue, mut all) = (0u32, 0u32);
+    for yy in (sy..sy + sh).step_by(6) {
+        for xx in (sx..sx + sw).step_by(6) {
+            let i = ((yy * fw + xx) * 4) as usize;
+            all += 1;
+            if rgba[i + 2] as i32 - rgba[i] as i32 > 100 {
+                blue += 1;
+            }
+        }
+    }
+    if blue * 50 >= all {
+        if let Ok(more) = ocr.recognize_with(&crop, ocr::Prep::Darkest) {
+            let overlaps = |a: &Word, b: &Word| a.rect.0 < b.rect.0 + b.rect.2 && b.rect.0 < a.rect.0 + a.rect.2 && a.rect.1 < b.rect.1 + b.rect.3 && b.rect.1 < a.rect.1 + a.rect.3;
+            let new: Vec<Word> = more.into_iter().filter(|m| m.text.chars().any(|c| c.is_alphanumeric()) && !words.iter().any(|w| overlaps(w, m))).collect();
+            words.extend(new);
+        }
+    }
     // (a line the screen's edge cuts — scrolled half out: "pln her riee from tho" — is no text to translate)
     let edge = 4;
     let mut out: Vec<Piece> = pieces(&words, crop.w, crop.h)
@@ -261,11 +384,29 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
             Piece { rect, look: look_of(rgba, fw, fh, rect, screen), ..p }
         })
         .collect();
+    for p in &mut out {
+        // a map pin's card ("Map Pin Unavailable", "Map Pin Expired"): bordered, with its pin
+        if !p.title && p.en.to_lowercase().starts_with("map pin") {
+            p.look.boxed = true;
+            p.look.label = false;
+            p.look.end = false;
+        }
+        // the chat's header: its contact's picture at the top right
+        if p.title {
+            let lh = p.rect.3.max(10);
+            let area = (sx + sw * 4 / 5, p.rect.1.saturating_sub(lh), sw / 5 - 4, lh * 3);
+            p.avatar = ink_box(rgba, fw, fh, area, p.look.bg, 40)
+                .filter(|b| b.2 >= 10 && b.3 >= 10 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16)
+                .map(|b| (b.0 as i32 - p.rect.0 as i32, b.1 as i32 - p.rect.1 as i32, b.2.max(b.3)));
+        }
+    }
     // A chat list (WhatUp's chats): rows with their contacts' pictures at the start. Each row is its
     // contact's name over the message's start; the rest are its section headers ("Suggested", "Messages").
     // (a row has two lines: the name and the message; a one-line header's icon is no contact's picture)
     for p in &mut out {
-        p.avatar = if p.split.is_some() || p.name.is_some() { avatar_of(rgba, fw, fh, p.rect, p.look.bg, screen) } else { None };
+        // (the character's own messages, blue, are never a list's rows)
+        let own = p.look.bg[2] as i32 - p.look.bg[0] as i32 > 100 || own_blue(rgba, fw, p.rect);
+        p.avatar = if (p.split.is_some() || p.name.is_some()) && !own { avatar_of(rgba, fw, fh, p.rect, p.look.bg, screen) } else { None };
     }
     if out.iter().filter(|p| p.avatar.is_some()).count() >= 2 {
         // (a dark photo is missed now and then: a two-line piece starting where the rows' text starts is one
@@ -369,6 +510,18 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
             p.avatar = None;
         }
     }
+    // the emojis by each piece's text (the OCR skips them): after its words on its lines, or on a line
+    // of their own under them; in a chat list's row, short of its mark at the end
+    let lh = (sw / 20).max(8);
+    for p in &mut out {
+        if p.title || p.look.label {
+            continue;
+        }
+        let right = if p.avatar.is_some() { sx + sw * 4 / 5 } else { sx + sw - 4 };
+        let x1 = (p.rect.0 + p.rect.2 + lh * 3).min(right);
+        let area = (p.rect.0.saturating_sub(2), p.rect.1.saturating_sub(2), x1.saturating_sub(p.rect.0 - 2), p.rect.3 + lh + 4);
+        p.emoji = crate::chat::emoji_in(rgba, fw, fh, area, p.look.bg, p.look.fg, lh);
+    }
     out
 }
 
@@ -383,12 +536,16 @@ fn avatar_of(rgba: &[u8], fw: u32, fh: u32, r: (u32, u32, u32, u32), bg: [u8; 3]
     if x1 <= x0 + side / 2 {
         return None;
     }
+    // (unlike the row and unlike the screen too: left of a blue bubble's words is its padding, then the
+    // light screen, no picture)
+    let sbg = screen_bg(rgba, fw, fh, screen, y0, y1);
     let (mut n, mut hit) = (0u32, 0u32);
     let (mut bx0, mut by0, mut bx1, mut by1) = (u32::MAX, u32::MAX, 0, 0);
     for yy in (y0..y1).step_by(2) {
         for xx in (x0..x1.min(fw)).step_by(2) {
             n += 1;
-            if dist(px(rgba, fw, xx, yy), bg) > 45 {
+            let p = px(rgba, fw, xx, yy);
+            if dist(p, bg) > 45 && dist(p, sbg) > 45 {
                 hit += 1;
                 (bx0, by0, bx1, by1) = (bx0.min(xx), by0.min(yy), bx1.max(xx), by1.max(yy));
             }
@@ -400,6 +557,21 @@ fn avatar_of(rgba: &[u8], fw: u32, fh: u32, r: (u32, u32, u32, u32), bg: [u8; 3]
     let (bw, bh) = (bx1 - bx0, by1 - by0);
     // (round: about as wide as it is tall)
     if bw * 10 < bh * 6 || bh * 10 < bw * 6 || bh < h / 2 {
+        return None;
+    }
+    // (a contact's picture, not a small icon: "Suggested"'s; about 6 % of the screen's height at least)
+    if bw.min(bh) * 100 < screen.3 * 6 {
+        return None;
+    }
+    // (on the screen, the row or the screen's light round it on both sides: held tilted, the ground beside
+    // the phone is in the screen's box, dark against the grey bubbles, and no picture)
+    let cy = (by0 + by1) / 2;
+    let lit = |xx: u32| {
+        let p = px(rgba, fw, xx.min(fw - 1), cy);
+        let (lo, hi) = (*p.iter().min().unwrap(), *p.iter().max().unwrap());
+        lo >= 90 && hi - lo <= 45
+    };
+    if !lit(bx0.saturating_sub(4)) || !lit(bx1 + 4) {
         return None;
     }
     // (its bottom right corner, and its size: an unread dot on its top left corner makes it look bigger)
@@ -518,6 +690,31 @@ pub fn read_buttons(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32) -> Vec<((u32, u32,
         .collect()
 }
 
+/// A button's icon just after its word ("SEND ✕"): the box round its white pixels there (frame pixels).
+pub fn button_icon(rgba: &[u8], fw: u32, fh: u32, word: (u32, u32, u32, u32)) -> Option<(u32, u32, u32, u32)> {
+    let (x, y, w, h) = word;
+    let (ax, ay) = (x + w + 2, y.saturating_sub(h / 2));
+    let (aw, ah) = ((h * 5 / 2).min(fw.saturating_sub(ax)), (h * 2).min(fh.saturating_sub(ay)));
+    let (mut x0, mut y0, mut x1, mut y1, mut n) = (u32::MAX, u32::MAX, 0, 0, 0);
+    for yy in ay..ay + ah {
+        for xx in ax..ax + aw {
+            let i = ((yy * fw + xx) * 4) as usize;
+            let (lo, hi) = (rgba[i].min(rgba[i + 1]).min(rgba[i + 2]), rgba[i].max(rgba[i + 1]).max(rgba[i + 2]));
+            if lo >= 190 && hi - lo <= 40 {
+                (x0, y0, x1, y1, n) = (x0.min(xx), y0.min(yy), x1.max(xx), y1.max(yy), n + 1);
+            }
+        }
+    }
+    // (round, about as wide as tall: a box wider than that took the word's last letter too, its edge a pixel
+    // or two past the reading's box: the icon is its right part)
+    let bh = y1.saturating_sub(y0) + 1;
+    if n >= 12 && x1 + 1 > x0 + bh * 13 / 10 {
+        x0 = x1 + 1 - bh;
+    }
+    let bw = x1.saturating_sub(x0) + 1;
+    (n >= 12 && bh * 10 >= h * 8 && bw * 10 >= h * 6 && bw <= h * 2).then(|| (x0.saturating_sub(1), y0.saturating_sub(1), bw + 2, bh + 2))
+}
+
 /// Words (crop pixels) into pieces (crop pixels): see read_screen.
 pub fn pieces(words: &[Word], crop_w: u32, crop_h: u32) -> Vec<Piece> {
     let words: Vec<&Word> = words.iter().filter(|w| w.text.chars().any(|c| c.is_alphanumeric())).collect();
@@ -598,10 +795,10 @@ pub fn pieces(words: &[Word], crop_w: u32, crop_h: u32) -> Vec<Piece> {
             && first_text.chars().next().is_some_and(|c| c.is_uppercase())
             && first_w * 10 < rest_w * 7;
         if named && !rest.is_empty() {
-            out.push(Piece { rect, en: ocr::clean(&rest), title: false, name: Some(first_text), look: Look::default(), split: None, avatar: None, preview: None, badge: None });
+            out.push(Piece { rect, en: ocr::clean(&rest), title: false, name: Some(first_text), look: Look::default(), split: None, avatar: None, preview: None, badge: None, emoji: Vec::new() });
         } else {
             let split = (g.len() >= 2 && !rest.is_empty()).then(|| (first_text.clone(), ocr::clean(&rest)));
-            out.push(Piece { rect, en, title, name: None, look: Look::default(), split, avatar: None, preview: None, badge: None });
+            out.push(Piece { rect, en, title, name: None, look: Look::default(), split, avatar: None, preview: None, badge: None, emoji: Vec::new() });
         }
     }
     out
@@ -744,7 +941,7 @@ mod tests {
     #[test]
     fn a_misread_or_missed_piece_stays_as_first_read() {
         let t = std::time::Instant::now();
-        let p = |en: &str, y: u32| Piece { rect: (824, y, 205, 48), en: en.into(), title: false, name: None, look: Look::default(), split: None, avatar: None, preview: None, badge: None };
+        let p = |en: &str, y: u32| Piece { rect: (824, y, 205, 48), en: en.into(), title: false, name: None, look: Look::default(), split: None, avatar: None, preview: None, badge: None, emoji: Vec::new() };
         let mut seen = Vec::new();
         let screen = (690, 480, 402, 420);
         steady(&mut seen, vec![p("I won't screw it up. And I'll remember. Thanks.", 738)], screen, t);

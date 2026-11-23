@@ -34,6 +34,9 @@ pub struct Button {
     pub more_icons: Vec<String>,
     /// The word's colour in the game (a greyed-out button that can't be used now); unset = white.
     pub fg: String,
+    /// Its translation beside the English (left of it), not above: buttons stacked one under the other
+    /// (a failed mission's "RETRY CHECKPOINT ✕" …), with no room above each.
+    pub beside: bool,
 }
 
 /// A piece of the game's UI covered by a translated replica (e.g. a menu tab): same box, same
@@ -75,6 +78,8 @@ pub struct ScreenLayout {
     pub player: Option<PlayerInfo>,
     /// Text boxes: menu items and paragraphs, or any text a script places (see `MenuText`).
     pub menu: Vec<MenuText>,
+    /// Boxes drawn again under the game's, translated (see `Card`).
+    pub cards: Vec<Card>,
     /// Followed like a menu while it's up ("menu"): each text box and tab watched every frame, the
     /// page read again when they change, and a tab's earlier states brought back at once (see
     /// `menu_rects`).
@@ -88,6 +93,28 @@ pub struct ScreenLayout {
     /// a picture of the button row (bottom right) when it was read
     #[serde(skip)]
     pub buttons_sig: Vec<u8>,
+}
+
+/// A box of the game's (the map's objective: a picture and a name over a sentence, on a dark box under a
+/// coloured line) drawn again just under it, translated, in its look.
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct Card {
+    /// the game's box (frame fractions); the translation goes under it
+    pub rect: Rect,
+    /// its background (a CSS colour, see-through as the game's), its top line's colour and height
+    pub bg: String,
+    pub border: String,
+    pub border_h: f64,
+    /// the picture beside the name (PNG data URL), when there is one
+    pub pic: String,
+    pub title_en: String,
+    pub title_ar: String,
+    /// one line's height (frame fractions)
+    pub title_h: f64,
+    pub text_en: String,
+    pub text_ar: String,
+    pub text_h: f64,
 }
 
 /// A text box: a menu's list item or paragraph covered by a translated replica, or any text a script
@@ -152,6 +179,12 @@ pub fn limit(l: &mut ScreenLayout) {
         m.icons.truncate(8);
     }
     l.labels.truncate(48);
+    l.cards.truncate(8);
+    for c in l.cards.iter_mut() {
+        if c.pic.len() > ICON || !c.pic.starts_with("data:image/png;base64,") {
+            c.pic.clear();
+        }
+    }
     l.buttons.truncate(16);
     for b in l.buttons.iter_mut() {
         if b.icon.as_ref().is_some_and(|i| i.len() > ICON) {
@@ -211,6 +244,7 @@ pub fn is_blank(l: &ScreenLayout) -> bool {
         && l.buttons.is_empty()
         && l.labels.is_empty()
         && l.menu.iter().all(|m| m.private)
+        && l.cards.iter().all(|c| c.title_en.trim().is_empty() && c.text_en.trim().is_empty())
         && l.player.as_ref().is_none_or(|p| p.en.is_empty())
 }
 

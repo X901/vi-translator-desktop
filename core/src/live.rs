@@ -41,6 +41,9 @@ pub struct Live {
     pub phone_pieces: Mutex<Vec<crate::phone::Seen>>,
     /// The phone's translations are up (its overlay window shows).
     pub phone_active: AtomicBool,
+    /// GTA VI's message bubble at the bottom right as last read (see chat.rs): the picture of its box
+    /// then (read again only when it changes), the box, and what was read.
+    pub chat_read: Mutex<Option<(Vec<u8>, (u32, u32, u32, u32), Option<crate::chat::Bubble>)>>,
     /// Pause-menu text translated by the translator this session: English -> translation, in one language.
     pub menu_cache: Mutex<MenuCache>,
     /// …and the menu text it couldn't translate (asked again later).
