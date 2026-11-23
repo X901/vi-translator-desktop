@@ -386,6 +386,8 @@ const ps5ValidAccount = (a) => { try { return atob(a.trim()).length === 8; } cat
 async function renderPs5(v = cfg.window_title) {
   const on = !!ps5Value && v === ps5Value;
   $("ps5-panel").hidden = !on;
+  // (the capture card hint means nothing while remote play in the app is the source)
+  $("obs-card-hint").hidden = on || (!!xboxTitle && v === xboxTitle);
   if (!on) return;
   try { ps5 = await invoke("ps5_status"); } catch { return; }
   drawPs5();
