@@ -564,3 +564,8 @@ dialog.part .part-msg { font-size: 13px; color: var(--muted); min-height: 18px; 
 .ps5-settings .ps5-volume { margin-top: 10px; }
 .ps5-settings select { width: 100%; }
 .ps5-foot { margin-top: 10px; }
+
+/* a checkbox inside a field: its box centred on its text (the field's own label style makes labels blocks) */
+.field label.check { display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-size: 13.5px; font-weight: 500; color: var(--text); }
+/* a checkbox under a note: the same gap as between the note and what is above it */
+.tab > .callout + .check, .tab > .callout + label.check { margin-top: 12px; }

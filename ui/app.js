@@ -1337,13 +1337,13 @@ const STYLE_FIELDS = [
   ["font_size", "Text size (px at 1080p; scales with the game window)", "size", 10, 96, 1],
   ["bold", "Bold", "check"],
   ["line_height", "Line spacing", "range", 1, 2.2, 0.05],
-  ["text_color", "Text colour", "color"],
-  ["keep_colors", "Colour highlighted words like the game does", "check"],
-  ["bg_color", "Box colour", "color"],
+  ["text_color", "Text color", "color"],
+  ["keep_colors", "Color highlighted words like the game does", "check"],
+  ["bg_color", "Box color", "color"],
   ["bg_opacity", "Box opacity", "range", 0, 1, 0.05],
   ["padding", "Box padding", "range", 0, 30, 1],
   ["radius", "Box corner roundness", "range", 0, 30, 1],
-  ["outline_color", "Text outline colour", "color"],
+  ["outline_color", "Text outline color", "color"],
   ["outline_width", "Text outline width", "range", 0, 6, 0.5],
   ["shadow", "Text shadow", "check"],
 ];
@@ -1681,7 +1681,7 @@ function renderSnapForm() {
     <div class="field"><label for="snap-gm-key">${t("Gemini API key")}</label><input type="password" id="snap-gm-key" autocomplete="off" value="${AS.esc(cfg.snap_gemini_key || "")}" /></div>
     <div class="field"><label for="snap-gm-model">${t("Model")}</label><select id="snap-gm-model">${GEMINI_MODELS.map(([v, txt]) => `<option value="${v}" ${v === (cfg.snap_gemini_model || GEMINI_MODELS[0][0]) ? "selected" : ""}>${AS.esc(t(txt))}</option>`).join("")}</select></div>` : ""}
     <div class="field"><label for="snap-style">${t("Behind the translation")}</label>
-      <select id="snap-style"><option value="blur" ${cfg.snap_style !== "solid" ? "selected" : ""}>${t("The picture, blurred")}</option><option value="solid" ${cfg.snap_style === "solid" ? "selected" : ""}>${t("A solid colour")}</option></select></div>
+      <select id="snap-style"><option value="blur" ${cfg.snap_style !== "solid" ? "selected" : ""}>${t("The picture, blurred")}</option><option value="solid" ${cfg.snap_style === "solid" ? "selected" : ""}>${t("A solid color")}</option></select></div>
     <label class="check"><input type="checkbox" id="snap-save" ${cfg.snap_save !== false ? "checked" : ""}/> ${t("Keep every snapshot in Pictures\\VI Translator\\snapshots")}</label>
     <label class="check"><input type="checkbox" id="snap-lan" ${cfg.snap_lan !== false ? "checked" : ""}/> ${t("Allow snapshots from the home-network page")}</label>
     <div class="muted small" style="margin:-6px 0 0">${AS.esc(t("Phones and tablets showing the live translations get a snapshot button too."))}</div>
@@ -1868,7 +1868,7 @@ function log(ev) {
     el.innerHTML = `<div class="head"><span class="when" title="${AS.esc(when.toLocaleString(I18N.lang))}">${time}</span><span class="en" dir="ltr">${ev.en_segments?.length ? AS.segHtml(ev.en_segments) : AS.esc(ev.en)}</span></div><div class="ar" dir="auto">${ar}</div><div class="meta">${AS.esc(where)}${ev.stats ? ` · ${AS.esc(ev.stats)}` : ""}</div>`;
   }
   const box = $("log");
-  // the same line sent again with the game's colours (same area and start): it replaces the first
+  // the same line sent again with the game's colors (same area and start): it replaces the first
   const key = ev.at && !ev.error && !ev.info ? `${ev.area}|${ev.at}` : "";
   el.dataset.key = key;
   const old = key ? [...box.children].find((e) => e.dataset.key === key) : null;
@@ -1912,7 +1912,7 @@ $("clear-log").addEventListener("click", () => ($("log").innerHTML = ""));
 // ------------------------------------------------------------------------------------- events + init
 
 // A capture card's own YUY2 frames, drawn on the GPU the way OBS does: the frame goes up as a texture
-// as it is (each texel = two pixels: Y0 U Y1 V) and a shader turns it into colour per pixel. No JPEG
+// as it is (each texel = two pixels: Y0 U Y1 V) and a shader turns it into color per pixel. No JPEG
 // encoding or decoding on the way, full quality.
 const YUV = { gl: null, prog: null, tex: null, w: 0, h: 0, u: {} };
 function yuvInit() {

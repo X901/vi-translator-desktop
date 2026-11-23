@@ -107,12 +107,12 @@
       setEn(store("en") !== "0");
       $("en").onclick = () => setEn(document.body.classList.contains("no-en"));
 
-      // A line's segments [[text, colour|null], ...] as HTML: "icon:<height>|<png>" is the game's own
+      // A line's segments [[text, color|null], ...] as HTML: "icon:<height>|<png>" is the game's own
       // button icon, sized to the text like a letter (as on the PC); only PNG data URLs are drawn.
       const segs = (list) => list.map(([text, c]) => {
         if (text === "\n" && !c) return "<br>"; // two speakers' lines, each on its own
         if (c === "dim") return `<span style="opacity:.6">${esc(text)}</span>`; // the other speaker, in grey
-        // a speaker name ("Dobbs:") in the game's colour for it
+        // a speaker name ("Dobbs:") in the game's color for it
         if (c && /^name:#[0-9a-f]{6}$/i.test(c)) return `<span style="color:${c.slice(5)}">${esc(text)}</span>`;
         if (!(c && c.startsWith("icon:"))) return esc(text);
         let src = c.slice(5);
@@ -156,7 +156,7 @@
               const t = l.at ? new Date(l.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }) : "";
               el.innerHTML = `<div class="meta"><span class="when">${t}</span><span class="en">${l.en_segs?.length ? segs(l.en_segs) : esc(l.en)}</span></div>
                 <div class="text" dir="${rtl ? "rtl" : "ltr"}">${l.segs?.length ? segs(l.segs) : esc(l.text)}</div>`;
-              // the same line sent again with the game's colours (same area and start): it replaces the first
+              // the same line sent again with the game's colors (same area and start): it replaces the first
               const key = `${l.area}|${l.at}`;
               el.dataset.key = key;
               const old = l.at ? [...$("list").children].reverse().find((e) => e.dataset.key === key) : null;
