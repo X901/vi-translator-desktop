@@ -571,6 +571,27 @@ function ps5PinStep() {
     el("button", { class: "btn primary", onclick: link }, t("Link")));
 }
 
+// the PS5's sound on this PC: on or off, and its volume (heard at once)
+function ps5SoundRow(s) {
+  const on = el("input", { type: "checkbox", id: "ps5-sound" });
+  on.checked = s.sound !== false;
+  const vol = el("input", { type: "range", id: "ps5-volume", min: "0", max: "100", step: "5", title: t("Volume"), "aria-label": t("Volume") });
+  vol.value = String(s.volume ?? 100);
+  const pct = el("span", { class: "muted small ps5-pct" }, `${vol.value}%`);
+  const apply = () => {
+    vol.disabled = !on.checked;
+    pct.textContent = `${vol.value}%`;
+    ps5 = { ...ps5, sound: on.checked, volume: +vol.value };
+    invoke("ps5_set_sound", { on: on.checked, volume: +vol.value });
+  };
+  on.addEventListener("change", apply);
+  vol.addEventListener("input", apply);
+  vol.disabled = !on.checked;
+  return el("div", { class: "field" },
+    el("label", { class: "check" }, on, " ", el("span", {}, t("Play the PS5's sound on this PC"))),
+    el("div", { class: "row ps5-volume" }, el("span", { class: "muted small" }, t("Volume")), el("div", { class: "grow" }, vol), pct));
+}
+
 function ps5Linked(s) {
   const name = s.console.name || "PS5";
   const note = el("p", { class: "small muted" });
@@ -595,6 +616,7 @@ function ps5Linked(s) {
             renderPs5();
           } }, t("Unlink"))),
         note)),
+    ps5SoundRow(s),
     el("div", { class: "field" }, el("label", { for: "ps5-quality" }, t("Stream quality")), quality,
       el("p", { class: "muted small" }, t("1080p reads small text best; 720p for a slower home network."))),
     el("p", { class: "muted small" }, t("Controllers connected to this PC play on the PS5. Use Play to play full screen.")),

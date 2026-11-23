@@ -547,3 +547,6 @@ dialog.part .part-msg { font-size: 13px; color: var(--muted); min-height: 18px; 
   border: 2px solid var(--line); border-top-color: var(--accent-ui); animation: ps5spin .8s linear infinite; }
 @keyframes ps5spin { to { transform: rotate(360deg); } }
 .warn-box { color: var(--warn); }
+.ps5-volume input[type="range"] { width: 100%; accent-color: var(--accent-ui); }
+.ps5-volume input[type="range"]:disabled { opacity: .5; }
+.ps5-pct { min-width: 3.2em; text-align: end; font-variant-numeric: tabular-nums; }

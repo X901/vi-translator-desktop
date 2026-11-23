@@ -64,6 +64,11 @@ pub struct Saved {
     /// the stream's height: 1080 or 720 (0: 1080)
     #[serde(default)]
     pub resolution: u32,
+    /// the PS5's sound on this computer: off, and its volume (0–100; none: 100)
+    #[serde(default)]
+    pub sound_off: bool,
+    #[serde(default)]
+    pub volume: Option<u32>,
 }
 
 struct Global {
@@ -77,6 +82,8 @@ struct Global {
     error: Mutex<String>,
     /// the stream starts again (its quality changed, or the PS5 was unlinked)
     restart: AtomicBool,
+    /// the sound as the settings say, read by the playing stream
+    sound: Arc<ps::play::Sound>,
 }
 
 static G: OnceLock<Global> = OnceLock::new();
@@ -88,15 +95,16 @@ fn g() -> &'static Global {
 /// At startup: the app and its data folder.
 pub fn init(app: AppHandle, data_dir: &Path) {
     let file = data_dir.join("ps5.json");
-    let saved = std::fs::read_to_string(&file).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+    let saved: Saved = std::fs::read_to_string(&file).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
     let _ = G.set(Global {
         app,
         file,
-        saved: Mutex::new(saved),
         pin_wanted: Mutex::new(None),
         pin: Mutex::new(None),
         error: Mutex::new(String::new()),
         restart: AtomicBool::new(false),
+        sound: Arc::new(ps::play::Sound::new(!saved.sound_off, saved.volume.unwrap_or(100))),
+        saved: Mutex::new(saved),
     });
 }
 
@@ -122,6 +130,8 @@ pub fn status() -> serde_json::Value {
         "account": s.account_name,
         "account_id": s.account_id,
         "resolution": if s.resolution == 720 { 720 } else { 1080 },
+        "sound": !s.sound_off,
+        "volume": s.volume.unwrap_or(100),
         "console": s.console.as_ref().map(|c| serde_json::json!({ "name": c.nickname, "host": c.host })),
         "pin_wanted": *g.pin_wanted.lock().unwrap(),
         "error": g.error.lock().unwrap().clone(),
@@ -282,6 +292,20 @@ pub fn set_resolution(r: u32) {
     s.resolution = if r == 720 { 720 } else { 1080 };
     save(&s);
     g().restart.store(true, Ordering::Relaxed);
+}
+
+/// The PS5's sound on this computer: on or off, and its volume (0–100); heard at once.
+pub fn set_sound(on: bool, volume: u32) {
+    let g = g();
+    g.sound.on.store(on, Ordering::Relaxed);
+    g.sound.volume.store(volume.min(100), Ordering::Relaxed);
+    let mut s = saved();
+    s.sound_off = !on;
+    s.volume = Some(volume.min(100));
+    *g.saved.lock().unwrap() = s.clone();
+    if let Ok(t) = serde_json::to_string_pretty(&s) {
+        let _ = std::fs::write(&g.file, t);
+    }
 }
 
 /// Wakes the linked PS5 from rest mode.
@@ -502,7 +526,7 @@ pub fn start(shared: Arc<Shared>) -> Ps5Capture {
             state: Mutex::new(None),
         });
         let video = if saved().resolution == 720 { ps::Video::p720(60) } else { ps::Video::p1080(60) };
-        let player = match ps::play::Player::start(&host, &rk, &rp, video, true, screen.clone()) {
+        let player = match ps::play::Player::start(&host, &rk, &rp, video, g().sound.clone(), screen.clone()) {
             Ok(p) => p,
             Err(e) => {
                 set(format!("PS5: {e}"));

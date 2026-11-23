@@ -2,7 +2,7 @@
 //! whose layout is known), its sound on the speakers and the controllers on this computer sent to
 //! it (both through SDL, as chiaki-ng does). The picture goes to the app through [`Screen`].
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -27,6 +27,37 @@ pub trait Screen: Send + Sync {
     fn frame(&self, f: I420);
     fn event(&self, e: &Event);
     fn log(&self, _level: i32, _text: &str) {}
+}
+
+/// The sound on this computer's speakers, changed while it plays.
+pub struct Sound {
+    pub on: AtomicBool,
+    /// 0–100
+    pub volume: AtomicU32,
+}
+
+impl Sound {
+    pub fn new(on: bool, volume: u32) -> Self {
+        Sound { on: AtomicBool::new(on), volume: AtomicU32::new(volume.min(100)) }
+    }
+    /// The factor samples are multiplied by: the volume on a curve the ear hears as even steps.
+    pub fn gain(&self) -> f32 {
+        if !self.on.load(Ordering::Relaxed) {
+            return 0.0;
+        }
+        let v = self.volume.load(Ordering::Relaxed).min(100) as f32 / 100.0;
+        v * v
+    }
+}
+
+/// Samples at `gain` (1.0: as they are).
+pub fn scale(pcm: &mut [i16], gain: f32) {
+    if (gain - 1.0).abs() < f32::EPSILON {
+        return;
+    }
+    for s in pcm {
+        *s = (*s as f32 * gain).round().clamp(i16::MIN as f32, i16::MAX as f32) as i16;
+    }
 }
 
 /// What the player has done so far (for the app's status line).
@@ -130,8 +161,8 @@ impl Handler for Inner {
 
 impl Player {
     /// Connects to the registered PS5 at `host` and plays: picture to `screen`, sound to the
-    /// speakers (unless `sound` is off), controllers to the PS5.
-    pub fn start(host: &str, regist_key: &[u8; 16], rp_key: &[u8; 16], video: Video, sound: bool, screen: Arc<dyn Screen>) -> Result<Self, Error> {
+    /// speakers (as `sound` says, while it plays), controllers to the PS5.
+    pub fn start(host: &str, regist_key: &[u8; 16], rp_key: &[u8; 16], video: Video, sound: Arc<Sound>, screen: Arc<dyn Screen>) -> Result<Self, Error> {
         let decoder = openh264::decoder::Decoder::new().map_err(|e| Error(format!("video decoder: {e}")))?;
         let (tx, rx) = channel();
         let stats = Arc::new(Stats::default());
@@ -176,7 +207,7 @@ impl Drop for Player {
 
 /// Controllers in and sound out, on SDL's own thread (SDL's objects stay on the thread that made
 /// them). Controllers work whichever window is in front: the player plays in the app's window.
-fn sdl_thread(rx: Receiver<ToSdl>, session: Arc<Mutex<Option<Session>>>, stop: Arc<AtomicBool>, sound: bool, screen: Arc<dyn Screen>, stats: Arc<Stats>) {
+fn sdl_thread(rx: Receiver<ToSdl>, session: Arc<Mutex<Option<Session>>>, stop: Arc<AtomicBool>, sound: Arc<Sound>, screen: Arc<dyn Screen>, stats: Arc<Stats>) {
     sdl2::hint::set("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
     sdl2::hint::set("SDL_JOYSTICK_HIDAPI_PS5_RUMBLE", "1");
     sdl2::hint::set("SDL_JOYSTICK_HIDAPI_PS4_RUMBLE", "1");
@@ -185,7 +216,7 @@ fn sdl_thread(rx: Receiver<ToSdl>, session: Arc<Mutex<Option<Session>>>, stop: A
         Err(e) => return screen.log(1, &format!("SDL: {e}")),
     };
     let gc = sdl.game_controller().map_err(|e| screen.log(1, &format!("controllers: {e}"))).ok();
-    let audio = if sound { sdl.audio().map_err(|e| screen.log(1, &format!("sound: {e}"))).ok() } else { None };
+    let audio = sdl.audio().map_err(|e| screen.log(1, &format!("sound: {e}"))).ok();
     let mut events = match sdl.event_pump() {
         Ok(e) => e,
         Err(e) => return screen.log(1, &format!("SDL events: {e}")),
@@ -246,8 +277,15 @@ fn sdl_thread(rx: Receiver<ToSdl>, session: Arc<Mutex<Option<Session>>>, stop: A
                         }
                     });
                 }
-                ToSdl::Pcm(pcm) => {
+                ToSdl::Pcm(mut pcm) => {
                     if let Some((q, ch, rate)) = &queue {
+                        let gain = sound.gain();
+                        if gain == 0.0 {
+                            // (off: what is waiting goes too, so turning it on is heard at once)
+                            q.clear();
+                            continue;
+                        }
+                        scale(&mut pcm, gain);
                         // (more than ~150 ms waiting: drop the oldest, so the sound never lags the picture)
                         let max = (*rate as usize * *ch as usize * 2) * 150 / 1000;
                         if q.size() as usize > max {
@@ -340,6 +378,18 @@ pub fn i420_to_yuy2(f: &I420, stretch: bool) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_volume_scales_the_sound() {
+        let s = Sound::new(true, 50);
+        assert!((s.gain() - 0.25).abs() < 1e-6);
+        let mut pcm = [1000i16, -1000, i16::MAX];
+        scale(&mut pcm, s.gain());
+        assert_eq!(pcm, [250, -250, 8192]);
+        s.on.store(false, Ordering::Relaxed);
+        assert_eq!(s.gain(), 0.0);
+        assert_eq!(Sound::new(true, 100).gain(), 1.0);
+    }
 
     #[test]
     fn planes_become_yuy2_rows() {
