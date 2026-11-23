@@ -4,6 +4,11 @@
 // fetching (AIA) that goes with it. Play on the home network never reaches them.
 
 #include <chiaki/common.h>
+// (holepunch.h uses INET6_ADDRSTRLEN: Windows has it from Winsock, Linux and macOS from here)
+#ifndef _WIN32
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#endif
 #include <chiaki/remote/holepunch.h>
 
 #include <string.h>
