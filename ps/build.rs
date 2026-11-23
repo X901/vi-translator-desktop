@@ -36,7 +36,7 @@ fn main() {
     for f in c_files(&mbedtls.join("library")) {
         b.file(f);
     }
-    b.compile("vit_mbedtls");
+    b.cargo_metadata(false).compile("vit_mbedtls");
 
     // Reed-Solomon for the video's error correction: gf-complete and jerasure
     let gf = chiaki.join("third-party/gf-complete");
@@ -54,7 +54,7 @@ fn main() {
         // (gf_cpu.c's cpuid needs intrin.h with MSVC: chiaki-ng's scripts/windows-vc/gf-complete.patch)
         b.flag("/FIintrin.h");
     }
-    b.compile("vit_jerasure");
+    b.cargo_metadata(false).compile("vit_jerasure");
 
     // chiaki-ng's library, its protobuf messages (nanopb) and VI Translator's C face of it
     let nanopb = chiaki.join("third-party/nanopb");
@@ -84,8 +84,13 @@ fn main() {
     }
     b.file(root.join("generated/takion.pb.c"));
     b.file(root.join("native/stubs.c")).file(root.join("native/vit_ps.c"));
-    b.compile("vit_chiaki");
+    b.cargo_metadata(false).compile("vit_chiaki");
 
+    // linked users first (GNU ld reads static libraries once, in order: chiaki needs jerasure and Mbed TLS)
+    println!("cargo:rustc-link-search=native={}", std::env::var("OUT_DIR").unwrap());
+    for l in ["vit_chiaki", "vit_jerasure", "vit_mbedtls"] {
+        println!("cargo:rustc-link-lib=static={l}");
+    }
     if windows {
         for l in ["ws2_32", "wsock32", "bcrypt", "iphlpapi", "advapi32"] {
             println!("cargo:rustc-link-lib={l}");
