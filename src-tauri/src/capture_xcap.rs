@@ -280,7 +280,7 @@ mod mac {
         ok.then_some(r)
     }
 
-    /// Normal windows (layer 0, not this app's, big enough to read), front to back.
+    /// Normal windows (layer 0, not this app's but its Xbox player, big enough to read), front to back.
     fn windows(option: CGWindowListOption, relative_to: u32) -> Vec<Win> {
         let own = std::process::id() as f64;
         #[allow(unused_unsafe)]
@@ -295,7 +295,9 @@ mod mac {
                 continue;
             }
             let d = unsafe { &*d };
-            if number(d, "kCGWindowLayer") != Some(0.0) || number(d, "kCGWindowOwnerPID") == Some(own) || number(d, "kCGWindowAlpha") == Some(0.0) {
+            // (this app's windows are left out, except the Xbox player's, which is a source)
+            let mine = number(d, "kCGWindowOwnerPID") == Some(own) && string(d, "kCGWindowName").as_deref() != Some(crate::xbox::TITLE);
+            if number(d, "kCGWindowLayer") != Some(0.0) || mine || number(d, "kCGWindowAlpha") == Some(0.0) {
                 continue;
             }
             let (Some(id), Some(rect)) = (number(d, "kCGWindowNumber"), bounds(d)) else { continue };

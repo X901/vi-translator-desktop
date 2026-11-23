@@ -2,7 +2,7 @@
 name = "vi-translator-ffi"
 version.workspace = true
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-only"
 description = "VI Translator's core for the phone apps: UniFFI bindings (Kotlin, Swift)"
 
 [lib]

@@ -2,7 +2,7 @@
 name = "vi-translator-core"
 version.workspace = true
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-only"
 description = "VI Translator's reading and translating (OCR post-processing, translation memory, game pages, TV protocol), for the desktop and phone apps"
 
 [features]

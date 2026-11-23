@@ -23,7 +23,7 @@ window.Snap = (() => {
     return 0.299 * r + 0.587 * g + 0.114 * b > 140;
   };
 
-  // A block's translation as words, each with its colour (the game's highlights kept).
+  // A block's translation as words, each with its color (the game's highlights kept).
   function words(block) {
     const out = [];
     for (const [text, c] of block.segs || []) {
@@ -80,7 +80,7 @@ window.Snap = (() => {
       const pad = Math.max(3, lhPx * 0.28);
       const box = { x: b.rect[0] * W - pad, y: b.rect[1] * H - pad, w: b.rect[2] * W + 2 * pad, h: b.rect[3] * H + 2 * pad };
       const [r, g, bl] = rgb(b.bg);
-      // the English covered: the picture blurred under the background's colour, or the colour alone
+      // the English covered: the picture blurred under the background's color, or the color alone
       ctx.save();
       ctx.beginPath();
       if (ctx.roundRect) ctx.roundRect(box.x, box.y, box.w, box.h, Math.min(8, pad));

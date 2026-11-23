@@ -373,6 +373,7 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
     let mut active: Option<(String, platform::WindowCapture)> = None;
     let mut device: Option<(String, crate::device::DeviceCapture)> = None;
     let mut obs: Option<(String, crate::obs::ObsCapture)> = None;
+    let mut ps5: Option<crate::ps5::Ps5Capture> = None;
     #[cfg(target_os = "macos")]
     let (mut awake, mut pictured) = (None, (0u64, None::<Instant>));
     loop {
@@ -393,7 +394,7 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
             keep_awake(pictured.1.is_some_and(|t| t.elapsed() < Duration::from_secs(60)), &mut awake);
         }
         let screen = want.strip_prefix(SCREEN_PREFIX).map(str::to_string);
-        let is_window = !want.starts_with(crate::obs::PREFIX) && !want.starts_with(crate::device::PREFIX);
+        let is_window = !want.starts_with(crate::obs::PREFIX) && !want.starts_with(crate::device::PREFIX) && !want.starts_with(crate::ps5::PREFIX);
         shared.reading_screen.store(screen.is_some(), Ordering::Relaxed);
         // (a part of the picture only for a window or a screen: a card's or OBS's picture is the game already)
         *shared.source_crop.lock().unwrap() = if is_window { source_crop } else { None };
@@ -420,6 +421,9 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
             if let Some((_, d)) = device.take() {
                 d.stop();
             }
+            if let Some(p) = ps5.take() {
+                p.stop();
+            }
             let key = format!("{name}|{obs_port}|{obs_password}");
             if obs.as_ref().is_none_or(|(k, o)| *k != key || o.is_finished()) {
                 if let Some((_, o)) = obs.take() {
@@ -435,6 +439,29 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
         }
         if let Some((_, o)) = obs.take() {
             o.stop();
+            *shared.frame.lock().unwrap() = None;
+        }
+        // The PS5 in the app ("ps5:"): chiaki-ng's stream, decoded here
+        if want.starts_with(crate::ps5::PREFIX) {
+            if let Some((_, c)) = active.take() {
+                let _ = c.stop();
+            }
+            if let Some((_, d)) = device.take() {
+                d.stop();
+            }
+            if ps5.as_ref().is_none_or(|p| p.is_finished()) {
+                if let Some(p) = ps5.take() {
+                    p.stop();
+                }
+                shared.hwnd.store(0, Ordering::Relaxed); // no window: the Arabic goes to the preview / OBS / the TV
+                *shared.frame.lock().unwrap() = None;
+                ps5 = Some(crate::ps5::start(shared.clone()));
+            }
+            std::thread::sleep(Duration::from_secs(1));
+            continue;
+        }
+        if let Some(p) = ps5.take() {
+            p.stop();
             *shared.frame.lock().unwrap() = None;
         }
         // A capture card / video device ("device:<name>") instead of a window
@@ -507,6 +534,8 @@ pub fn run_manager(shared: Arc<Shared>, cfg: Arc<Mutex<Config>>) {
                     });
                     active = Some((want, c));
                 }
+                // (the Xbox player is the app's own window: it isn't open)
+                Err(_) if want == crate::xbox::TITLE => shared.set_status("The Xbox player is closed: open it in Source (Open the Xbox player)."),
                 Err(e) => shared.set_status(e.to_string()),
             }
         }

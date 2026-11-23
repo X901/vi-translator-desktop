@@ -48,16 +48,16 @@ window.AS = (() => {
   // The game draws the other speaker's subtitle line in grey.
   const DIM = "#9a9a9a";
 
-  // Segments -> HTML. Colour segments become coloured spans; "icon:<png>" segments become the game's
+  // Segments -> HTML. Color segments become colored spans; "icon:<png>" segments become the game's
   // button icon, sized to the text (1.2em) and sitting on the line like a letter.
   function segHtml(segments, keepColors = true) {
     return segments
       .map(([t, c]) => {
         // two speakers' lines: each on its own line, as in the game
         if (t === "\n" && !c) return "<br>";
-        // the other speaker's line: grey like the game's, also with highlight colours off
+        // the other speaker's line: grey like the game's, also with highlight colors off
         if (c === "dim") return `<span style="color:${DIM}">${esc(t)}</span>`;
-        // a speaker name ("Dobbs:"): in the game's colour for it, also with highlight colours off
+        // a speaker name ("Dobbs:"): in the game's color for it, also with highlight colors off
         if (c && c.startsWith("name:")) return `<span style="color:${esc(c.slice(5))}">${esc(t)}</span>`;
         if (c && c.startsWith("icon:")) {
           // "icon:<height vs English text>|<png>" — keep the icon's size relative to the text, as in the game
@@ -149,7 +149,7 @@ window.AS = (() => {
     s.justifyContent = { top: "flex-start", middle: "center", bottom: "flex-end" }[al.v];
   }
 
-  // segments: [[text, colour|null], ...]; k: CSS px per style px (style sizes are for a 1080p window).
+  // segments: [[text, color|null], ...]; k: CSS px per style px (style sizes are for a 1080p window).
   // Arabic size relative to the English line height (OCR word height) when matching the game's size.
   const MATCH_FACTOR = 1.2;
 
@@ -235,7 +235,7 @@ window.AS = (() => {
       return d;
     };
 
-    // UI pieces replaced by Arabic replicas (pause-menu tabs): same box and colours as the game's.
+    // UI pieces replaced by Arabic replicas (pause-menu tabs): same box and colors as the game's.
     for (const lb of L.labels || []) {
       const h = lb.rect.h * H;
       const tab = mk(
@@ -275,7 +275,7 @@ window.AS = (() => {
     }
 
     // Pause-menu content: list items and paragraphs covered by Arabic replicas (same place and
-    // colours as the game's; not yet translated ones stay English).
+    // colors as the game's; not yet translated ones stay English).
     for (const m of L.menu || []) {
       if (!m.ar) continue;
       const lh = m.line_h * H;
@@ -366,7 +366,7 @@ window.AS = (() => {
       );
     }
 
-    // Title: same colour and visual height as the English title, centred just above it.
+    // Title: same color and visual height as the English title, centred just above it.
     const th = L.title.h * H;
     const tfs = th * 1.3; // Arabic letters stand ~0.75em tall in display fonts
     if (L.title_ar) mk(
@@ -410,7 +410,7 @@ window.AS = (() => {
     }
 
     // Buttons that know their icon's place: each one's Arabic label and the game's own icon just above its
-    // English one, icon over icon (so they line up with the game's), in the word's colour (a greyed-out
+    // English one, icon over icon (so they line up with the game's), in the word's color (a greyed-out
     // button stays grey).
     // (an icon too faint to cut out still has its place: the label goes there, without the picture)
     const placed = L.buttons && L.buttons.length && L.buttons.every((b) => b.icon_rect && b.text_rect);
@@ -613,7 +613,7 @@ window.AS = (() => {
     });
   }
 
-  // TEMP (testing the translation memory): colour of Arabic that came from the memory
+  // TEMP (testing the translation memory): color of Arabic that came from the memory
 
   // An area's text style: its own, else the profile's (areas from before had none of their own).
   const styleOf = (area, base) => (area && area.style) || base;

@@ -468,7 +468,7 @@ body.locked .rail-group button:not([data-tab="profile"]) span::after { content: 
 
 /* "… is built in and can't be changed. [Make a copy]" at the top of each part */
 .lock-note:empty { display: none; }
-.lock-note { display: flex; align-items: center; gap: 10px; margin: -4px 0 16px; padding: 10px 12px; border-radius: var(--radius-sm);
+.lock-note { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius-sm);
   background: var(--accent-soft); color: var(--text); font-size: 13px; line-height: 1.35; }
 .lock-note svg { width: 18px; height: 18px; color: var(--accent-ui); }
 .lock-note span { flex: 1; }
@@ -480,7 +480,7 @@ body.locked #add-area, body.locked #add-area-2 { display: none; }
 .profile-card { margin-top: 14px; }
 .profile-card .row b { font-size: 15px; }
 .lock-badge::before { content: "🔒 "; }
-.tab > .lock-note + h3 { border-top: 0; margin-top: 0; padding-top: 0; }
+.tab > .lock-note + h3 { border-top: 0; margin-top: 0; padding-top: 0; font-size: 19px; margin-bottom: 4px; }
 /* a built-in profile in use: its areas can't be dragged, so no handles */
 body.locked :is(.area, .band) .handle { display: none !important; }
 body.locked :is(.area, .band) { cursor: default; }
@@ -529,3 +529,51 @@ dialog.part .part-msg { font-size: 13px; color: var(--muted); min-height: 18px; 
 .look-en { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); white-space: nowrap;
   color: #fff; font: 600 10px/1.25 "Segoe UI", Arial, sans-serif; direction: ltr;
   text-shadow: 1px 1px 0 #000, -1px 1px 0 #000, 1px -1px 0 #000, -1px -1px 0 #000, 0 0 3px #000; }
+/* PS5 in the app: the linking steps (as the phone app's) and the linked PS5 */
+#ps5-panel { margin-top: 10px; }
+.ps5-step { margin-top: 10px; padding: 12px 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); }
+.ps5-step.open { border: 1.5px solid var(--accent-ui); }
+.ps5-step.off { opacity: .6; }
+.ps5-head { display: flex; align-items: center; gap: 12px; }
+.ps5-badge { width: 28px; height: 28px; flex: none; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; background: var(--panel-3); color: var(--muted); }
+.ps5-step.open .ps5-badge { background: var(--sunset); color: #fff; }
+.ps5-step.done .ps5-badge { background: var(--ok); color: #fff; }
+.ps5-body { margin-top: 10px; }
+.ps5-body > * + * { margin-top: 8px; }
+.ps5-body .field { margin-top: 12px; }
+.ps5-body .link { float: none; padding: 0; }
+.ps5-host { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); }
+.ps5-sub { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--panel-2); }
+.ps5-sub > * + * { margin-top: 8px; }
+.ps5-pin { width: 100%; font-size: 26px; font-weight: 700; letter-spacing: .3em; text-align: center; }
+.ps5-err { color: var(--err); }
+.ps5-ok { color: var(--ok); font-weight: 600; }
+.btn.primary { background: var(--sunset); color: #fff; border: 0; }
+.btn.primary:hover { color: #fff; filter: brightness(1.05); }
+.ps5-spin { display: inline-block; width: 12px; height: 12px; margin-inline-end: 8px; vertical-align: -1px; border-radius: 999px;
+  border: 2px solid var(--line); border-top-color: var(--accent-ui); animation: ps5spin .8s linear infinite; }
+@keyframes ps5spin { to { transform: rotate(360deg); } }
+.warn-box { color: var(--warn); }
+.ps5-volume input[type="range"] { width: 100%; accent-color: var(--accent-ui); }
+.ps5-volume input[type="range"]:disabled { opacity: .5; }
+.ps5-pct { min-width: 3.2em; text-align: end; font-variant-numeric: tabular-nums; }
+
+/* a link on a line of its own (under a paragraph, not floated into it) */
+.link.block-link { float: none; display: block; padding: 0; margin-top: 6px; }
+/* text fields as tall as the buttons and lists beside them */
+#ps5-panel input[type="text"], #ps5-panel input[type="password"] { width: 100%; }
+#ps5-panel .ps5-pin { height: 52px; }
+/* the PS5 steps: a little more room under the source list, and one gap between the parts of a step */
+#ps5-panel > .ps5-step:first-child { margin-top: 12px; }
+.ps5-body .row + .muted, .ps5-body .field .muted { margin-top: 6px; }
+.ps5-settings > .field + .field { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ps5-settings .check { margin: 0; }
+.ps5-settings .ps5-volume { margin-top: 10px; }
+.ps5-settings select { width: 100%; }
+.ps5-foot { margin-top: 10px; }
+
+/* a checkbox inside a field: its box centred on its text (the field's own label style makes labels blocks) */
+.field label.check { display: flex; align-items: center; gap: 8px; margin-bottom: 0; font-size: 13.5px; font-weight: 500; color: var(--text); }
+/* a checkbox under a note: the same gap as between the note and what is above it */
+.tab > .callout + .check, .tab > .callout + label.check { margin-top: 12px; }

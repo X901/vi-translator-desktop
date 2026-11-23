@@ -20,6 +20,10 @@ mod preview_shot;
 mod lan;
 mod updater;
 mod vcam;
+// Xbox remote play in a window of the app (Microsoft's web player)
+mod xbox;
+// PS5 remote play in the app (chiaki-ng)
+mod ps5;
 
 // The reading and translating are the core's (shared with the phone apps); its modules read as this
 // crate's own (`crate::config`, `crate::ocr` …).
@@ -299,24 +303,137 @@ fn open_lan_page(webview: tauri::Webview, state: tauri::State<AppState>) -> Resu
     main_only(&webview)?;
     let c = state.cfg.lock().unwrap().clone();
     let url = lan::info(&c, &state.shared).url.ok_or("The page is not running")?;
+    open_url(&url)
+}
+
+/// Opens an address in the default browser.
+pub fn open_url(url: &str) -> Result<(), String> {
     // Windows: the shell's own "open" (the default browser), as Explorer does for a link
     #[cfg(target_os = "windows")]
     {
         use windows::Win32::UI::Shell::ShellExecuteW;
         use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
         use windows::core::{HSTRING, w};
-        let r = unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(url.as_str()), None, None, SW_SHOWNORMAL) };
+        let r = unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(url), None, None, SW_SHOWNORMAL) };
         // (a value above 32 means it worked)
         if r.0 as isize > 32 { Ok(()) } else { Err(format!("could not open {url}")) }
     }
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open").arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+        std::process::Command::new("open").arg(url).spawn().map(|_| ()).map_err(|e| e.to_string())
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        std::process::Command::new("xdg-open").arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+        std::process::Command::new("xdg-open").arg(url).spawn().map(|_| ()).map_err(|e| e.to_string())
     }
+}
+
+/// PS5 in the app: signed in, linked PS5, whether the stream wants the login passcode.
+#[tauri::command]
+fn ps5_status(webview: tauri::Webview) -> Result<serde_json::Value, String> {
+    main_only(&webview)?;
+    Ok(ps5::status())
+}
+
+/// Sony's sign-in page in a window of the app (for the account ID linking needs). (async: on Windows
+/// a window made from a synchronous command stays blank)
+#[tauri::command]
+async fn ps5_sign_in(webview: tauri::Webview) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::sign_in(&data_dir())
+}
+
+/// Signing in with a browser instead: Sony's page opens there, and the address it ends on comes back.
+#[tauri::command]
+fn ps5_browser_sign_in(webview: tauri::Webview) -> Result<String, String> {
+    main_only(&webview)?;
+    let url = ps5::login_url_for_browser();
+    open_url(&url)?;
+    Ok(url)
+}
+
+/// Sony's sign-in address (to copy into a browser).
+#[tauri::command]
+fn ps5_login_url(webview: tauri::Webview) -> Result<String, String> {
+    main_only(&webview)?;
+    Ok(ps5::login_url_for_browser())
+}
+
+#[tauri::command]
+async fn ps5_sign_in_address(webview: tauri::Webview, address: String) -> Result<(), String> {
+    main_only(&webview)?;
+    tauri::async_runtime::spawn_blocking(move || ps5::sign_in_with_address(&address)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn ps5_set_account(webview: tauri::Webview, id: String) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::set_account_id(&id)
+}
+
+#[tauri::command]
+fn ps5_wake(webview: tauri::Webview) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::wake()
+}
+
+/// The PS5's sound on this computer: on or off, and its volume (0–100).
+#[tauri::command]
+fn ps5_set_sound(webview: tauri::Webview, on: bool, volume: u32) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::set_sound(on, volume);
+    Ok(())
+}
+
+#[tauri::command]
+fn ps5_set_resolution(webview: tauri::Webview, resolution: u32) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::set_resolution(resolution);
+    Ok(())
+}
+
+#[tauri::command]
+fn ps5_sign_out(webview: tauri::Webview) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::sign_out();
+    Ok(())
+}
+
+/// The PS5s on the home network.
+#[tauri::command]
+async fn ps5_find(webview: tauri::Webview) -> Result<Vec<ps5::Found>, String> {
+    main_only(&webview)?;
+    tauri::async_runtime::spawn_blocking(ps5::find).await.map_err(|e| e.to_string())?
+}
+
+/// Links the PS5 at `host` with the PIN it shows (Settings > System > Remote Play > Link Device).
+#[tauri::command]
+async fn ps5_link(webview: tauri::Webview, host: String, pin: String) -> Result<String, String> {
+    main_only(&webview)?;
+    tauri::async_runtime::spawn_blocking(move || ps5::link(&host, &pin)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn ps5_forget(webview: tauri::Webview) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::forget();
+    Ok(())
+}
+
+/// The PlayStation login passcode the PS5 asked for.
+#[tauri::command]
+fn ps5_login_pin(webview: tauri::Webview, pin: String) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::give_pin(&pin);
+    Ok(())
+}
+
+/// Opens Xbox remote play in its window of the app (or brings it to the front). (async: on Windows a
+/// window made from a synchronous command stays blank)
+#[tauri::command]
+async fn open_xbox(app: AppHandle, webview: tauri::Webview) -> Result<(), String> {
+    main_only(&webview)?;
+    xbox::open(&app, &data_dir())
 }
 
 /// The settings: whole for the main window; without secrets (translator keys, the OBS password, the
@@ -367,7 +484,14 @@ fn save_config(app: AppHandle, webview: tauri::Webview, state: tauri::State<AppS
 #[tauri::command]
 fn list_windows(webview: tauri::Webview) -> Result<Vec<capture::WindowInfo>, String> {
     main_only(&webview)?;
-    Ok(capture::list_windows(APP_TITLE))
+    Ok(other_windows())
+}
+
+/// Other apps' windows (the Xbox player's window is a source of its own).
+fn other_windows() -> Vec<capture::WindowInfo> {
+    let mut w = capture::list_windows(APP_TITLE);
+    w.retain(|w| w.title != xbox::TITLE);
+    w
 }
 
 /// The screens (for a whole screen as the source, or to draw the Arabic over).
@@ -394,11 +518,13 @@ async fn list_sources(webview: tauri::Webview, state: tauri::State<'_, AppState>
             }),
             Err(e) => serde_json::json!({ "ok": false, "error": format!("{e:#}") }),
         };
-        (capture::list_windows(APP_TITLE), device::list(), obs)
+        (other_windows(), device::list(), obs)
     })
     .await
     .map_err(|e| e.to_string())?;
-    Ok(serde_json::json!({ "windows": windows, "devices": devices, "obs": obs, "screens": capture::list_screens() }))
+    // (the Xbox player: its own entry, whether its window is open or not)
+    let xbox = xbox::available().then_some(xbox::TITLE);
+    Ok(serde_json::json!({ "windows": windows, "devices": devices, "obs": obs, "screens": capture::list_screens(), "xbox": xbox, "ps5": ps5::PREFIX }))
 }
 
 /// A still of a whole window (all of it, whatever part of it is the source), to choose the part
@@ -1365,7 +1491,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(hotkey::plugin())
         .manage(AppState { cfg: cfg.clone(), shared: shared.clone(), saver: saver.clone(), memory: memory.clone(), update: update.clone() })
-        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, memory_line, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear])
+        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, memory_line, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_browser_sign_in, ps5_login_url, ps5_sign_in_address, ps5_set_account, ps5_wake, ps5_set_sound, ps5_set_resolution, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_title(&format!("VI Translator {}", env!("CARGO_PKG_VERSION")));
@@ -1375,6 +1501,13 @@ fn main() {
                 let keys = cfg.lock().unwrap().snap_hotkey.clone();
                 if let Err(e) = hotkey::set(app.handle(), &keys) {
                     eprintln!("[hotkey] \"{keys}\": {e}");
+                }
+            }
+            ps5::init(app.handle().clone(), &data_dir());
+            // Xbox in the app as the source (or `--xbox`): its player opens with the app
+            if xbox::available() && (cfg.lock().unwrap().window_title == xbox::TITLE || args.iter().any(|a| a == "--xbox")) {
+                if let Err(e) = xbox::open(app.handle(), &data_dir()) {
+                    eprintln!("[xbox] {e}");
                 }
             }
             let handle = app.handle().clone();

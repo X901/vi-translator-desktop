@@ -1,0 +1,20 @@
+[package]
+name = "vi-translator-ps"
+description = "PS5 Remote Play for VI Translator: chiaki-ng's library (home network only), built from source"
+version.workspace = true
+edition = "2024"
+license = "AGPL-3.0-only"
+links = "chiaki"
+
+[dependencies]
+# the networks' broadcast addresses, to find the PS5
+if-addrs = "0.13"
+# the picture: H.264, decoded on the CPU (Cisco's OpenH264, built from source), so its layout is known
+openh264 = "0.9"
+# the sound (Opus, decoded by libopus, built from source)
+opus = "0.4"
+# controllers (DualSense and the rest, as chiaki-ng does) and the sound out, SDL built from source
+sdl2 = { version = "0.39", features = ["bundled", "static-link"] }
+
+[build-dependencies]
+cc = "1"

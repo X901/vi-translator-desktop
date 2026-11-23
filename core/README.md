@@ -230,5 +230,5 @@ Package and module names: `core/ffi/uniffi.toml`.
 
 ## Licence
 
-MIT, like the desktop app. The phone apps (AGPL-3.0, as they embed chiaki-ng) can use it as it is.
+AGPL-3.0, like the desktop app and the phone apps (all of them embed chiaki-ng). Up to 1.3.9 it was MIT.
 UniFFI is MPL-2.0.
