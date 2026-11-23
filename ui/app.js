@@ -365,72 +365,240 @@ $("window_title").addEventListener("change", (e) => {
   renderPs5(e.target.value);
 });
 
-// PS5 in the app: sign in to PSN (Sony's page, in a window of the app), find and link the PS5 with
-// the PIN it shows, then it streams while it is the source. Its login passcode, if the account has
-// one, is asked here when the PS5 wants it.
+// PS5 in the app, linked once as the phone app does it, in three steps each done before the next
+// opens: sign in to PSN (Sony's page in a window of the app; or in a browser, pasting back the address
+// it ends on; or the account ID typed), find the PS5 on the home network (searched at once; or its
+// address typed), then the PIN the PS5 shows, and Link. Linked: the PS5, with Wake, Unlink and the
+// stream's quality. While it is the source it streams; its login passcode, if the account has one, is
+// asked here when the PS5 wants it.
 let ps5Value = null;
 let ps5 = null;
+const ps5Ui = { editingAccount: false, editingAddress: false, address: "", name: "", hosts: [], searching: false, searched: false,
+  linking: false, msg: "", msgErr: false, browser: false, browserMsg: "", accountMsg: "", addressMsg: "" };
+try {
+  const a = JSON.parse(localStorage.getItem("ps5-address") || "null");
+  if (a) Object.assign(ps5Ui, { address: a.address || "", name: a.name || "" });
+} catch {}
+const ps5Remember = () => { try { localStorage.setItem("ps5-address", JSON.stringify({ address: ps5Ui.address, name: ps5Ui.name })); } catch {} };
+const ps5ValidAddress = (a) => /^\d{1,3}(\.\d{1,3}){3}$/.test(a.trim()) && a.trim().split(".").every((n) => +n <= 255);
+const ps5ValidAccount = (a) => { try { return atob(a.trim()).length === 8; } catch { return false; } };
+
 async function renderPs5(v = cfg.window_title) {
   const on = !!ps5Value && v === ps5Value;
   $("ps5-panel").hidden = !on;
   if (!on) return;
   try { ps5 = await invoke("ps5_status"); } catch { return; }
-  showPs5(ps5);
+  drawPs5();
 }
-function showPs5(s) {
-  ps5 = s;
-  $("ps5-account").textContent = s.signed_in ? (s.account ? t("Signed in as {name}", { name: s.account }) : t("Signed in")) : t("Not signed in");
-  $("ps5-sign-in").hidden = s.signed_in;
-  $("ps5-sign-out").hidden = !s.signed_in;
-  $("ps5-console").textContent = s.console ? t("Linked: {name}", { name: `${s.console.name} (${s.console.host})` }) : t("Not linked");
-  $("ps5-link-form").hidden = !!s.console;
-  $("ps5-forget").hidden = !s.console;
-  for (const id of ["ps5-find", "ps5-link", "ps5-host", "ps5-pin"]) $(id).disabled = !s.signed_in;
-  $("ps5-login").hidden = s.pin_wanted == null;
-  $("ps5-login-text").textContent = s.pin_wanted ? t("Wrong passcode. Try again:") : t("The PS5 asks for your PlayStation login passcode:");
-  $("ps5-error").textContent = s.error || "";
+listen("ps5", (e) => {
+  ps5 = e.payload;
+  if (ps5.signed_in && ps5Ui.editingAccount && !ps5.error) ps5Ui.editingAccount = false;
+  if (!$("ps5-panel").hidden) drawPs5();
+});
+
+// a small element: el("div", { class: "x", onclick }, child, "text" …)
+function el(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null || v === false) continue;
+    if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "class") e.className = v;
+    else if (k === "value") e.value = v;
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c);
+  return e;
 }
-listen("ps5", (e) => { if (!$("ps5-panel").hidden) showPs5(e.payload); });
-$("ps5-sign-in").addEventListener("click", () => invoke("ps5_sign_in").catch((e) => { $("ps5-error").textContent = String(e); }));
-$("ps5-sign-out").addEventListener("click", () => invoke("ps5_sign_out").then(() => renderPs5()));
-$("ps5-forget").addEventListener("click", () => invoke("ps5_forget").then(() => renderPs5()));
-$("ps5-find").addEventListener("click", async () => {
-  const b = $("ps5-find");
-  const sel = $("ps5-found");
-  b.disabled = true;
-  $("ps5-error").textContent = t("Looking for your PS5 …");
-  try {
-    const found = await invoke("ps5_find");
-    sel.innerHTML = "";
-    for (const f of found) sel.add(new Option(f.on ? `${f.name} (${f.host})` : t("{name} (in rest mode)", { name: `${f.name} (${f.host})` }), f.host));
-    sel.hidden = !found.length;
-    if (found.length) $("ps5-host").value = found[0].host;
-    $("ps5-error").textContent = found.length ? "" : t("No PS5 answered. Is it on, and on the same network as this PC? You can also type its address.");
-  } catch (e) {
-    $("ps5-error").textContent = String(e);
+
+function drawPs5() {
+  const s = ps5;
+  const box = $("ps5-panel");
+  const keep = document.activeElement?.id; // (typing goes on where it was)
+  box.innerHTML = "";
+  if (s.console) {
+    box.append(ps5Linked(s));
+  } else {
+    const accountOk = s.signed_in && ps5ValidAccount(s.account_id);
+    const addressOk = ps5ValidAddress(ps5Ui.address);
+    if (accountOk && !ps5Ui.editingAccount && !ps5Ui.searched) ps5Search();
+    box.append(
+      ps5Step(1, t("Sign in to PSN"), accountOk && !ps5Ui.editingAccount, true, () => ps5SignInStep(s, accountOk)),
+      ps5Step(2, t("Find your PS5"), addressOk && !ps5Ui.editingAddress, accountOk && !ps5Ui.editingAccount, () => ps5FindStep(addressOk)),
+      ps5Step(3, t("Enter the PIN from the PS5"), false, addressOk && accountOk && !ps5Ui.editingAddress && !ps5Ui.editingAccount, ps5PinStep),
+    );
   }
-  b.disabled = false;
-});
-$("ps5-found").addEventListener("change", (e) => { $("ps5-host").value = e.target.value; });
-$("ps5-link").addEventListener("click", async () => {
-  const b = $("ps5-link");
-  b.disabled = true;
-  $("ps5-error").textContent = t("Linking …");
-  try {
-    await invoke("ps5_link", { host: $("ps5-host").value.trim(), pin: $("ps5-pin").value });
-    $("ps5-pin").value = "";
-    $("ps5-error").textContent = "";
-  } catch (e) {
-    $("ps5-error").textContent = String(e);
+  if (s.pin_wanted != null) {
+    const pin = el("input", { id: "ps5-login-pin", type: "password", dir: "ltr", inputmode: "numeric", autocomplete: "off" });
+    const send = () => { invoke("ps5_login_pin", { pin: pin.value }); pin.value = ""; ps5 = { ...ps5, pin_wanted: null }; drawPs5(); };
+    pin.addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+    box.append(el("div", { class: "ps5-step open" },
+      el("div", { class: "field" }, el("label", { for: "ps5-login-pin" }, s.pin_wanted ? t("Wrong passcode. Try again:") : t("The PS5 asks for your PlayStation login passcode:")),
+        el("div", { class: "row" }, el("div", { class: "grow" }, pin), el("button", { class: "btn primary", onclick: send }, t("Send"))))));
   }
-  b.disabled = false;
-  renderPs5();
-});
-$("ps5-login-send").addEventListener("click", () => {
-  invoke("ps5_login_pin", { pin: $("ps5-login-pin").value });
-  $("ps5-login-pin").value = "";
-  $("ps5-login").hidden = true;
-});
+  if (keep && $(keep)) $(keep).focus();
+}
+
+// the frame of a step: its number (or ✓) and title, then what it asks (while open or done)
+function ps5Step(n, title, done, open, content) {
+  const st = done ? "done" : open ? "open" : "off";
+  const card = el("div", { class: `ps5-step ${st}` }, el("div", { class: "ps5-head" }, el("span", { class: "ps5-badge" }, done ? "✓" : String(n)), el("b", {}, title)));
+  if (done || open) card.append(el("div", { class: "ps5-body" }, content()));
+  return card;
+}
+
+function ps5SignInStep(s, accountOk) {
+  if (accountOk && !ps5Ui.editingAccount) {
+    return el("div", { class: "row" },
+      el("div", { class: "grow" }, el("b", {}, t("Signed in: the account ID is ready")),
+        el("div", { class: "muted small", dir: "ltr" }, s.account ? `${s.account} · ${s.account_id}` : s.account_id)),
+      el("button", { class: "link", onclick: () => { ps5Ui.editingAccount = true; drawPs5(); } }, t("Change")));
+  }
+  const err = s.error ? t("PSN sign-in didn't work: {e}", { e: s.error.replace(/^PSN: /, "") }) : ps5Ui.accountMsg;
+  const typed = el("input", { id: "ps5-account-id", dir: "ltr", autocomplete: "off", value: s.account_id || "" });
+  return el("div", {},
+    el("div", { class: "callout warn-box" }, t("Sign in with the PSN account you play with on the PS5. Only its account ID is kept.")),
+    el("button", { class: "btn primary", onclick: () => invoke("ps5_sign_in").catch((e) => { ps5Ui.accountMsg = String(e); drawPs5(); }) }, t("Sign in to PSN")),
+    el("p", { class: "muted small" }, t("If Sony says it can't connect, wait a few seconds and press Sign In again; or sign in with a browser.")),
+    el("button", { class: "link", onclick: () => { ps5Ui.browser = !ps5Ui.browser; drawPs5(); } }, t("Sign in with a browser")),
+    ps5Ui.browser ? ps5BrowserBox() : null,
+    err ? el("p", { class: "small ps5-err" }, err) : null,
+    el("div", { class: "field" }, el("label", { for: "ps5-account-id" }, t("Or type the account ID")),
+      el("div", { class: "row" }, el("div", { class: "grow" }, typed),
+        el("button", { class: "btn", onclick: async () => {
+          if (!ps5ValidAccount(typed.value)) { ps5Ui.accountMsg = t("That isn't an account ID (12 letters and digits, ending in =)."); drawPs5(); return; }
+          ps5Ui.accountMsg = "";
+          ps5Ui.editingAccount = false;
+          await invoke("ps5_set_account", { id: typed.value.trim() });
+          renderPs5();
+        } }, t("Use this account ID")))),
+  );
+}
+
+// Sony's sign-in in the browser instead (its bot check sometimes refuses the app's window): the
+// browser ends on remoteplay.dl.playstation.net/remoteplay/redirect?code=…, pasted back here
+function ps5BrowserBox() {
+  const addr = el("input", { id: "ps5-browser-address", dir: "ltr", autocomplete: "off", placeholder: "https://remoteplay.dl.playstation.net/remoteplay/redirect?code=…" });
+  const msg = el("p", { class: "small muted" }, ps5Ui.browserMsg);
+  let url = "";
+  return el("div", { class: "ps5-sub" },
+    el("p", { class: "small" }, t("1. Open Sony's sign-in in your browser and sign in with your PSN account.")),
+    el("div", { class: "row" },
+      el("button", { class: "btn", onclick: async () => { try { url = await invoke("ps5_browser_sign_in"); } catch (e) { msg.textContent = String(e); } } }, t("Open in the browser")),
+      el("button", { class: "btn", onclick: async () => {
+        try { url = url || await invoke("ps5_login_url"); await navigator.clipboard.writeText(url); msg.textContent = t("Copied."); } catch (e) { msg.textContent = String(e); }
+      } }, t("Copy the link"))),
+    el("p", { class: "small" }, t("2. It ends on a page whose address starts with https://remoteplay.dl.playstation.net (the page itself may be blank). Copy that address and paste it here:")),
+    addr,
+    msg,
+    el("button", { class: "btn primary", onclick: async () => {
+      if (!/[?&]code=[^&#\s]+/.test(addr.value)) { msg.textContent = t("That address has no sign-in code: copy the whole address of the page you ended on."); return; }
+      msg.textContent = t("Getting the account ID…");
+      try {
+        await invoke("ps5_sign_in_address", { address: addr.value.trim() });
+        Object.assign(ps5Ui, { browser: false, browserMsg: "", editingAccount: false });
+        renderPs5();
+      } catch (e) {
+        ps5Ui.browserMsg = `${t("PSN sign-in didn't work: {e}", { e })} ${t("The code works once and only for a few minutes: sign in again and paste the new address.")}`;
+        msg.textContent = ps5Ui.browserMsg;
+      }
+    } }, t("Get the account ID")),
+  );
+}
+
+async function ps5Search() {
+  ps5Ui.searched = true;
+  ps5Ui.searching = true;
+  ps5Ui.hosts = [];
+  if (!$("ps5-panel").hidden && ps5) drawPs5();
+  try { ps5Ui.hosts = await invoke("ps5_find"); } catch {}
+  ps5Ui.searching = false;
+  if (!$("ps5-panel").hidden && ps5) drawPs5();
+}
+
+function ps5FindStep(addressOk) {
+  if (addressOk && !ps5Ui.editingAddress) {
+    return el("div", { class: "row" },
+      el("div", { class: "grow" }, el("b", {}, ps5Ui.name || "PS5"), el("div", { class: "muted small", dir: "ltr" }, ps5Ui.address)),
+      el("button", { class: "link", onclick: () => { ps5Ui.editingAddress = true; drawPs5(); } }, t("Change")));
+  }
+  const choose = (addr, name) => { Object.assign(ps5Ui, { address: addr, name, editingAddress: false, addressMsg: "" }); ps5Remember(); drawPs5(); };
+  const typed = el("input", { id: "ps5-address", dir: "ltr", autocomplete: "off", placeholder: "192.168.1.20", value: ps5Ui.address });
+  return el("div", {},
+    el("p", { class: "muted small" }, t("The PS5 must be on (or in rest mode) and on the same network as this PC.")),
+    ps5Ui.searching ? el("p", { class: "muted small" }, el("span", { class: "ps5-spin" }), t("Looking for PlayStation consoles…")) : null,
+    ps5Ui.hosts.map((x) => el("div", { class: "ps5-host" },
+      el("div", { class: "grow" }, el("b", {}, x.name || "PS5"),
+        el("div", { class: "muted small" }, el("span", { dir: "ltr" }, x.host), ` · ${x.standby ? t("rest mode") : t("on")}`)),
+      el("button", { class: "btn primary", onclick: () => choose(x.host, x.name || "PS5") }, t("Choose")))),
+    !ps5Ui.searching && !ps5Ui.hosts.length ? el("div", { class: "callout" }, t("No PS5 found yet. Is it on, with Remote Play allowed (Settings › System › Remote Play)? You can also type its address below.")) : null,
+    !ps5Ui.searching ? el("button", { class: "link", onclick: ps5Search }, t("Search again")) : null,
+    el("div", { class: "field" }, el("label", { for: "ps5-address" }, t("Or type its address")),
+      el("div", { class: "row" }, el("div", { class: "grow" }, typed),
+        el("button", { class: "btn", onclick: () => {
+          if (!ps5ValidAddress(typed.value)) { ps5Ui.addressMsg = t("That isn't an address like 192.168.1.20."); drawPs5(); return; }
+          choose(typed.value.trim(), ps5Ui.hosts.find((x) => x.host === typed.value.trim())?.name || "");
+        } }, t("Use this address"))),
+      el("p", { class: "muted small" }, t("On the PS5: Settings › Network › Connection Status › View Connection Status, IPv4 address."))),
+    ps5Ui.addressMsg ? el("p", { class: "small ps5-err" }, ps5Ui.addressMsg) : null,
+  );
+}
+
+function ps5PinStep() {
+  const pin = el("input", { id: "ps5-pin", class: "ps5-pin", dir: "ltr", inputmode: "numeric", maxlength: "9", autocomplete: "off", placeholder: "0000 0000" });
+  const msg = el("p", { class: `small ${ps5Ui.msgErr ? "ps5-err" : "muted"}` }, ps5Ui.msg);
+  const link = async () => {
+    if (ps5Ui.linking) return;
+    const p = pin.value.replace(/\D/g, "");
+    if (p.length !== 8) { msg.textContent = t("The PIN has 8 digits."); msg.className = "small ps5-err"; return; }
+    ps5Ui.linking = true;
+    msg.textContent = t("Linking…");
+    msg.className = "small muted";
+    try {
+      await invoke("ps5_link", { host: ps5Ui.address, pin: p });
+      Object.assign(ps5Ui, { msg: "", msgErr: false });
+    } catch {
+      Object.assign(ps5Ui, { msg: t("The PS5 refused: check the PIN (it changes every few minutes) and that Remote Play is on."), msgErr: true });
+    }
+    ps5Ui.linking = false;
+    renderPs5();
+  };
+  pin.addEventListener("keydown", (e) => { if (e.key === "Enter") link(); });
+  return el("div", {},
+    el("p", { class: "muted small" }, t("On the PS5: Settings › System › Remote Play › Link Device. It shows an 8-digit PIN, for about 5 minutes.")),
+    pin, msg,
+    el("button", { class: "btn primary", onclick: link }, t("Link")));
+}
+
+function ps5Linked(s) {
+  const name = s.console.name || "PS5";
+  const note = el("p", { class: "small muted" });
+  const quality = el("select", { id: "ps5-quality" }, el("option", { value: "1080" }, "1080p"), el("option", { value: "720" }, "720p"));
+  quality.value = String(s.resolution || 1080);
+  quality.addEventListener("change", () => invoke("ps5_set_resolution", { resolution: +quality.value }));
+  return el("div", {},
+    el("div", { class: "ps5-step done" },
+      el("div", { class: "ps5-head" }, el("span", { class: "ps5-badge" }, "✓"),
+        el("div", {}, el("b", {}, name), el("div", { class: "small ps5-ok" }, `✓ ${t("Linked")} · `, el("span", { dir: "ltr" }, s.console.host)))),
+      el("div", { class: "ps5-body" },
+        el("p", { class: "muted small" }, t("While the PS5 is the picture source, the app plays from it with Remote Play. If it is in rest mode, Wake turns it on.")),
+        el("div", { class: "row" },
+          el("button", { class: "btn", onclick: async () => {
+            note.textContent = t("Waking {name}…", { name });
+            try { await invoke("ps5_wake"); } catch (e) { note.textContent = String(e); }
+          } }, t("Wake the PS5")),
+          el("button", { class: "btn danger", onclick: async () => {
+            if (!confirm(t("Unlink {name}? To use it again, link it with a new PIN.", { name }))) return;
+            await invoke("ps5_forget");
+            Object.assign(ps5Ui, { searched: false, msg: "", msgErr: false });
+            renderPs5();
+          } }, t("Unlink"))),
+        note)),
+    el("div", { class: "field" }, el("label", { for: "ps5-quality" }, t("Stream quality")), quality,
+      el("p", { class: "muted small" }, t("1080p reads small text best; 720p for a slower home network."))),
+    el("p", { class: "muted small" }, t("Controllers connected to this PC play on the PS5. Use Play to play full screen.")),
+  );
+}
+
 function renderObs() {
   $("obs_port").value = cfg.obs_port;
   $("obs_password").value = cfg.obs_password;

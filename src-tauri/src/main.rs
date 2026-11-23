@@ -335,6 +335,47 @@ async fn ps5_sign_in(webview: tauri::Webview) -> Result<(), String> {
     ps5::sign_in(&data_dir())
 }
 
+/// Signing in with a browser instead: Sony's page opens there, and the address it ends on comes back.
+#[tauri::command]
+fn ps5_browser_sign_in(webview: tauri::Webview) -> Result<String, String> {
+    main_only(&webview)?;
+    let url = ps5::login_url_for_browser();
+    open_url(&url)?;
+    Ok(url)
+}
+
+/// Sony's sign-in address (to copy into a browser).
+#[tauri::command]
+fn ps5_login_url(webview: tauri::Webview) -> Result<String, String> {
+    main_only(&webview)?;
+    Ok(ps5::login_url_for_browser())
+}
+
+#[tauri::command]
+async fn ps5_sign_in_address(webview: tauri::Webview, address: String) -> Result<(), String> {
+    main_only(&webview)?;
+    tauri::async_runtime::spawn_blocking(move || ps5::sign_in_with_address(&address)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn ps5_set_account(webview: tauri::Webview, id: String) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::set_account_id(&id)
+}
+
+#[tauri::command]
+fn ps5_wake(webview: tauri::Webview) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::wake()
+}
+
+#[tauri::command]
+fn ps5_set_resolution(webview: tauri::Webview, resolution: u32) -> Result<(), String> {
+    main_only(&webview)?;
+    ps5::set_resolution(resolution);
+    Ok(())
+}
+
 #[tauri::command]
 fn ps5_sign_out(webview: tauri::Webview) -> Result<(), String> {
     main_only(&webview)?;
@@ -1434,7 +1475,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(hotkey::plugin())
         .manage(AppState { cfg: cfg.clone(), shared: shared.clone(), saver: saver.clone(), memory: memory.clone(), update: update.clone() })
-        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
+        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_browser_sign_in, ps5_login_url, ps5_sign_in_address, ps5_set_account, ps5_wake, ps5_set_resolution, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_title(&format!("VI Translator {}", env!("CARGO_PKG_VERSION")));

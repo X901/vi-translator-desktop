@@ -161,38 +161,9 @@
             <p data-i18n>Sign in with your Microsoft account in the player's window, choose your console and play there. A controller connected to this PC plays in it.</p>
             <button id="xbox-open" class="btn" data-i18n>Open the Xbox player</button>
           </div>
-          <!-- PS5 remote play in the app (chiaki-ng): sign in to PSN, link the PS5 with its PIN, play -->
-          <div id="ps5-panel" class="callout" hidden>
-            <div class="ps5-step">
-              <b data-i18n>PlayStation Network</b> <span id="ps5-account" class="muted small"></span>
-              <div class="row">
-                <button id="ps5-sign-in" class="btn" data-i18n>Sign in</button>
-                <button id="ps5-sign-out" class="link" data-i18n>Sign out</button>
-              </div>
-            </div>
-            <div class="ps5-step">
-              <b data-i18n>Your PS5</b> <span id="ps5-console" class="muted small"></span>
-              <div id="ps5-link-form">
-                <div class="row">
-                  <button id="ps5-find" class="btn" data-i18n>Find my PS5</button>
-                  <select id="ps5-found" class="grow" hidden></select>
-                </div>
-                <div class="row bottom">
-                  <div class="field grow"><label for="ps5-host" data-i18n>Address</label><input id="ps5-host" dir="ltr" placeholder="192.168.1.20" autocomplete="off" /></div>
-                  <div class="field"><label for="ps5-pin" data-i18n>PIN</label><input id="ps5-pin" dir="ltr" inputmode="numeric" maxlength="9" autocomplete="off" /></div>
-                  <button id="ps5-link" class="btn" data-i18n>Link</button>
-                </div>
-                <p class="muted small" data-i18n>On the PS5: Settings → System → Remote Play → Link Device shows the PIN.</p>
-              </div>
-              <button id="ps5-forget" class="link" data-i18n>Unlink</button>
-            </div>
-            <div id="ps5-login" class="row bottom" hidden>
-              <div class="field grow"><label for="ps5-login-pin" id="ps5-login-text" data-i18n>The PS5 asks for your PlayStation login passcode:</label><input id="ps5-login-pin" type="password" dir="ltr" inputmode="numeric" autocomplete="off" /></div>
-              <button id="ps5-login-send" class="btn" data-i18n>Send</button>
-            </div>
-            <p class="muted small" data-i18n>Controllers connected to this PC play on the PS5. Use Play to play full screen.</p>
-            <p id="ps5-error" class="small" style="color: var(--warn, #b45309)"></p>
-          </div>
+          <!-- PS5 remote play in the app (chiaki-ng): linked once in three steps (PSN, the PS5, its PIN),
+               then the linked PS5 with Wake, Unlink and the stream's quality (drawn by app.js) -->
+          <div id="ps5-panel" hidden></div>
           <p class="muted small" data-i18n-html>Capture card already used by OBS? OBS keeps it to itself — pick the card's <b>OBS source</b> instead.</p>
           <!-- a window that shows the game with other things around it: only its game part is read -->
           <div id="source-part" class="part-row">

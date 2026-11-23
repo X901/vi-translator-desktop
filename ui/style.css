@@ -520,3 +520,30 @@ dialog.part .part-msg { font-size: 13px; color: var(--muted); min-height: 18px; 
 .card .area-style { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .card .area-style > summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text); user-select: none; }
 .card .area-style > .form { margin-top: 10px; }
+
+/* PS5 in the app: the linking steps (as the phone app's) and the linked PS5 */
+#ps5-panel { margin-top: 10px; }
+.ps5-step { margin-top: 10px; padding: 12px 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line); }
+.ps5-step.open { border: 1.5px solid var(--accent-ui); }
+.ps5-step.off { opacity: .6; }
+.ps5-head { display: flex; align-items: center; gap: 12px; }
+.ps5-badge { width: 28px; height: 28px; flex: none; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; background: var(--panel-3); color: var(--muted); }
+.ps5-step.open .ps5-badge { background: var(--sunset); color: #fff; }
+.ps5-step.done .ps5-badge { background: var(--ok); color: #fff; }
+.ps5-body { margin-top: 10px; }
+.ps5-body > * + * { margin-top: 8px; }
+.ps5-body .field { margin-top: 12px; }
+.ps5-body .link { float: none; padding: 0; }
+.ps5-host { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 12px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); }
+.ps5-sub { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--panel-2); }
+.ps5-sub > * + * { margin-top: 8px; }
+.ps5-pin { width: 100%; font-size: 26px; font-weight: 700; letter-spacing: .3em; text-align: center; }
+.ps5-err { color: var(--err); }
+.ps5-ok { color: var(--ok); font-weight: 600; }
+.btn.primary { background: var(--sunset); color: #fff; border: 0; }
+.btn.primary:hover { color: #fff; filter: brightness(1.05); }
+.ps5-spin { display: inline-block; width: 12px; height: 12px; margin-inline-end: 8px; vertical-align: -1px; border-radius: 999px;
+  border: 2px solid var(--line); border-top-color: var(--accent-ui); animation: ps5spin .8s linear infinite; }
+@keyframes ps5spin { to { transform: rotate(360deg); } }
+.warn-box { color: var(--warn); }

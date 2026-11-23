@@ -61,6 +61,9 @@ pub struct Saved {
     pub account_name: String,
     #[serde(default)]
     pub console: Option<Console>,
+    /// the stream's height: 1080 or 720 (0: 1080)
+    #[serde(default)]
+    pub resolution: u32,
 }
 
 struct Global {
@@ -72,6 +75,8 @@ struct Global {
     pin: Mutex<Option<String>>,
     /// what the last PSN sign-in or registering went wrong with
     error: Mutex<String>,
+    /// the stream starts again (its quality changed, or the PS5 was unlinked)
+    restart: AtomicBool,
 }
 
 static G: OnceLock<Global> = OnceLock::new();
@@ -91,6 +96,7 @@ pub fn init(app: AppHandle, data_dir: &Path) {
         pin_wanted: Mutex::new(None),
         pin: Mutex::new(None),
         error: Mutex::new(String::new()),
+        restart: AtomicBool::new(false),
     });
 }
 
@@ -114,6 +120,8 @@ pub fn status() -> serde_json::Value {
     serde_json::json!({
         "signed_in": !s.account_id.is_empty(),
         "account": s.account_name,
+        "account_id": s.account_id,
+        "resolution": if s.resolution == 720 { 720 } else { 1080 },
         "console": s.console.as_ref().map(|c| serde_json::json!({ "name": c.nickname, "host": c.host })),
         "pin_wanted": *g.pin_wanted.lock().unwrap(),
         "error": g.error.lock().unwrap().clone(),
@@ -229,6 +237,61 @@ pub fn sign_in(data_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Sony's sign-in page, for signing in with a browser instead (its bot check sometimes refuses the
+/// app's window): the browser ends on the redirect address, which the player pastes back.
+pub fn login_url_for_browser() -> String {
+    login_url()
+}
+
+/// The sign-in code in the address a browser ended on (…/remoteplay/redirect?code=…).
+pub fn code_in(address: &str) -> Option<String> {
+    let u: tauri::Url = address.trim().parse().ok()?;
+    u.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.into_owned()).filter(|c| !c.is_empty())
+}
+
+/// Signs in with the address a browser ended on. Blocking.
+pub fn sign_in_with_address(address: &str) -> Result<(), String> {
+    let code = code_in(address).ok_or("no code")?;
+    let (id, name) = account_from_code(&code).map_err(|e| format!("{e:#}"))?;
+    let mut s = saved();
+    s.account_id = B64.encode(id);
+    s.account_name = name;
+    set_error("");
+    save(&s);
+    Ok(())
+}
+
+/// A PSN account ID (8 bytes in base64, 12 characters), typed or pasted.
+pub fn valid_account_id(id: &str) -> bool {
+    B64.decode(id.trim()).is_ok_and(|v| v.len() == 8)
+}
+
+pub fn set_account_id(id: &str) -> Result<(), String> {
+    if !valid_account_id(id) {
+        return Err("bad account ID".into());
+    }
+    let mut s = saved();
+    s.account_id = id.trim().to_string();
+    s.account_name.clear();
+    save(&s);
+    Ok(())
+}
+
+pub fn set_resolution(r: u32) {
+    let mut s = saved();
+    s.resolution = if r == 720 { 720 } else { 1080 };
+    save(&s);
+    g().restart.store(true, Ordering::Relaxed);
+}
+
+/// Wakes the linked PS5 from rest mode.
+pub fn wake() -> Result<(), String> {
+    let c = saved().console.ok_or("no PS5 linked")?;
+    let (rk, _) = c.keys().ok_or("bad keys")?;
+    let cred = ps::credential(&rk).ok_or("bad keys")?;
+    ps::wakeup(&c.host, cred).map_err(|e| e.to_string())
+}
+
 pub fn sign_out() {
     let mut s = saved();
     s.account_id.clear();
@@ -243,6 +306,7 @@ pub struct Found {
     pub host: String,
     pub name: String,
     pub on: bool,
+    pub standby: bool,
 }
 
 /// The PS5s that answer on the home network within a few seconds.
@@ -252,16 +316,16 @@ pub fn find() -> Result<Vec<Found>, String> {
     let l = list.clone();
     let d = ps::Discovery::start(&known, move |h| *l.lock().unwrap() = h, Arc::new(|_, _| {})).map_err(|e| e.to_string())?;
     let t = Instant::now();
-    while t.elapsed() < Duration::from_millis(2500) {
+    while t.elapsed() < Duration::from_secs(6) {
         std::thread::sleep(Duration::from_millis(100));
         // (one answer is usually all there is: stop waiting a little after it)
-        if !list.lock().unwrap().is_empty() && t.elapsed() > Duration::from_millis(1200) {
+        if !list.lock().unwrap().is_empty() && t.elapsed() > Duration::from_millis(1500) {
             break;
         }
     }
     drop(d);
     let hosts = list.lock().unwrap().clone();
-    Ok(hosts.into_iter().filter(|h| h.ps5).map(|h| Found { host: h.addr, name: h.name, on: h.ready }).collect())
+    Ok(hosts.into_iter().filter(|h| h.ps5).map(|h| Found { host: h.addr, name: h.name, on: h.ready, standby: h.standby }).collect())
 }
 
 /// Registers with the PS5 at `host` with the PIN it shows; keeps its keys. Blocking (up to ~30 s).
@@ -314,6 +378,7 @@ pub fn forget() {
     let mut s = saved();
     s.console = None;
     save(&s);
+    g().restart.store(true, Ordering::Relaxed);
 }
 
 /// The login passcode the stream asked for.
@@ -436,7 +501,8 @@ pub fn start(shared: Arc<Shared>) -> Ps5Capture {
             times: Mutex::new((Instant::now() - Duration::from_secs(1), Instant::now() - Duration::from_secs(1))),
             state: Mutex::new(None),
         });
-        let player = match ps::play::Player::start(&host, &rk, &rp, ps::Video::p1080(60), true, screen.clone()) {
+        let video = if saved().resolution == 720 { ps::Video::p720(60) } else { ps::Video::p1080(60) };
+        let player = match ps::play::Player::start(&host, &rk, &rp, video, true, screen.clone()) {
             Ok(p) => p,
             Err(e) => {
                 set(format!("PS5: {e}"));
@@ -445,7 +511,8 @@ pub fn start(shared: Arc<Shared>) -> Ps5Capture {
             }
         };
         let mut last_status = Instant::now() - Duration::from_secs(5);
-        while !s2.load(Ordering::Relaxed) {
+        g().restart.store(false, Ordering::Relaxed);
+        while !s2.load(Ordering::Relaxed) && !g().restart.swap(false, Ordering::Relaxed) {
             if let Some(pin) = g().pin.lock().unwrap().take() {
                 player.login_pin(&pin);
             }
@@ -482,6 +549,15 @@ mod tests {
         assert_eq!(account_id_of("1"), Some([1, 0, 0, 0, 0, 0, 0, 0]));
         assert_eq!(account_id_of(" 4848584848484848484 "), Some(4848584848484848484u64.to_le_bytes()));
         assert_eq!(account_id_of("x"), None);
+    }
+
+    #[test]
+    fn the_code_comes_from_the_address_the_browser_ended_on() {
+        assert_eq!(code_in("https://remoteplay.dl.playstation.net/remoteplay/redirect?code=v3.AbC&cid=x").as_deref(), Some("v3.AbC"));
+        assert_eq!(code_in(" https://remoteplay.dl.playstation.net/remoteplay/redirect?error=x "), None);
+        assert_eq!(code_in("not an address"), None);
+        assert!(valid_account_id("AQAAAAAAAAA="));
+        assert!(!valid_account_id("AQAA"));
     }
 
     #[test]
