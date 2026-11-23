@@ -1760,8 +1760,17 @@ impl Reader {
                         // (with the black box over the English: only when its translation is at hand, the
                         // memory knowing it, each of its lines: a line the translator takes half a second for
                         // left an empty black box up meanwhile; its English shows until its translation comes)
+                        // (in an area with reviewed translations only — the instructions — only a line with a
+                        // reviewed one, as read or with its button icons: a line the memory knew from the translator
+                        // left an empty black box up, nothing ever coming to fill it)
+                        let reviewed_only = fx.reviewed_only(&area.id);
+                        let iconed = if reviewed_only { crop.as_ref().map(|cr| ocr::text_with_icons(cr, &words).0).unwrap_or_default() } else { String::new() };
                         let at_hand = || {
                             let m = ctx.memory.lock().unwrap();
+                            if reviewed_only {
+                                let reviewed = |l: &str| m.get(l, &[], &[]).is_some_and(|(_, src)| src == "reviewed");
+                                return reviewed(&text) || (!iconed.is_empty() && reviewed(&iconed)) || speaker::without_name(&text).is_some_and(|r| reviewed(r));
+                            }
                             let knows = |l: &str| m.knows(l) || speaker::without_name(l).is_some_and(|rest| m.knows(rest)) || m.knows(&speaker::sentence_of(l));
                             knows(&text) || crop.as_ref().is_some_and(|cr| {
                                 let parts = stack_parts(cr, &words);
@@ -1852,11 +1861,19 @@ impl Reader {
                     // (only reviewed translations here: a reading matching no reviewed line — "Getin a vehigle",
                     // "Drive to the" — went to the translator, "أدخل في فيهيغل", "قُدْ إلى"; it isn't translated,
                     // what's up stays until its English counts as gone)
-                    let allowed = !c.fx(&area.id).reviewed_only(&area.id) || {
+                    // (and as read with its button icons: "Hold L2 to interact with Andrew" read plain is not the
+                    // reviewed "Hold ⟦1⟧ to interact with Andrew"; no instruction with a button was translated)
+                    let reviewed_only = c.fx(&area.id).reviewed_only(&area.id);
+                    let allowed = !reviewed_only || {
+                        let iconed = crop.as_ref().map(|cr| ocr::text_with_icons(cr, &words).0).unwrap_or_default();
                         let m = ctx.memory.lock().unwrap();
                         let reviewed = |l: &str| m.get(l, &[], &[]).is_some_and(|(_, src)| src == "reviewed");
-                        reviewed(&st.candidate) || speaker::without_name(&st.candidate).is_some_and(|r| reviewed(r))
+                        reviewed(&st.candidate) || (!iconed.is_empty() && reviewed(&iconed)) || speaker::without_name(&st.candidate).is_some_and(|r| reviewed(r))
                     };
+                    // (a line not let through with its black box up — it went up for a reading that was: no empty box stays)
+                    if !allowed && is_new && c.cover_look() {
+                        set_cover(&*ctx.sink, &ctx.live, &area.id, None);
+                    }
                     if allowed && (((known || settled) && !same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines)) || recolor) {
                         // Stable new text: translate it once. Colours are measured now (and again for a
                         // moment if there were none: see `colors_until`).
@@ -1897,9 +1914,12 @@ impl Reader {
                         // (stacked subtitle lines have no button icons: one "found" beside them, a dark mark
                         // or the start of a pale name, made the lines one instruction, translated whole)
                         // (and none when the line as read without them is one the memory has: the "icon" was a word)
+                        // (where only reviewed lines go, only a reviewed one as read plain: the translator's
+                        // "Hold L2 to …" took the place of the reviewed "Hold ⟦1⟧ to …")
                         let plain_known = !icons_found.is_empty() && {
                             let m = ctx.memory.lock().unwrap();
-                            m.knows(&st.current) || speaker::without_name(&st.current).is_some_and(|r| m.knows(r))
+                            let has = |l: &str| if reviewed_only { m.get(l, &[], &[]).is_some_and(|(_, src)| src == "reviewed") } else { m.knows(l) };
+                            has(&st.current) || speaker::without_name(&st.current).is_some_and(|r| has(r))
                         };
                         let (en, icons) = if icons_found.is_empty() || stacks || plain_known { (st.current.clone(), Vec::new()) } else { (en_icons, icons_found) };
                         // stacked subtitle lines (not with button icons: those are instructions)
