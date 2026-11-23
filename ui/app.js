@@ -456,7 +456,7 @@ function ps5SignInStep(s, accountOk) {
       el("button", { class: "link", onclick: () => { ps5Ui.editingAccount = true; drawPs5(); } }, t("Change")));
   }
   const err = s.error ? t("PSN sign-in didn't work: {e}", { e: s.error.replace(/^PSN: /, "") }) : ps5Ui.accountMsg;
-  const typed = el("input", { id: "ps5-account-id", dir: "ltr", autocomplete: "off", value: s.account_id || "" });
+  const typed = el("input", { type: "text", id: "ps5-account-id", dir: "ltr", autocomplete: "off", value: s.account_id || "" });
   return el("div", {},
     el("div", { class: "callout warn-box" }, t("Sign in with the PSN account you play with on the PS5. Only its account ID is kept.")),
     el("button", { class: "btn primary", onclick: () => invoke("ps5_sign_in").catch((e) => { ps5Ui.accountMsg = String(e); drawPs5(); }) }, t("Sign in to PSN")),
@@ -479,7 +479,7 @@ function ps5SignInStep(s, accountOk) {
 // Sony's sign-in in the browser instead (its bot check sometimes refuses the app's window): the
 // browser ends on remoteplay.dl.playstation.net/remoteplay/redirect?code=…, pasted back here
 function ps5BrowserBox() {
-  const addr = el("input", { id: "ps5-browser-address", dir: "ltr", autocomplete: "off", placeholder: "https://remoteplay.dl.playstation.net/remoteplay/redirect?code=…" });
+  const addr = el("input", { type: "text", id: "ps5-browser-address", dir: "ltr", autocomplete: "off", placeholder: "https://remoteplay.dl.playstation.net/remoteplay/redirect?code=…" });
   const msg = el("p", { class: "small muted" }, ps5Ui.browserMsg);
   let url = "";
   return el("div", { class: "ps5-sub" },
@@ -524,7 +524,7 @@ function ps5FindStep(addressOk) {
       el("button", { class: "link", onclick: () => { ps5Ui.editingAddress = true; drawPs5(); } }, t("Change")));
   }
   const choose = (addr, name) => { Object.assign(ps5Ui, { address: addr, name, editingAddress: false, addressMsg: "" }); ps5Remember(); drawPs5(); };
-  const typed = el("input", { id: "ps5-address", dir: "ltr", autocomplete: "off", placeholder: "192.168.1.20", value: ps5Ui.address });
+  const typed = el("input", { type: "text", id: "ps5-address", dir: "ltr", autocomplete: "off", placeholder: "192.168.1.20", value: ps5Ui.address });
   return el("div", {},
     el("p", { class: "muted small" }, t("The PS5 must be on (or in rest mode) and on the same network as this PC.")),
     ps5Ui.searching ? el("p", { class: "muted small" }, el("span", { class: "ps5-spin" }), t("Looking for PlayStation consoles…")) : null,
@@ -546,7 +546,7 @@ function ps5FindStep(addressOk) {
 }
 
 function ps5PinStep() {
-  const pin = el("input", { id: "ps5-pin", class: "ps5-pin", dir: "ltr", inputmode: "numeric", maxlength: "9", autocomplete: "off", placeholder: "0000 0000" });
+  const pin = el("input", { type: "text", id: "ps5-pin", class: "ps5-pin", dir: "ltr", inputmode: "numeric", maxlength: "9", autocomplete: "off", placeholder: "0000 0000" });
   const msg = el("p", { class: `small ${ps5Ui.msgErr ? "ps5-err" : "muted"}` }, ps5Ui.msg);
   const link = async () => {
     if (ps5Ui.linking) return;
@@ -616,10 +616,12 @@ function ps5Linked(s) {
             renderPs5();
           } }, t("Unlink"))),
         note)),
-    ps5SoundRow(s),
-    el("div", { class: "field" }, el("label", { for: "ps5-quality" }, t("Stream quality")), quality,
-      el("p", { class: "muted small" }, t("1080p reads small text best; 720p for a slower home network."))),
-    el("p", { class: "muted small" }, t("Controllers connected to this PC play on the PS5. Use Play to play full screen.")),
+    // the stream's sound and picture, in a card of their own under the PS5's
+    el("div", { class: "ps5-step ps5-settings" },
+      ps5SoundRow(s),
+      el("div", { class: "field" }, el("label", { for: "ps5-quality" }, t("Stream quality")), quality,
+        el("p", { class: "muted small" }, t("1080p reads small text best; 720p for a slower home network.")))),
+    el("p", { class: "muted small ps5-foot" }, t("Controllers connected to this PC play on the PS5. Use Play to play full screen.")),
   );
 }
 
@@ -1498,7 +1500,7 @@ function renderTimingReset(form) {
 function renderMemory() {
   $("memory-form").innerHTML = `
     <div class="callout" id="mem-stats" style="margin:0"></div>
-    <div class="row"><button class="btn danger" id="mem-clear">${t("Clear memory")}</button></div>
+    <div class="row"><button class="btn danger wide" id="mem-clear">${t("Clear memory")}</button></div>
 `;
   $("mem-clear").addEventListener("click", async () => {
     if (!(await ask(t("Forget all remembered translations?"), t("Clear memory")))) return;
@@ -1777,7 +1779,8 @@ function renderDebug() {
     <div class="callout" id="dbg-status" style="margin:0"></div>
     <button class="btn" id="dbg-open">${t("Open frames folder")}</button>
     <button class="btn" id="dbg-shot">${t("Save preview image")}</button>
-    <div class="muted small" style="margin:-6px 0 0">${AS.esc(t("Saves the preview as you see it (the game and its translation) as a PNG. The first one makes a new folder in Pictures\\VI Translator\\previews; the next ones go to the same folder until the app is closed."))} <button class="link" id="dbg-shot-open">${t("Open previews folder")}</button></div>
+    <div class="muted small" style="margin:-6px 0 0">${AS.esc(t("Saves the preview as you see it (the game and its translation) as a PNG. The first one makes a new folder in Pictures\\VI Translator\\previews; the next ones go to the same folder until the app is closed."))}</div>
+    <button class="link block-link" id="dbg-shot-open">${t("Open previews folder")}</button>
     <div class="muted small">Install id (to send a test version of a game page to this PC): <code>${AS.esc(cfg.install_id || "—")}</code></div>`;
   $("dbg-save").addEventListener("change", (e) => setSaveFrames(e.target.checked));
   $("dbg-int").addEventListener("input", (e) => {

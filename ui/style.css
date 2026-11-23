@@ -468,7 +468,7 @@ body.locked .rail-group button:not([data-tab="profile"]) span::after { content: 
 
 /* "… is built in and can't be changed. [Make a copy]" at the top of each part */
 .lock-note:empty { display: none; }
-.lock-note { display: flex; align-items: center; gap: 10px; margin: -4px 0 16px; padding: 10px 12px; border-radius: var(--radius-sm);
+.lock-note { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 10px 12px; border-radius: var(--radius-sm);
   background: var(--accent-soft); color: var(--text); font-size: 13px; line-height: 1.35; }
 .lock-note svg { width: 18px; height: 18px; color: var(--accent-ui); }
 .lock-note span { flex: 1; }
@@ -480,7 +480,7 @@ body.locked #add-area, body.locked #add-area-2 { display: none; }
 .profile-card { margin-top: 14px; }
 .profile-card .row b { font-size: 15px; }
 .lock-badge::before { content: "🔒 "; }
-.tab > .lock-note + h3 { border-top: 0; margin-top: 0; padding-top: 0; }
+.tab > .lock-note + h3 { border-top: 0; margin-top: 0; padding-top: 0; font-size: 19px; margin-bottom: 4px; }
 /* a built-in profile in use: its areas can't be dragged, so no handles */
 body.locked :is(.area, .band) .handle { display: none !important; }
 body.locked :is(.area, .band) { cursor: default; }
@@ -550,3 +550,17 @@ dialog.part .part-msg { font-size: 13px; color: var(--muted); min-height: 18px; 
 .ps5-volume input[type="range"] { width: 100%; accent-color: var(--accent-ui); }
 .ps5-volume input[type="range"]:disabled { opacity: .5; }
 .ps5-pct { min-width: 3.2em; text-align: end; font-variant-numeric: tabular-nums; }
+
+/* a link on a line of its own (under a paragraph, not floated into it) */
+.link.block-link { float: none; display: block; padding: 0; margin-top: 6px; }
+/* text fields as tall as the buttons and lists beside them */
+#ps5-panel input[type="text"], #ps5-panel input[type="password"] { width: 100%; }
+#ps5-panel .ps5-pin { height: 52px; }
+/* the PS5 steps: a little more room under the source list, and one gap between the parts of a step */
+#ps5-panel > .ps5-step:first-child { margin-top: 12px; }
+.ps5-body .row + .muted, .ps5-body .field .muted { margin-top: 6px; }
+.ps5-settings > .field + .field { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ps5-settings .check { margin: 0; }
+.ps5-settings .ps5-volume { margin-top: 10px; }
+.ps5-settings select { width: 100%; }
+.ps5-foot { margin-top: 10px; }
