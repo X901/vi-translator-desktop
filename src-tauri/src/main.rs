@@ -327,9 +327,10 @@ fn ps5_status(webview: tauri::Webview) -> Result<serde_json::Value, String> {
     Ok(ps5::status())
 }
 
-/// Sony's sign-in page in a window of the app (for the account ID linking needs).
+/// Sony's sign-in page in a window of the app (for the account ID linking needs). (async: on Windows
+/// a window made from a synchronous command stays blank)
 #[tauri::command]
-fn ps5_sign_in(webview: tauri::Webview) -> Result<(), String> {
+async fn ps5_sign_in(webview: tauri::Webview) -> Result<(), String> {
     main_only(&webview)?;
     ps5::sign_in(&data_dir())
 }
@@ -370,9 +371,10 @@ fn ps5_login_pin(webview: tauri::Webview, pin: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Opens Xbox remote play in its window of the app (or brings it to the front).
+/// Opens Xbox remote play in its window of the app (or brings it to the front). (async: on Windows a
+/// window made from a synchronous command stays blank)
 #[tauri::command]
-fn open_xbox(app: AppHandle, webview: tauri::Webview) -> Result<(), String> {
+async fn open_xbox(app: AppHandle, webview: tauri::Webview) -> Result<(), String> {
     main_only(&webview)?;
     xbox::open(&app, &data_dir())
 }
