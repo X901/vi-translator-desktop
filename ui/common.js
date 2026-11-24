@@ -381,8 +381,10 @@ window.AS = (() => {
   const PHONE_PIECE = {};
   // the names each chat showed as cards in a message (renderPhone)
   const PHONE_CARDS = {};
+  // each card's icon once found, by chat and name (renderPhone)
+  const PHONE_CARD_ICON = {};
   // A box kept as first drawn: a reading near it (within 4 % of the screen's width each way) changes nothing, and a
-  // different one changes it only when three readings in a row agree on it — a frame read once a little differently
+  // different one changes it only when five readings in a row agree on it — a frame read once a little differently
   // (a photo missed, a bubble's colour) no longer moved it, and moved it back
   function holdBox(key, b, colW) {
     const near = (a, c) => a.every((v, i) => Math.abs(v - c[i]) <= colW * 0.04);
@@ -398,7 +400,7 @@ window.AS = (() => {
     }
     if (H0.cand && near(b, H0.cand)) H0.n++;
     else [H0.cand, H0.n] = [b.slice(), 1];
-    if (H0.n >= 3) [H0.b, H0.cand, H0.n] = [H0.cand, null, 0];
+    if (H0.n >= 5) [H0.b, H0.cand, H0.n] = [H0.cand, null, 0];
     return H0.b;
   }
   // each chat's photos' placeholders as drawn, and when last read (renderPhone)
@@ -989,7 +991,11 @@ window.AS = (() => {
         return iy < cb[1] + cb[3] && cb[1] < iy + ih && st.uv[0] * qw < c.rect[0] * W;
       });
       const iz = cb[3] * 0.72;
-      card.innerHTML = (ic ? `<img src="${ic.png}" style="width:${iz}px;height:${iz}px;object-fit:contain;flex:none;margin-right:${0.5 * fs}px">` : "") + `<span>${esc(c.ar)}</span>`;
+      // (its icon remembered once found: a reading that missed it no longer left the card without one)
+      const ik = chatId + "|" + c.ar;
+      if (ic) PHONE_CARD_ICON[ik] = ic.png;
+      const icPng = PHONE_CARD_ICON[ik];
+      card.innerHTML = (icPng ? `<img src="${icPng}" style="width:${iz}px;height:${iz}px;object-fit:contain;flex:none;margin-right:${0.5 * fs}px">` : "") + `<span>${esc(c.ar)}</span>`;
       panel.appendChild(card);
       put(card, x + cb[0], panelTop + cb[1]);
     }
