@@ -1166,19 +1166,29 @@ window.AS = (() => {
       // (the chat's size kept from one reading to the next — worked out anew each time, every translation that came
       // changed it and every bubble's lines moved; smaller only when a translated bubble doesn't fit at it; a
       // message still in English is no measure of it)
-      let size = PHONE_SIZE[chatId] || fs * 1.15;
-      for (const d of fitList) {
-        if (d.dataset.photo || d.dataset.pending) continue;
+      // (one bubble read too small for its words — a box cut in a scroll — pulled the whole chat's size down for
+      // good: the chat's size goes no lower than three quarters of the phone's, a bubble that needs less gets its
+      // own; and it comes back up once every bubble fits a size larger again)
+      const full = fs * 1.15, floor = 0.75 * full;
+      let size = PHONE_SIZE[chatId] || full;
+      const measured = fitList.filter((d) => !d.dataset.photo && !d.dataset.pending);
+      if (size < full) {
+        const up = Math.min(full, size * 1.12);
+        if (measured.every((d) => fits(d, up))) size = up;
+      }
+      const own = new Map();
+      for (const d of measured) {
         if (fits(d, size)) continue;
         let [lo, hi] = [fs * 0.4, size];
         for (let i = 0; i < 9; i++) {
           const mid = (lo + hi) / 2;
           if (fits(d, mid)) lo = mid; else hi = mid;
         }
-        size = lo;
+        if (lo >= floor) size = lo;
+        else own.set(d, lo);
       }
       PHONE_SIZE[chatId] = size;
-      for (const d of fitList) d.style.fontSize = `${size}px`;
+      for (const d of fitList) d.style.fontSize = `${own.has(d) && own.get(d) < size ? own.get(d) : size}px`;
     }
     // (what it shows runs past its screen's foot: drawn again with smaller text, a few times at most)
     const over = (below - panelTop + pad) / th;

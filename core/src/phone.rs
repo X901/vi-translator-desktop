@@ -199,7 +199,7 @@ const SCALE: u32 = 6;
 pub fn find_screen(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)> {
     // (a white screen in sunset shade is about 200; at night, in a dark car, 150 down to 80: the brighter
     // first, the dimmer only when no phone is found so)
-    let ts = [175, 130, 100, 75];
+    let ts = [175, 150, 130, 115, 100, 88, 75];
     let (i, first) = ts.iter().enumerate().find_map(|(i, &t)| find_screen_at(rgba, fw, fh, t, true).map(|r| (i, r)))?;
     // (and as much of it as a dimmer light still finds, round what was found: at night the screen's top is a
     // little dimmer than the rest, and some frames found only its lower part — the panel jumped, its top rows
@@ -409,20 +409,24 @@ fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) ->
             (rgba[i] as u32 * 3 + rgba[i + 1] as u32 * 6 + rgba[i + 2] as u32) / 10
         };
         let (rx, ry, rw, rh) = rect;
-        let (mut inside, mut n_in, mut sides, mut n_out) = (0u32, 0u32, 0u32, 0u32);
-        let band = (rw / 8).max(6);
+        // (the screen's light: its brighter samples, not its mean — a chat's big dark photo pulled the mean down;
+        // the sides past the phone's own edge, a quarter of the screen out: a white phone's body by day is as light
+        // as its screen, and the dim screen beside it was turned down)
+        let mut ins: Vec<u32> = Vec::new();
+        let (mut sides, mut n_out) = (0u32, 0u32);
+        let band = (rw / 4).max(6);
         for k in 1..20 {
             let y = ry + rh * k / 20;
             for j in 1..8 {
-                inside += luma(rx + rw * j / 8, y);
-                n_in += 1;
+                ins.push(luma(rx + rw * j / 8, y));
             }
             for x in [rx.saturating_sub(band), (rx + rw + band).min(fw - 1)] {
                 sides += luma(x, y);
                 n_out += 1;
             }
         }
-        let (inside, sides) = (inside / n_in.max(1), sides / n_out.max(1));
+        ins.sort_unstable();
+        let (inside, sides) = (ins[ins.len() * 3 / 4], sides / n_out.max(1));
         if sides + 50 > inside {
             return None;
         }
@@ -702,6 +706,12 @@ pub fn photos_and_stickers(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32
 /// and pictures are holes in it, its edges are not), and that light's far points each way. None when the light
 /// runs out to the box round it (a bright wall beside the phone) or is not a screen's shape.
 pub fn screen_quad(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32)) -> Option<[(f64, f64); 4]> {
+    // (the screen's light from half of its own up: a white phone's body by day as light as a dim screen ran the
+    // light out round the box at the lowest, and the corners went unfound — the overlay's phone drawn bigger)
+    [11u32, 14, 16, 18].iter().find_map(|&part| screen_quad_at(rgba, fw, fh, b, part))
+}
+
+fn screen_quad_at(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32), part: u32) -> Option<[(f64, f64); 4]> {
     let (bx, by, bw, bh) = b;
     let (mx, my) = (bw / 10, bh / 16);
     let (x0, y0) = (bx.saturating_sub(mx), by.saturating_sub(my));
@@ -724,57 +734,65 @@ pub fn screen_quad(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32)) -> Op
     if light < 60 {
         return None;
     }
-    let t = light * 11 / 20;
+    let t = light * part / 20;
     let at = |gx: u32, gy: u32| lum(x0 + gx * step, y0 + gy * step) >= t;
-    // from the light nearest the middle
-    let (cx, cy) = ((gw / 2) as i32, (gh / 2) as i32);
-    let seed = (0..gw.max(gh) as i32 / 2).find_map(|r| {
-        (-r..=r).flat_map(|dy| (-r..=r).map(move |dx| (dx, dy))).find(|&(dx, dy)| {
-            let (x, y) = (cx + dx, cy + dy);
-            x >= 0 && y >= 0 && (x as u32) < gw && (y as u32) < gh && at(x as u32, y as u32)
-        })
-    })?;
+    // (from the light nearest each of a few points down the screen's middle — the light nearest its very middle was
+    // at times a small island in a chat's big photo — the largest light reached)
     let mut seen = vec![false; (gw * gh) as usize];
-    let start = ((cx + seed.0) as u32, (cy + seed.1) as u32);
-    let mut stack = vec![start];
-    seen[(start.1 * gw + start.0) as usize] = true;
-    let (mut tl, mut tr, mut br, mut bl) = ((f64::MAX, (0.0, 0.0)), (f64::MIN, (0.0, 0.0)), (f64::MIN, (0.0, 0.0)), (f64::MAX, (0.0, 0.0)));
-    let (mut edge_hit, mut n) = (0u32, 0u32);
-    while let Some((gx, gy)) = stack.pop() {
-        n += 1;
-        let (x, y) = ((x0 + gx * step) as f64, (y0 + gy * step) as f64);
-        if gx == 0 || gy == 0 || gx + 1 == gw || gy + 1 == gh {
-            edge_hit += 1;
-        }
-        if x + y < tl.0 {
-            tl = (x + y, (x, y));
-        }
-        if x + y > br.0 {
-            br = (x + y, (x, y));
-        }
-        if x - y > tr.0 {
-            tr = (x - y, (x, y));
-        }
-        if x - y < bl.0 {
-            bl = (x - y, (x, y));
-        }
-        for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
-            let (nx, ny) = (gx as i32 + dx, gy as i32 + dy);
-            if nx < 0 || ny < 0 || nx as u32 >= gw || ny as u32 >= gh {
-                continue;
+    let mut best: Option<(u32, u32, [(f64, f64); 4])> = None; // (cells, edge cells, corners)
+    for frac in [2i32, 1, 3, 4, 0, 5] {
+        let (cx, cy) = ((gw / 2) as i32, (gh as i32 * (2 * frac + 1)) / 12);
+        let seed = (0..gw as i32 / 4).find_map(|r| {
+            (-r..=r).flat_map(|dy| (-r..=r).map(move |dx| (dx, dy))).find(|&(dx, dy)| {
+                let (x, y) = (cx + dx, cy + dy);
+                x >= 0 && y >= 0 && (x as u32) < gw && (y as u32) < gh && at(x as u32, y as u32) && !seen[(y as u32 * gw + x as u32) as usize]
+            })
+        });
+        let Some(seed) = seed else { continue };
+        let start = ((cx + seed.0) as u32, (cy + seed.1) as u32);
+        let mut stack = vec![start];
+        seen[(start.1 * gw + start.0) as usize] = true;
+        let (mut tl, mut tr, mut br, mut bl) = ((f64::MAX, (0.0, 0.0)), (f64::MIN, (0.0, 0.0)), (f64::MIN, (0.0, 0.0)), (f64::MAX, (0.0, 0.0)));
+        let (mut edge_hit, mut n) = (0u32, 0u32);
+        while let Some((gx, gy)) = stack.pop() {
+            n += 1;
+            let (x, y) = ((x0 + gx * step) as f64, (y0 + gy * step) as f64);
+            if gx == 0 || gy == 0 || gx + 1 == gw || gy + 1 == gh {
+                edge_hit += 1;
             }
-            let i = (ny as u32 * gw + nx as u32) as usize;
-            if !seen[i] && at(nx as u32, ny as u32) {
-                seen[i] = true;
-                stack.push((nx as u32, ny as u32));
+            if x + y < tl.0 {
+                tl = (x + y, (x, y));
             }
+            if x + y > br.0 {
+                br = (x + y, (x, y));
+            }
+            if x - y > tr.0 {
+                tr = (x - y, (x, y));
+            }
+            if x - y < bl.0 {
+                bl = (x - y, (x, y));
+            }
+            for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
+                let (nx, ny) = (gx as i32 + dx, gy as i32 + dy);
+                if nx < 0 || ny < 0 || nx as u32 >= gw || ny as u32 >= gh {
+                    continue;
+                }
+                let i = (ny as u32 * gw + nx as u32) as usize;
+                if !seen[i] && at(nx as u32, ny as u32) {
+                    seen[i] = true;
+                    stack.push((nx as u32, ny as u32));
+                }
+            }
+        }
+        if best.as_ref().is_none_or(|b| n > b.0) {
+            best = Some((n, edge_hit, [tl.1, tr.1, br.1, bl.1]));
         }
     }
+    let (n, edge_hit, q) = best?;
     // (the light reaching round the box's edge for long: it is not the screen's alone)
     if edge_hit > (gw + gh) / 4 {
         return None;
     }
-    let q = [tl.1, tr.1, br.1, bl.1];
     // (a screen's shape: about as big as the box round it, taller than wide, its opposite sides alike)
     let len = |a: (f64, f64), b: (f64, f64)| ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt();
     let (top, left) = (len(q[0], q[1]), len(q[0], q[3]));

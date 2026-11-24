@@ -930,8 +930,8 @@ fn phone_crops(file: &str, out: &str) -> anyhow::Result<()> {
     };
     for (i, p) in pieces.iter().enumerate() {
         println!(
-            "{i}: rect {:?} name {:?} en {:?} label {} avatar {:?} badge {:?} preview {:?} emoji {}",
-            p.rect, p.name, p.en, p.look.label, p.avatar, p.badge, p.preview, p.emoji.len()
+            "{i}: {}rect {:?} name {:?} en {:?} label {} avatar {:?} badge {:?} preview {:?} emoji {}",
+            if p.title { "TITLE " } else { "" }, p.rect, p.name, p.en, p.look.label, p.avatar, p.badge, p.preview, p.emoji.len()
         );
         boxed((p.rect.0 as i32, p.rect.1 as i32, p.rect.2, p.rect.3), [255, 0, 0, 255]);
         let at = |o: (i32, i32, u32, u32)| (p.rect.0 as i32 + o.0, p.rect.1 as i32 + o.1, o.2, o.3);

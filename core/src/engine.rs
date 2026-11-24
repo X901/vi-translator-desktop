@@ -1377,6 +1377,22 @@ impl Reader {
                         })
                         .map(|scr| (scr, crate::phone::read_screen_any(ocr, &f.rgba, f.w, f.h, scr)))
                         .filter(|(_, r)| !r.pieces.is_empty())
+                        // (a chat only — its header, the contact's name at the screen's top, read now or a moment ago
+                        // with no list's rows since: the chat list, the phone's other apps and a light doorway taken
+                        // for a screen get no second phone)
+                        .filter(|(_, r)| {
+                            let mut at = PHONE_CHAT_AT.lock().unwrap();
+                            let now = Instant::now();
+                            if r.pieces.iter().any(|p| p.avatar.is_some() && !p.title) {
+                                *at = None;
+                                return false;
+                            }
+                            if r.pieces.iter().any(|p| p.title) {
+                                *at = Some(now);
+                                return true;
+                            }
+                            at.is_some_and(|t| now.saturating_duration_since(t) < Duration::from_millis(3000))
+                        })
                 } else {
                     None
                 };
@@ -2153,6 +2169,8 @@ static PHONE_ROW_AR: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::n
 static PHONE_QUAD: Mutex<Option<([(f64, f64); 4], [(f64, f64); 4], Instant)>> = Mutex::new(None);
 
 /// The phone screen's place as last read, and when (phone::steady_screen).
+/// When a chat's header was last read on the phone (a chat's overlay only: see the phone block).
+static PHONE_CHAT_AT: Mutex<Option<Instant>> = Mutex::new(None);
 static PHONE_SCREEN: Mutex<Option<((u32, u32, u32, u32), Instant)>> = Mutex::new(None);
 
 fn translate_loop(ctx: Context, latest: Arc<Mutex<HashMap<String, u64>>>, jobs: mpsc::Receiver<Job>, present: mpsc::Sender<PMsg>) {
