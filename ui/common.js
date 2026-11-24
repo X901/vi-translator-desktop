@@ -385,6 +385,8 @@ window.AS = (() => {
   const PHONE_SCROLL = { y: {}, at: 0 };
   // each card's icon once found, by chat and name (renderPhone)
   const PHONE_CARD_ICON = {};
+  // each chat's lone emojis as last read, and when (renderPhone)
+  const PHONE_STK = {};
   // A box kept as first drawn: a reading near it (within 4 % of the screen's width each way) changes nothing, and a
   // different one changes it only when five readings in a row agree on it — a frame read once a little differently
   // (a photo missed, a bubble's colour) no longer moved it, and moved it back
@@ -1097,6 +1099,12 @@ window.AS = (() => {
       }
     }
     // (an emoji sent on its own: as it is, in a small bubble of the other person's colour, where it is on the screen)
+    // (a chat's lone emojis kept a moment when a reading misses them: found in some readings only, they blinked)
+    if (Q && !P.list) {
+      const ks = PHONE_STK[chatId];
+      if (P.stickers && P.stickers.length) PHONE_STK[chatId] = { list: P.stickers, at: Date.now() };
+      else if (ks && Date.now() - ks.at < 1500) P = Object.assign({}, P, { stickers: ks.list });
+    }
     if (Q && !P.list && P.stickers && P.stickers.length) {
       const otherBg = (P.pieces.find((p) => !p.title && !p.label && !isOwn(p)) || {}).bg || P.screen_bg || "#f4f4f6";
       for (const st of P.stickers) {

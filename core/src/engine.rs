@@ -1391,20 +1391,33 @@ impl Reader {
                         let screen_own = read.screen;
                         // (the screen's corners as it is in the frame, and where each piece is on it: the overlay's
                         // second phone drawn through the same corners, each piece where it is on the screen)
-                        let quad = read.quad;
-                        let photos: Vec<[f64; 4]> = read.photos.iter().filter_map(|r| read.quad_in_pieces.and_then(|q| crate::phone::on_screen(q, *r))).collect();
+                        // (the screen's corners not found this frame — the picture moving, a scroll's blur: the last ones
+                        // found, a moment old at most; without them the overlay fell back to another layout and jumped)
+                        let (quad, quad_in) = {
+                            let mut last = PHONE_QUAD.lock().unwrap();
+                            match (read.quad, read.quad_in_pieces) {
+                                (Some(q), Some(qi)) => {
+                                    *last = Some((q, qi, now));
+                                    (Some(q), Some(qi))
+                                }
+                                _ => match *last {
+                                    Some((q, qi, at)) if now.saturating_duration_since(at) < Duration::from_millis(1500) => (Some(q), Some(qi)),
+                                    _ => (read.quad, read.quad_in_pieces),
+                                },
+                            }
+                        };
+                        let photos: Vec<[f64; 4]> = read.photos.iter().filter_map(|r| quad_in.and_then(|q| crate::phone::on_screen(q, *r))).collect();
                         // (an emoji sent on its own: where it is on the screen, and its picture as it is)
                         let stickers: Vec<serde_json::Value> = read
                             .stickers
                             .iter()
                             .filter_map(|r| {
-                                let uv = read.quad_in_pieces.and_then(|q| crate::phone::on_screen(q, *r))?;
+                                let uv = quad_in.and_then(|q| crate::phone::on_screen(q, *r))?;
                                 let png = crate::phone::part_png(read.upright.as_deref().unwrap_or(&f.rgba[..]), f.w, f.h, *r, (0, 0, r.2, r.3), 48)?;
                                 use base64::Engine as _;
                                 Some(serde_json::json!({ "uv": uv, "png": format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)) }))
                             })
                             .collect();
-                        let quad_in = read.quad_in_pieces;
                         let uv = |r: (u32, u32, u32, u32)| quad_in.and_then(|q| crate::phone::on_screen(q, r));
                         // (steady from one read to the next: a misreading keeps the first reading, a missed piece stays a moment)
                         let pieces = crate::phone::steady(&mut ctx.live.phone_pieces.lock().unwrap(), read.pieces, scr, now);
@@ -2124,6 +2137,9 @@ impl Reader {
 /// The reviewed translations the phone's contact rows were given, by contact: their message as read, its
 /// translation (a row keeps it while its message reads much the same).
 static PHONE_ROW_AR: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
+
+/// The phone screen's corners as last found (in the frame, and in the frame its pieces are in), and when.
+static PHONE_QUAD: Mutex<Option<([(f64, f64); 4], [(f64, f64); 4], Instant)>> = Mutex::new(None);
 
 /// The phone screen's place as last read, and when (phone::steady_screen).
 static PHONE_SCREEN: Mutex<Option<((u32, u32, u32, u32), Instant)>> = Mutex::new(None);
