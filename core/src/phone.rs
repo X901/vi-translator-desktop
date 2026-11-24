@@ -774,9 +774,19 @@ fn read_screen_at(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u
         if p.title {
             let lh = p.rect.3.max(10);
             let area = (sx + sw * 4 / 5, p.rect.1.saturating_sub(lh), sw / 5 - 4, lh * 3);
-            p.avatar = ink_box(rgba, fw, fh, area, p.look.bg, 40)
-                .filter(|b| b.2 >= 10 && b.3 >= 10 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16)
-                .map(|b| (b.0 as i32 - p.rect.0 as i32, b.1 as i32 - p.rect.1 as i32, b.2.max(b.3)));
+            // (as the circle it is, going right from the name; else as before)
+            let sbg = screen_bg(rgba, fw, fh, screen, p.rect.1, p.rect.1 + p.rect.3);
+            let reach = (sx + sw).saturating_sub(p.rect.0 + p.rect.2) as i32;
+            p.avatar = disk_from(rgba, fw, fh, p.rect.0 + p.rect.2, p.rect.1 + p.rect.3 / 2, p.look.bg, sbg, lh * 2, 1, reach)
+                .map(|(cx, cy, d)| {
+                    let s = d * 23 / 20;
+                    (cx as i32 - s as i32 / 2 - p.rect.0 as i32, cy as i32 - s as i32 / 2 - p.rect.1 as i32, s)
+                })
+                .or_else(|| {
+                    ink_box(rgba, fw, fh, area, p.look.bg, 40)
+                        .filter(|b| b.2 >= 10 && b.3 >= 10 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16)
+                        .map(|b| (b.0 as i32 - p.rect.0 as i32, b.1 as i32 - p.rect.1 as i32, b.2.max(b.3)))
+                });
         }
     }
     // A chat list (WhatUp's chats): rows with their contacts' pictures at the start. Each row is its
@@ -945,6 +955,21 @@ fn read_screen_at(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u
     if let Some(t) = out.iter().find(|p| p.title).map(|p| p.rect) {
         out.retain(|p| p.title || p.split.is_some() || !(p.rect.1 >= t.1 + t.3 && p.rect.1 < t.1 + t.3 + t.3 * 13 / 10 && p.rect.3 < t.3 * 8 / 5));
     }
+    // (a chat's header — its first line, in the screen's top eighth, no list's rows round it — whether the reading
+    // took it for one or not: its contact's picture to the right of the name, as the circle it is)
+    if !out.iter().any(|p| p.avatar.is_some() && !p.title) {
+        if let Some(p) = out.first_mut().filter(|p| p.rect.1 < sy + sh / 8 && p.split.is_none() && p.en.split_whitespace().count() <= 5) {
+            p.title = true;
+            if p.avatar.is_none() {
+                let sbg = screen_bg(rgba, fw, fh, screen, p.rect.1, p.rect.1 + p.rect.3);
+                let reach = (sx + sw).saturating_sub(p.rect.0 + p.rect.2) as i32;
+                p.avatar = disk_from(rgba, fw, fh, p.rect.0 + p.rect.2, p.rect.1 + p.rect.3 / 2, p.look.bg, sbg, p.rect.3.max(10) * 2, 1, reach).map(|(cx, cy, d)| {
+                    let s = d * 23 / 20;
+                    (cx as i32 - s as i32 / 2 - p.rect.0 as i32, cy as i32 - s as i32 / 2 - p.rect.1 as i32, s)
+                });
+            }
+        }
+    }
     // (each chat message's bubble as it is: the overlay draws its own bubble the same size, in the same place)
     let (sx, sy, sw, sh) = screen;
     for p in out.iter_mut().filter(|p| !p.title && !p.look.label && p.avatar.is_none()) {
@@ -1076,6 +1101,12 @@ pub fn tilt_of(pieces: &[Piece]) -> Option<f64> {
 /// centre and diameter (frame pixels). Held tilted, the phone's edge and the ground beside it come
 /// after the row's own colour, past the picture: the run stops at that gap.
 pub fn disk_at(rgba: &[u8], fw: u32, fh: u32, from_x: u32, cy: u32, bg: [u8; 3], sbg: [u8; 3], expect: u32) -> Option<(u32, u32, u32)> {
+    disk_from(rgba, fw, fh, from_x, cy, bg, sbg, expect, -1, expect as i32 * 2)
+}
+
+/// As disk_at, going `dir` (-1 left, 1 right) from `from_x`, up to `reach` pixels: a chat's header has its
+/// contact's picture to the right of its name.
+pub fn disk_from(rgba: &[u8], fw: u32, fh: u32, from_x: u32, cy: u32, bg: [u8; 3], sbg: [u8; 3], expect: u32, dir: i32, reach: i32) -> Option<(u32, u32, u32)> {
     let unlike = |x: u32, y: u32| x < fw && y < fh && {
         let p = px(rgba, fw, x, y);
         dist(p, bg) > 40 && dist(p, sbg) > 40
@@ -1102,21 +1133,22 @@ pub fn disk_at(rgba: &[u8], fw: u32, fh: u32, from_x: u32, cy: u32, bg: [u8; 3],
     // the picture: going left from the text, the first run of unlike pixels as wide as a third of a picture
     // at least (through gaps of a few pixels) — not a letter's stroke (held tilted, the line under starts
     // further left), not the chosen row's thin outline
-    let limit = from_x as i32 - 2 - expect as i32 * 2;
-    let (mut x, mut found) = (from_x as i32 - 2, None);
-    while x > limit.max(1) {
+    let start = from_x as i32 + 2 * dir;
+    let (mut x, mut found) = (start, None);
+    while (x - start).abs() <= reach && x > 1 && x < fw as i32 - 1 {
         if !unlike(x as u32, cy) {
-            x -= 1;
+            x += dir;
             continue;
         }
-        let end = run(x, cy, true, -1, expect as i32 * 3 / 2);
-        if (x - end + 1) as u32 >= (expect * 35 / 100).max(8) {
+        let end = run(x, cy, true, dir, expect as i32 * 3 / 2);
+        if ((x - end).abs() + 1) as u32 >= (expect * 35 / 100).max(8) {
             found = Some((x, end));
             break;
         }
-        x = end - 1;
+        x = end + dir;
     }
-    let (x1, x0) = found?;
+    // (its near and far edges along the line: x1 the one nearer the text)
+    let (x1, x0) = found.map(|(a, b)| if dir < 0 { (a, b) } else { (b, a) })?;
     // (its middle across, on this line; up and down from there its whole height: the diameter, through
     // a picture whose inside is white too — a logo — where across breaks)
     let mx = ((x0 + x1) / 2) as u32;

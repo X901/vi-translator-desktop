@@ -589,6 +589,21 @@ window.AS = (() => {
     }
     let below = -1e9;
     const fitList = [];
+    // (the other person's bubbles' left margin, the smallest: the character's own keep the same on the right)
+    const margins = { left: null };
+    // (the character's own messages: blue bubbles, its blue clearly above its red; the other person's grey-white)
+    const isOwn = (p) => {
+      const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(p.bg || "");
+      return m ? parseInt(m[3], 16) - parseInt(m[1], 16) > 14 : !!p.end;
+    };
+    if (Q) {
+      for (const p of P.pieces) {
+        if (p.title || p.label) continue;
+        const b = p.box || [p.rect[0] * W - 0.7 * fs, 0, p.rect[2] * W + 1.4 * fs, 0];
+        if (!isOwn(p)) margins.left = margins.left == null ? b[0] : Math.min(margins.left, b[0]);
+      }
+      if (margins.left != null) margins.left = Math.max(0.3 * pad, margins.left);
+    }
     // (a row read before and missed this time stays a moment where it was: one reading in a few misses a row
     // — a picture's dark edge, a line the OCR skips — and the row blinked out and back)
     const nowT = Date.now();
@@ -664,12 +679,13 @@ window.AS = (() => {
         Object.assign(bar.style, {
           position: "absolute", left: "0", top: "0", width: `${colW}px`, height: `${bh}px`, boxSizing: "border-box",
           display: "flex", alignItems: "center", justifyContent: "space-between", padding: `0 ${pad}px`,
-          background: p.bg || "#f4f4f7", borderBottom: "1px solid rgba(0,0,0,0.08)", direction: dir(),
+          background: p.bg || "#f4f4f7", borderBottom: "1px solid rgba(0,0,0,0.08)", direction: "ltr",
           fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`, fontSize: `${fs}px`, color: p.fg || "#26272d",
         });
-        const pic = p.avatar ? `<img src="${p.avatar}" style="width:${(1.7 * fs).toFixed(1)}px;height:${(1.7 * fs).toFixed(1)}px;border-radius:50%;object-fit:cover">` : `<span style="width:${(1.7 * fs).toFixed(1)}px"></span>`;
-        // (the arrow points back: to the right in a right-to-left page)
-        bar.innerHTML = `<span style="color:#3d6fe0;font-size:${(1.5 * fs).toFixed(1)}px;line-height:1">${rtl() ? "›" : "‹"}</span><b style="unicode-bidi:plaintext">${esc(p.ar)}</b>${pic}`;
+        const pic = p.avatar ? `<img src="${p.avatar}" style="width:${(1.9 * fs).toFixed(1)}px;height:${(1.9 * fs).toFixed(1)}px;border-radius:50%;object-fit:cover;flex:none">` : `<span style="width:${(1.9 * fs).toFixed(1)}px;flex:none"></span>`;
+        // (laid out as the game's phone is, whatever the language: its back arrow on the left, the contact's picture
+        // on the right — the second phone a copy of the first)
+        bar.innerHTML = `<span style="color:#3d6fe0;font-size:${(1.6 * fs).toFixed(1)}px;line-height:1;flex:none;width:${(1.9 * fs).toFixed(1)}px">‹</span><b style="unicode-bidi:plaintext;direction:${dir()}">${esc(p.ar)}</b>${pic}`;
         panel.appendChild(bar);
         below = panelTop + bh;
         continue;
@@ -756,6 +772,11 @@ window.AS = (() => {
         let bx = p.box ? p.box.slice() : [p.rect[0] * W - bpx, p.rect[1] * H - bpy, p.rect[2] * W + 2 * bpx, p.rect[3] * H + 2 * bpy];
         bx[0] = Math.max(0.3 * pad, bx[0]);
         if (bx[0] + bx[2] > colW - 0.3 * pad) bx[2] = colW - 0.3 * pad - bx[0];
+        // (the character's own, to the right: as close to the right edge as the other person's are to the left.
+        // Told by its colour, blue — a wide bubble of the other person's is about as near one side as the other)
+        const ownB = isOwn(p);
+        if (ownB && margins.left != null) bx[0] = Math.max(0.3 * pad, colW - margins.left - bx[2]);
+        else if (!ownB && margins.left != null) bx[0] = margins.left;
         const bk = chatId + "|" + p.ar;
         const wasB = PHONE_BOX[bk];
         if (wasB && bx.every((v, i) => Math.abs(v - wasB[i]) <= colW * 0.04)) bx = wasB;
@@ -768,22 +789,28 @@ window.AS = (() => {
         // (its text's size: one for all the chat's bubbles, worked out once they're all drawn — fitBubbles)
         fitList.push(d);
         [left, top] = [x + bx[0], panelTop + bx[1]];
-        // (its tail, as the phone's bubbles have: the character's own, blue, at the bottom right; the other
-        // person's, white, at the bottom left — a small curved point out of the corner, the bubble's colour)
+        // (the bubble and its tail one shape, as the phone draws it: a rounded box whose bottom corner runs out
+        // into a point — the character's own at the bottom right, the other person's at the bottom left — filled
+        // and outlined in one, so no seam shows where the tail meets the box. The words drawn over it)
         if (!p.boxed) {
-          const ts = 0.75 * fs;
-          const tail = document.createElement("div");
-          // (the character's own messages sit to the right, the other person's to the left: by where it is)
-          const own = bx[0] > colW - (bx[0] + bx[2]);
-          Object.assign(tail.style, {
-            position: "absolute",
-            width: `${ts}px`,
-            height: `${ts}px`,
-            background: p.edge || p.bg || "#f8f9fb",
-            clipPath: own ? "polygon(0 0, 100% 100%, 0 78%)" : "polygon(100% 0, 100% 78%, 0 100%)",
-          });
-          panel.appendChild(tail);
-          put(tail, own ? left + bx[2] - ts * 0.45 : left - ts * 0.55, top + bx[3] - ts * 0.95);
+          const own = ownB;
+          const [w, h] = [bx[2], bx[3]];
+          const r = Math.min(0.45 * fs, h / 2, w / 2);
+          const [tw, th2] = [0.6 * fs, Math.min(0.8 * fs, h - r)];
+          const sw2 = p.edge ? Math.max(1.5, 0.1 * fs) : 0;
+          const path = own
+            ? `M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - th2} L${w + tw},${h} H${r} Q0,${h} 0,${h - r} V${r} Q0,0 ${r},0 Z`
+            : `M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - r} Q${w},${h} ${w - r},${h} H${-tw} L0,${h - th2} V${r} Q0,0 ${r},0 Z`;
+          const shape = document.createElement("div");
+          const m = tw + sw2 + 1;
+          Object.assign(shape.style, { position: "absolute", width: `${w + 2 * m}px`, height: `${h + 2 * m}px`, pointerEvents: "none" });
+          shape.innerHTML =
+            `<svg width="${w + 2 * m}" height="${h + 2 * m}" style="display:block;overflow:visible">` +
+            `<path transform="translate(${m},${m})" d="${path}" style="fill:${p.bg || "#f8f9fb"};stroke:${p.edge || "none"};stroke-width:${sw2}px;stroke-linejoin:round"/>` +
+            `</svg>`;
+          panel.insertBefore(shape, d);
+          put(shape, left - m, top - m);
+          Object.assign(d.style, { background: "transparent", border: "none", boxShadow: "none", borderRadius: "0" });
         }
       }
       put(d, left, top);
