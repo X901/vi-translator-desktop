@@ -15,11 +15,11 @@ use crate::ocr::Crop;
 
 /// The screen's rows in this many bands.
 const BANDS: usize = 96;
-/// Two signatures a sixth of a second apart this far from each other: the screen moved (a scroll's frames
-/// are 40 to 80 apart on a 720p picture; a still hand's 2 to 19; walking with the phone up, 20 to 50).
-/// VI_TRANSLATOR_PHONE_MOVED sets another, to tune it on another picture.
+/// Two signatures a sixth of a second apart this far from each other: the screen moved. On 720p recordings: a
+/// scroll's frames 20 to 44 apart; a still phone's 2 to 19, in a sunset's light too; walking with the phone up,
+/// 10 to 18. VI_TRANSLATOR_PHONE_MOVED sets another, to tune it on another picture.
 fn moved_from() -> f64 {
-    std::env::var("VI_TRANSLATOR_PHONE_MOVED").ok().and_then(|v| v.parse().ok()).unwrap_or(30.0)
+    std::env::var("VI_TRANSLATOR_PHONE_MOVED").ok().and_then(|v| v.parse().ok()).unwrap_or(20.0)
 }
 /// A screen with less detail than this is blurred (behind the pause menu: 0.00) or has no text (0.01): not
 /// read. A chat's is 0.05 and up, 0.024 at the least in a scroll's frames.
@@ -48,7 +48,21 @@ pub fn sig(rgba: &[u8], fw: u32, fh: u32, q: [(f64, f64); 4]) -> (Vec<u8>, f64) 
         let v = 0.04 + 0.92 * (r as f64 + 0.5) / (BANDS * SUB) as f64;
         px.extend((0..wide).map(|i| lum(0.1 + 0.8 * (i as f64 + 0.5) / wide as f64, v)));
     }
-    let dark = (px.iter().map(|&l| l as u64).sum::<u64>() / px.len() as u64) as u32 * 8 / 10;
+    // (dark: well under the bubbles' white — the lighter quarter of the screen — not under its mean. A chat's
+    // patterned background, under some light (a sunset), sat right at four fifths of the mean: from one frame to
+    // the next, a still phone's background went dark and light, and it was taken for one scrolling)
+    let light = {
+        let mut hist = [0usize; 256];
+        px.iter().for_each(|&l| hist[l as usize] += 1);
+        let (mut seen, want) = (0usize, px.len() / 4);
+        (0..256usize).rev().find(|&l| {
+            seen += hist[l];
+            seen >= want
+        }).unwrap_or(255) as u32
+    };
+    // (half of it: the text alone. VI_TRANSLATOR_PHONE_INK sets another share, in hundredths)
+    let frac: u32 = std::env::var("VI_TRANSLATOR_PHONE_INK").ok().and_then(|v| v.parse().ok()).unwrap_or(50);
+    let dark = light * frac / 100;
     let mut edges = 0usize;
     let sig = px
         .chunks_exact(SUB * wide)
@@ -308,6 +322,20 @@ pub fn page(mut lines: Vec<Line>, col: (f64, f64), bottom: f64, tint: &dyn Fn(&L
             items.push(Item { k: "label", from: String::new(), color: String::new(), en: paras[0].remove(0).t.trim().to_string() });
         }
     }
+    // (a line cut by the bar at the screen's top, or by its bottom edge: half of it is there, read as letters that
+    // aren't its own — "new account is 10 @ 10v,00v." for "…new account limit is $100,000." — and each reading
+    // reads it differently. It's shorter than the others: 18 px to their 28. Left out)
+    let cut_off = |l: &Line| l.h < 0.75 * h;
+    if let Some(p) = paras.iter_mut().find(|p| !p.is_empty()) {
+        if cut_off(&p[0]) {
+            p.remove(0);
+        }
+    }
+    if let Some(p) = paras.iter_mut().rev().find(|p| !p.is_empty()) {
+        if p.last().is_some_and(cut_off) {
+            p.pop();
+        }
+    }
     for mut p in paras.into_iter().filter(|p| !p.is_empty()) {
         // (its sender's name over a message: a word or three, starting further in than the message — its picture
         // before it, or read with it as a mark)
@@ -424,6 +452,8 @@ mod tests {
             line("@ Map Pin Expired", [300.0, 1190.0], [640.0, 1214.0], 50.0),
             // (the game's own, beside the phone: not the phone's)
             line("SCROLL", [1100.0, 900.0], [1140.0, 900.0], 30.0),
+            // (the last line, cut by the screen's bottom edge: half as tall, read as other letters)
+            line("Hey ho, wo ane", [300.0, 1290.0], [520.0, 1300.0], 24.0),
         ];
         // (the player's own message on blue, the rest on white)
         let tint = |l: &Line| if l.t.starts_with("Thanks") { 30.0 } else { 4.0 };

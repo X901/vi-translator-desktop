@@ -2275,9 +2275,6 @@ struct PhoneRead {
     buttons: (Instant, bool, Vec<serde_json::Value>),
     /// the last reading, translated, and the one awaited
     shown: Option<serde_json::Value>,
-    /// the screen moved since the picture the reading shown was made from (another chat opened, a scroll): what's
-    /// shown is the screen before, until the next one comes
-    stale: bool,
     rx: Option<mpsc::Receiver<anyhow::Result<serde_json::Value>>>,
 }
 static PHONE_READ: Mutex<Option<PhoneRead>> = Mutex::new(None);
@@ -2327,7 +2324,7 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
     if !guard.as_ref().is_some_and(|s| since(s.seen) < Duration::from_secs(3) && since(s.buttons_at) < Duration::from_secs(3)) {
         *guard = is_phone.then(|| {
             let (at, bg) = place();
-            PhoneRead { watch: Default::default(), at, bg, buttons_at: now, seen: now, buttons: (now, false, Vec::new()), shown: None, stale: false, rx: None }
+            PhoneRead { watch: Default::default(), at, bg, buttons_at: now, seen: now, buttons: (now, false, Vec::new()), shown: None, rx: None }
         });
     }
     let Some(s) = guard.as_mut() else { return false };
@@ -2350,19 +2347,20 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
         s.rx = None;
         match got {
             Ok(Ok(v)) => {
-                // (the same screen read again — its pieces start with the same words: what's shown stays, word for
-                // word; a model puts the same message a little differently each time)
+                // (the same screen read again — its pieces read alike: what's shown stays, word for word. Its first
+                // and last pieces aside: a message cut off at the screen's top or bottom is read a line more or less
+                // from one reading to the next)
                 let starts = |v: &serde_json::Value| v["items"].as_array().map(|a| a.iter().map(|i| i["en"].as_str().unwrap_or("").to_lowercase()).collect::<Vec<_>>()).unwrap_or_default();
                 let same = s.shown.as_ref().is_some_and(|old| {
                     let (a, b) = (starts(old), starts(&v));
+                    let inner = |x: &[String]| if x.len() >= 3 { x[1..x.len() - 1].to_vec() } else { x.to_vec() };
+                    let (a, b) = (inner(&a), inner(&b));
                     a.len() == b.len() && a.iter().zip(&b).all(|(a, b)| a == b || ocr::similar(a, b))
                 });
                 s.watch.answered(same);
                 if !same {
                     s.shown = Some(v);
                 }
-                // (moved again while it was being translated: this reading is the screen before's too)
-                s.stale = s.watch.moved();
             }
             // (a failure: said, and asked again after a longer wait each time)
             Ok(Err(e)) => {
@@ -2373,7 +2371,6 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
         }
     }
     let due = s.watch.due(sig, now);
-    s.stale |= s.watch.moved();
     if due && s.rx.is_none() && is_phone {
         if let Some(shot) = pr::shot(f, scr) {
             s.watch.asked(now);
@@ -2403,8 +2400,11 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
         "screen": s.at,
         "screen_bg": s.bg,
         "read": s.shown,
-        // (nothing to show yet, or the screen moved since it was read: the answer is on its way)
-        "wait": s.shown.is_none() || s.stale,
+        // (nothing to show yet: its first reading on its way. Once something's shown it stays, as it is, until a
+        // reading differs: faded with "…" whenever the screen seemed to move, it blinked on and off on a phone held
+        // still — a night or a sunset's light, a dim screen found a little bigger or smaller each frame — though
+        // what it said didn't change)
+        "wait": s.shown.is_none(),
         "buttons": s.buttons.2,
     });
     *ctx.live.phone_seen.lock().unwrap() = Some(now);

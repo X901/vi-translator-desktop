@@ -552,11 +552,9 @@ window.AS = (() => {
       el(panel, { margin: "auto", fontSize: "2em", opacity: "0.45" }, "…");
       return;
     }
-    if (R.title) el(panel, { flex: "none", padding: "0.45em 0.6em", textAlign: "center", fontWeight: "700", direction: dir(), background: "rgba(255,255,255,0.55)", borderBottom: "1px solid rgba(0,0,0,0.12)", opacity: P.wait ? "0.3" : "1" }, R.title);
-    // (the screen moved since it was read — a scroll, another chat opened: what's here is the screen before, faded
-    // and marked "…" until its answer comes)
-    const list = el(panel, { flex: "1 1 auto", minHeight: "0", display: "flex", flexDirection: "column", gap: "0.4em", padding: "0.5em", overflow: "hidden", opacity: P.wait ? "0.3" : "1" });
-    if (P.wait) el(panel, { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", padding: "0 0.7em 0.3em", borderRadius: "1em", background: "rgba(0,0,0,0.65)", color: "#fff", fontSize: "1.8em", lineHeight: "1.2" }, "…");
+    if (R.title) el(panel, { flex: "none", padding: "0.45em 0.6em", textAlign: "center", fontWeight: "700", direction: dir(), background: "rgba(255,255,255,0.55)", borderBottom: "1px solid rgba(0,0,0,0.12)" }, R.title);
+    // (what was read last stays, as it is, until a reading differs)
+    const list = el(panel, { flex: "1 1 auto", minHeight: "0", display: "flex", flexDirection: "column", gap: "0.4em", padding: "0.5em", overflow: "hidden" });
     const LOOK = {
       msg: { alignSelf: "flex-start", background: "rgba(255,255,255,0.9)", border: "1px solid rgba(70,90,200,0.35)" },
       me: { alignSelf: "flex-end", background: "#cfe1f7" },
