@@ -504,7 +504,6 @@ window.AS = (() => {
   function renderPhoneRead(root, P) {
     const W = root.clientWidth, H = root.clientHeight;
     if (!W || !H) return;
-    phoneButtons(root, P, W, H);
     const R = P.read;
     // (read, and nothing on it to translate: no second phone)
     if (R && !R.title && !(R.items || []).length) return;

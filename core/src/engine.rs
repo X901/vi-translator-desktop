@@ -1361,7 +1361,7 @@ impl Reader {
                 // (the phone's screen is read whole, once it's still, not piece by piece here: see `phone_whole`.
                 // VI_TRANSLATOR_PHONE_PIECES=1 reads it the old way, to compare the two on the same phone)
                 let whole = c.phone_text() && std::env::var_os("VI_TRANSLATOR_PHONE_PIECES").is_none();
-                let phone_read = whole && phone_whole(ctx, &c, f, ocr, &mut menu_asked, &mut seq_counter, jobs);
+                let phone_read = whole && phone_whole(ctx, &c, f, ocr);
                 let found = if c.phone_text() && !whole {
                     crate::phone::find_screen(&f.rgba, f.w, f.h)
                         // (a short light part, a Snapmatic post's caption: a phone only with its buttons up)
@@ -2271,8 +2271,9 @@ struct PhoneRead {
     /// when the phone's own buttons were last seen, and the phone
     buttons_at: Instant,
     seen: Instant,
-    /// the buttons as last read (a few times a second), with their words; whether they're a phone's
-    buttons: (Instant, bool, Vec<serde_json::Value>),
+    /// when the buttons were last read (a few times a second), and whether they're a phone's (what tells a
+    /// phone: their words aren't put beside them here — "تراجع" by "BACK" was in the way, and no help)
+    buttons: (Instant, bool),
     /// the last reading, translated, and the one awaited
     shown: Option<serde_json::Value>,
     rx: Option<mpsc::Receiver<anyhow::Result<serde_json::Value>>>,
@@ -2284,7 +2285,7 @@ static PHONE_READ: Mutex<Option<PhoneRead>> = Mutex::new(None);
 /// hand sways the phone: its translation doesn't move). True when a phone is up — one with text on it, and
 /// its buttons at the bottom right read now or a moment ago (a light doorway has none; the phone behind the
 /// pause menu is a blur).
-fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: &mut std::collections::HashSet<String>, seq_counter: &mut u64, jobs: &mpsc::Sender<Job>) -> bool {
+fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr) -> bool {
     use crate::phone_read as pr;
     let now = Instant::now();
     let since = |t: Instant| now.saturating_duration_since(t);
@@ -2303,13 +2304,13 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
         return held;
     };
     // (the buttons at the bottom right, read a few times a second: they stay where they are)
-    let (is_phone, btns) = match guard.as_ref().map(|s| &s.buttons).filter(|b| since(b.0) < Duration::from_millis(300)) {
-        Some(b) => (b.1, b.2.clone()),
-        None => {
-            let read = crate::phone::read_buttons(ocr, &f.rgba, f.w, f.h);
-            // (a phone's buttons, or "BACK" alone: a short chat has no "SCROLL")
-            (crate::phone::phone_buttons(&read) || read.iter().any(|(_, t)| t == "BACK"), phone_button_words(ctx, f, &read, menu_asked, seq_counter, jobs, now))
-        }
+    let read_now = !guard.as_ref().is_some_and(|s| since(s.buttons.0) < Duration::from_millis(300));
+    let is_phone = if read_now {
+        let read = crate::phone::read_buttons(ocr, &f.rgba, f.w, f.h);
+        // (a phone's buttons, or "BACK" alone: a short chat has no "SCROLL")
+        crate::phone::phone_buttons(&read) || read.iter().any(|(_, t)| t == "BACK")
+    } else {
+        guard.as_ref().is_some_and(|s| s.buttons.1)
     };
     // (put where the phone is, a phone's shape whatever was found of it — its screen, its lower half, the white
     // phone whole — and as tall as the picture has room for: more of its text fits)
@@ -2324,13 +2325,13 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
     if !guard.as_ref().is_some_and(|s| since(s.seen) < Duration::from_secs(3) && since(s.buttons_at) < Duration::from_secs(3)) {
         *guard = is_phone.then(|| {
             let (at, bg) = place();
-            PhoneRead { watch: Default::default(), at, bg, buttons_at: now, seen: now, buttons: (now, false, Vec::new()), shown: None, rx: None }
+            PhoneRead { watch: Default::default(), at, bg, buttons_at: now, seen: now, buttons: (now, true), shown: None, rx: None }
         });
     }
     let Some(s) = guard.as_mut() else { return false };
     s.seen = now;
-    if since(s.buttons.0) >= Duration::from_millis(300) || s.buttons.2.is_empty() {
-        s.buttons = (now, is_phone, btns);
+    if read_now {
+        s.buttons = (now, is_phone);
     }
     if is_phone {
         s.buttons_at = now;
@@ -2405,7 +2406,6 @@ fn phone_whole(ctx: &Context, c: &Config, f: &FrameData, ocr: &Ocr, menu_asked: 
         // still — a night or a sunset's light, a dim screen found a little bigger or smaller each frame — though
         // what it said didn't change)
         "wait": s.shown.is_none(),
-        "buttons": s.buttons.2,
     });
     *ctx.live.phone_seen.lock().unwrap() = Some(now);
     let mut up = ctx.live.phone.lock().unwrap();
