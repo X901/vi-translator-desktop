@@ -1676,9 +1676,13 @@ window.AS = (() => {
     });
   }
 
-  // A read area's effects (Read Areas; the defaults when it has none of its own: config.rs AreaFx)
+  // A read area's effects (Read Areas; the defaults when it has none of its own: config.rs AreaFx). `all`: the
+  // effects as they apply (config.rs fx_view: the player's own, else the game's default) — the fade-in is off
+  // unless one of them sets it
   function fxOf(all, id) {
-    const f = Object.assign({ cover_min: true, cover_early: true, fade_ms: 150 }, (all && all[id]) || {});
+    const own = (all && all[id]) || {};
+    const f = { cover_min: true, cover_early: true, fade_ms: 0 };
+    for (const k in own) if (own[k] !== null && own[k] !== undefined) f[k] = own[k];
     f.fade_ms = Math.min(Math.max(Number(f.fade_ms) || 0, 0), 2000);
     if (typeof f.stack_up !== "boolean") f.stack_up = id === "subtitles";
     if (typeof f.ride !== "boolean") f.ride = id === "subtitles" || id === "instructions";

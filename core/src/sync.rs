@@ -506,6 +506,17 @@ fn apply_layout(sink: &dyn Sink, cfg: &Arc<Mutex<Config>>, config_path: &PathBuf
             p.timing = new;
         }
     }
+    // the game's defaults for its areas' effects (`{"fx": {"subtitles": {"fade_ms": 0}}}`): what applies
+    // where the player chose nothing; an area left out keeps what it had
+    if let Some(fx) = layout["fx"].as_object() {
+        for (id, d) in fx {
+            if let Ok(d) = serde_json::from_value::<crate::config::FxDefaults>(d.clone()) {
+                if !id.is_empty() {
+                    p.fx.insert(id.clone(), d);
+                }
+            }
+        }
+    }
     if let Some(f) = layout["fonts"]["title_font"].as_str() {
         p.pages.title_font = f.to_string();
     }
@@ -523,6 +534,24 @@ fn apply_layout(sink: &dyn Sink, cfg: &Arc<Mutex<Config>>, config_path: &PathBuf
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_layout_update_sets_the_games_fade_default() {
+        let dir = std::env::temp_dir().join(format!("vit-fx-test-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let mut c = Config::default();
+        c.normalize();
+        let cfg = Arc::new(Mutex::new(c));
+        let layout = serde_json::json!({"fx": {"subtitles": {"fade_ms": 120}, "help": {"fade_ms": 99999}, "": {"fade_ms": 5}}});
+        apply_layout(&crate::NoSink, &cfg, &dir.join("config.json"), &layout, 1, "ar", "gta6");
+        let c = cfg.lock().unwrap();
+        assert_eq!(c.fx("subtitles").fade_ms, Some(120));
+        assert_eq!(c.fx("help").fade_ms, Some(2000), "kept to what the app allows");
+        assert_eq!(c.fx("instructions").fade_ms, Some(0));
+        assert!(!c.fx_defaults.contains_key(""));
+        drop(c);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// Against a running backend in dev mode (its test pack key): the first download is the whole pack,
     /// later ones only the changes. `VIT_TEST_SERVER=http://localhost:8080 cargo test -- --ignored`

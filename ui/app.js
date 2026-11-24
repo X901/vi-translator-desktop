@@ -181,9 +181,9 @@ function drawLayer() {
       if (shownNow[a.id] || seen) {
         // A real line: drawn as the overlays draw it (the profile's look, riding above the stacked lines,
         // the black box over text seen and not translated yet)
-        const ride = AS.ridePlace(a, cfg.areas, cfg.area_fx, cfg.profile_opts, shownNow, overlays ? lastSeen : {}, shown.w, shown.h,
+        const ride = AS.ridePlace(a, cfg.areas, cfg.fx_view || cfg.area_fx, cfg.profile_opts, shownNow, overlays ? lastSeen : {}, shown.w, shown.h,
           (f, e) => AS.measureBox(probe, f, cfg.style, cfg.profile_opts, e, k, shown.h, a.w * shown.w));
-        AS.drawLine(box, a, cfg.style, cfg.profile_opts, cfg.area_fx, shownNow[a.id] || null, seen, k, shown.h,
+        AS.drawLine(box, a, cfg.style, cfg.profile_opts, cfg.fx_view || cfg.area_fx, shownNow[a.id] || null, seen, k, shown.h,
           { W: shown.w, H: shown.h, ox: r.x, oy: r.y, areaW: px.w, areaH: px.h, ride });
       } else {
         // the sample text (no English line to match: the style's size), in the area's own place
@@ -1194,7 +1194,7 @@ function bindPosGrid(card, a, keys, cls) {
 // ones too (whose areas can't be changed: data-more keeps these on), by area id.
 const FADES = [0, 100, 150, 250, 400, 600];
 function fxFields(a) {
-  const fx = AS.fxOf(cfg.area_fx, a.id);
+  const fx = AS.fxOf(cfg.fx_view || cfg.area_fx, a.id);
   const cover = AS.coverLook(cfg.profile_opts);
   const dis = cover ? "" : "disabled";
   return `
@@ -1214,8 +1214,12 @@ function fxFields(a) {
 }
 function bindFx(c, a) {
   const set = (k, v) => {
+    // (only what the player changed is theirs: an option they never touched — the fade-in — follows the game's
+    // default, which a layout update can change; the view the drawing goes by, at once)
     cfg.area_fx = cfg.area_fx || {};
-    cfg.area_fx[a.id] = Object.assign(AS.fxOf(cfg.area_fx, a.id), { [k]: v });
+    cfg.area_fx[a.id] = Object.assign({}, cfg.area_fx[a.id] || {}, { [k]: v });
+    cfg.fx_view = cfg.fx_view || {};
+    cfg.fx_view[a.id] = Object.assign(AS.fxOf(cfg.fx_view, a.id), { [k]: v });
     save();
   };
   c.querySelector(".fx-min").addEventListener("change", (e) => set("cover_min", e.target.checked));
@@ -2233,7 +2237,7 @@ listen("config", (e) => {
   const appSwitched = now.profile_rev !== cfg.profile_rev;
   // (only these: the event carries no secrets — the keys are blank in it — and the window's own
   // settings stay as the window has them; taking the whole payload would wipe the keys at the next save)
-  Object.assign(cfg, { builtins: now.builtins, server_games: now.server_games, games_version: now.games_version, layout_versions: now.layout_versions, game_profiles: now.game_profiles, profile_rev: now.profile_rev });
+  Object.assign(cfg, { builtins: now.builtins, server_games: now.server_games, games_version: now.games_version, layout_versions: now.layout_versions, game_profiles: now.game_profiles, profile_rev: now.profile_rev, fx_defaults: now.fx_defaults, fx_view: now.fx_view });
   // the app switched games (the picture showed another one)
   if (appSwitched && now.profile !== cfg.profile) {
     syncProfile();
@@ -2444,7 +2448,7 @@ async function drawLookPreviews(form) {
     // (the game's size, as "Match the game's text size" gives it; the style's look otherwise)
     const px = AS.matchedPx(Object.assign({}, area, { match_size: true }), tb[3], H);
     AS.renderBox(box, [[text || LOOK_LINE, null]], L.style, H / 360, area.font_scale, L.placement, L.area, px);
-    AS.placeAtText(box, L.placement, tb, tb[3], W, H, 0, 0, W, H, null, { min: AS.fxOf(cfg.area_fx, area.id).cover_min });
+    AS.placeAtText(box, L.placement, tb, tb[3], W, H, 0, 0, W, H, null, { min: AS.fxOf(cfg.fx_view || cfg.area_fx, area.id).cover_min });
   }
 }
 

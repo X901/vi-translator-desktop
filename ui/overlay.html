@@ -58,12 +58,12 @@
         const ev = { segments, text_box: textBox, game_box: gameBox, line_h: lineH };
         const ox = (geom.win_x || 0) / dpr, oy = (geom.win_y || 0) / dpr;
         // (the window covers the whole picture for these: config "full" in overlay.rs)
-        const fx = AS.fxOf(cfg.area_fx, AREA);
+        const fx = AS.fxOf(cfg.fx_view || cfg.area_fx, AREA);
         const whole = !!W && (AS.coverLook(cfg.profile_opts) || fx.ride);
         if (!probe.parentNode) wrap.appendChild(probe);
-        const ride = W ? AS.ridePlace(area, cfg.areas, cfg.area_fx, cfg.profile_opts, shownAll, seenAll, W, H,
+        const ride = W ? AS.ridePlace(area, cfg.areas, cfg.fx_view || cfg.area_fx, cfg.profile_opts, shownAll, seenAll, W, H,
           (f, e) => AS.measureBox(probe, f, cfg.style, cfg.profile_opts, e, k, H, area.w * W)) : null;
-        AS.drawLine(box, area, cfg.style, cfg.profile_opts, cfg.area_fx, ev, cover, k, H,
+        AS.drawLine(box, area, cfg.style, cfg.profile_opts, cfg.fx_view || cfg.area_fx, ev, cover, k, H,
           { W, H, ox, oy, areaW: area.w * W, areaH: area.h * H, noBoxes: !W, ride, whole });
       }
 
@@ -101,7 +101,7 @@
         if (!e.payload.error) {
           if (e.payload.segments && e.payload.segments.length) shownAll[e.payload.area] = e.payload; else delete shownAll[e.payload.area];
           // (another area's line moves a riding translation)
-          if (e.payload.area !== MY_TEXT && !SCREEN && cfg && AS.fxOf(cfg.area_fx, AREA).ride) draw();
+          if (e.payload.area !== MY_TEXT && !SCREEN && cfg && AS.fxOf(cfg.fx_view || cfg.area_fx, AREA).ride) draw();
         }
         if (e.payload.area !== MY_TEXT || e.payload.error) return;
         // (a translation taken down and the same one back a moment later stays up, not blinking: every

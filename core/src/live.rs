@@ -101,7 +101,8 @@ pub fn overlay_state(cfg: &Mutex<crate::config::Config>, live: &Live) -> serde_j
         let c = cfg.lock().unwrap();
         (c.areas.clone(), c.style.clone(), c.profile_opts.clone(), c.overlays_enabled, c.target_lang.clone())
     };
-    let area_fx = cfg.lock().unwrap().area_fx.clone();
+    // (each area's effects as they apply: the player's own, else the game's default)
+    let area_fx = cfg.lock().unwrap().fx_all();
     serde_json::json!({
         "build": crate::net::build_id(),
         "areas": areas,

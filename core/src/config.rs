@@ -383,6 +383,21 @@ pub struct Config {
     /// How each read area's translation comes on screen, by area id (Read Areas): the player's own,
     /// kept for every profile, built-in ones too (their areas can't be changed). Missing: the defaults.
     pub area_fx: std::collections::BTreeMap<String, AreaFx>,
+    /// The game's own defaults for its areas' effects where the player set none (its built-in profile's
+    /// `fx`, which layout updates tune): kept equal to it by `normalize`.
+    pub fx_defaults: std::collections::BTreeMap<String, FxDefaults>,
+    /// Each area's effects as they apply (the player's own, else the game's default, else the app's):
+    /// worked out by `normalize`, for the windows and pages that draw; what they send back is ignored.
+    #[serde(skip_deserializing)]
+    pub fx_view: std::collections::BTreeMap<String, AreaFx>,
+}
+
+/// A game's defaults for a read area's effects (see `Profile::fx`): only what it names.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct FxDefaults {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fade_ms: Option<u32>,
 }
 
 /// How a read area's translation comes on screen (see `Config::area_fx`).
@@ -395,8 +410,10 @@ pub struct AreaFx {
     /// With that look: the black box is up as soon as the text is seen, before its translation
     /// is ready (the translation then comes into it).
     pub cover_early: bool,
-    /// The translation fades in over this many ms (0 = it just appears).
-    pub fade_ms: u32,
+    /// The translation fades in over this many ms (0 = it just appears); not set: the game's default
+    /// (`Config::fx_defaults`, from layout updates), or off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fade_ms: Option<u32>,
     /// The game's lines stack up from a bottom line (GTA VI's subtitles: up to six lines and more):
     /// the area's text is read only when a line sits in the area, and the lines above it only when
     /// they're joined to it, up to STACK_H above the area. None: the area's default (`stack_default`).
@@ -417,7 +434,7 @@ pub struct AreaFx {
 
 impl Default for AreaFx {
     fn default() -> Self {
-        Self { cover_min: true, cover_early: true, fade_ms: 150, stack_up: None, ride: None, accent: None, reviewed_only: None }
+        Self { cover_min: true, cover_early: true, fade_ms: None, stack_up: None, ride: None, accent: None, reviewed_only: None }
     }
 }
 
@@ -469,8 +486,17 @@ impl Config {
     /// An area's effects (the defaults when it has none of its own).
     pub fn fx(&self, area: &str) -> AreaFx {
         let mut f = self.area_fx.get(area).cloned().unwrap_or_default();
-        f.fade_ms = f.fade_ms.min(2000);
+        f.fade_ms = Some(f.fade_ms.or_else(|| self.fx_defaults.get(area).and_then(|d| d.fade_ms)).unwrap_or(0).min(2000));
         f
+    }
+    /// Every read area's effects as they apply now (`fx`): what the overlays and pages draw by.
+    pub fn fx_all(&self) -> std::collections::BTreeMap<String, AreaFx> {
+        let ids = self.areas.iter().map(|a| a.id.clone()).chain(self.area_fx.keys().cloned()).chain(self.fx_defaults.keys().cloned());
+        ids.map(|id| {
+            let f = self.fx(&id);
+            (id, f)
+        })
+        .collect()
     }
     /// The phone's text translated beside it: GTA VI's (its built-in profile, or a copy of it).
     pub fn phone_text(&self) -> bool {
@@ -505,6 +531,10 @@ pub struct Profile {
     pub pages: ProfileOpts,
     /// How the game's text comes and goes, if it needs other timing than the app's (0 = the app's).
     pub timing: Timing,
+    /// The game's defaults for its areas' effects, by area id (a layout update's `fx`): what applies
+    /// where the player chose nothing (`Config::fx`).
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub fx: std::collections::BTreeMap<String, FxDefaults>,
 }
 
 /// Reading timing a game can bring (see `Config::timing`).
@@ -668,6 +698,7 @@ pub fn builtin_profile(id: &str) -> Option<Profile> {
             style: Style::default(),
             pages: ProfileOpts::default(),
             timing: Timing::default(),
+            fx: Default::default(),
         }),
         _ => None,
     }
@@ -787,6 +818,8 @@ impl Default for Config {
             areas: builtin_profile("gta6").expect("built-in").areas,
             style: Style::default(),
             area_fx: Default::default(),
+            fx_defaults: Default::default(),
+            fx_view: Default::default(),
         }
     }
 }
@@ -798,7 +831,7 @@ impl Default for Config {
 /// a four-line box's last line was cut off, so the translation stopped short and covered it;
 /// 4 = the live preview at 60 frames a second (was 30: a capture card sends 60, and the preview looked
 /// choppy next to the card's own app).
-pub const DEFAULTS_VERSION: u32 = 6;
+pub const DEFAULTS_VERSION: u32 = 7;
 
 /// The app's timing (Source → Timing): frames captured and shown per second, how often the areas are
 /// read, the wait for text to settle, and when the English counts as gone (ms). Fast enough for GTA
@@ -894,6 +927,18 @@ impl Config {
             self.clear_after_ms = DEFAULT_TIMING.clear_after_ms;
             self.timing_custom = Some(false);
             moved = true;
+        }
+        if self.defaults_version < 7 {
+            // v1.4.4, once: the translation's fade-in off (it was 150 ms). Saved settings held 150 for any
+            // area whose effects were ever changed — the old default written with them, not the player's
+            // choice: not set now (off, or the game's default from the server); another value the player
+            // picked stays
+            for f in self.area_fx.values_mut() {
+                if f.fade_ms == Some(150) {
+                    f.fade_ms = None;
+                    moved = true;
+                }
+            }
         }
         let bumped = self.defaults_version < DEFAULTS_VERSION;
         self.defaults_version = self.defaults_version.max(DEFAULTS_VERSION);
@@ -1030,6 +1075,11 @@ impl Config {
             .unwrap_or_else(|| self.builtins.iter().find(|p| p.id == "gta6").cloned().expect("built-in"));
         self.profile = active.id.clone();
         self.game_profiles.insert(active.game.clone(), active.id.clone());
+        // (the game's defaults: its built-in profile's, which layout updates tune — a copy follows them too)
+        self.fx_defaults = self.builtins.iter().find(|p| p.id == active.game).map(|p| p.fx.clone()).unwrap_or_default();
+        for d in self.fx_defaults.values_mut() {
+            d.fade_ms = d.fade_ms.map(|ms| ms.min(2000));
+        }
         self.areas = active.areas;
         self.style = active.style;
         self.profile_opts = active.pages;
@@ -1044,6 +1094,7 @@ impl Config {
                 self.profile_opts.more.insert(k.clone(), on);
             }
         }
+        self.fx_view = self.fx_all();
     }
 
     /// Show or hide a read area ("area") or a game page's switch ("page") of the profile in use, from
@@ -1129,6 +1180,50 @@ impl Config {
 #[cfg(test)]
 mod profile_tests {
     use super::*;
+
+    #[test]
+    fn the_fade_in_is_off_unless_chosen_and_150_saved_before_v7_is_let_go() {
+        // a settings file from v1.4.3: the old default 150 written with any area's effects, 250 chosen
+        let mut c: Config = serde_json::from_str(r#"{"defaults_version": 6, "area_fx": {
+            "subtitles": {"cover_min": true, "cover_early": true, "fade_ms": 150, "accent": true},
+            "help": {"cover_min": true, "cover_early": true, "fade_ms": 250}}}"#).unwrap();
+        assert!(c.move_to_new_defaults());
+        c.normalize();
+        assert_eq!(c.area_fx["subtitles"].fade_ms, None, "the old default: not the player's");
+        assert_eq!(c.area_fx["subtitles"].accent, Some(true), "the rest kept");
+        assert_eq!(c.fx("subtitles").fade_ms, Some(0), "off");
+        assert_eq!(c.fx("help").fade_ms, Some(250), "chosen: kept");
+        assert_eq!(c.fx("instructions").fade_ms, Some(0), "never set: off");
+        assert_eq!(c.fx_view["subtitles"].fade_ms, Some(0));
+        // only once: 150 chosen after it stays
+        c.area_fx.get_mut("subtitles").unwrap().fade_ms = Some(150);
+        assert!(!c.move_to_new_defaults());
+        assert_eq!(c.fx("subtitles").fade_ms, Some(150));
+        // and saved without a fade it isn't given one
+        let back: Config = serde_json::from_str(&serde_json::to_string(&Config::default()).unwrap()).unwrap();
+        assert!(back.area_fx.is_empty());
+    }
+
+    #[test]
+    fn the_games_fade_default_applies_where_the_player_chose_none() {
+        let mut c = Config::default();
+        c.builtins.iter_mut().find(|p| p.id == "gta6").unwrap().fx.insert("subtitles".into(), FxDefaults { fade_ms: Some(300) });
+        c.area_fx.insert("help".into(), AreaFx { fade_ms: Some(100), ..AreaFx::default() });
+        c.area_fx.insert("subtitles".into(), AreaFx { accent: Some(true), ..AreaFx::default() });
+        c.normalize();
+        assert_eq!(c.fx("subtitles").fade_ms, Some(300), "the game's default (another option set doesn't fix the fade)");
+        assert_eq!(c.fx_view["subtitles"].fade_ms, Some(300));
+        assert_eq!(c.fx("help").fade_ms, Some(100), "the player's own");
+        c.area_fx.get_mut("subtitles").unwrap().fade_ms = Some(0);
+        c.normalize();
+        assert_eq!(c.fx("subtitles").fade_ms, Some(0), "the player's off beats the game's default");
+        // a copy of the profile follows its game's defaults too
+        c.area_fx.clear();
+        c.profiles.push(Profile { id: "custom-1".into(), name: "Mine".into(), ..Profile::default() });
+        c.profile = "custom-1".into();
+        c.normalize();
+        assert_eq!(c.fx("subtitles").fade_ms, Some(300));
+    }
 
     #[test]
     fn what_the_server_sends_is_kept_to_what_the_app_uses() {
