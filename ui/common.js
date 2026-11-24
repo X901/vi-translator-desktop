@@ -363,7 +363,9 @@ window.AS = (() => {
   // where each of the phone's buttons was first seen (see renderPhone)
   const PHONE_BUTTON_AT = {};
   // the phone's tilt as last drawn (eased toward each reading's: renderPhone)
-  const PHONE_TILT = { turn: 0, slant: 0, at: 0 };
+  const PHONE_TILT = { turn: 0, slant: 0, at: 0, side: null };
+  // the chat list's rows last drawn, by contact (or header), and when: held a moment when missed (renderPhone)
+  const PHONE_ROWS = {};
 
   function renderPhone(root, P) {
     root.innerHTML = "";
@@ -376,19 +378,41 @@ window.AS = (() => {
     // phone's size
     const gap = 0.012 * W;
     const roomLeft = sx - gap * 2, roomRight = W - (sx + sw) - gap * 2;
-    const onLeft = roomLeft >= roomRight;
-    const colW = Math.max(Math.min(sw, onLeft ? roomLeft : roomRight), 0.12 * W);
+    // (the side it was on, unless the other has clearly more room: chosen anew each frame, the panel jumped
+    // from one side of the phone to the other)
+    const T0 = PHONE_TILT;
+    const onLeft = T0.side === "left" ? roomLeft * 1.25 >= roomRight : T0.side === "right" ? roomLeft > roomRight * 1.25 : roomLeft >= roomRight;
+    T0.side = onLeft ? "left" : "right";
+    // (exactly the phone screen's own size: the box found round a tilted screen is bigger than the screen; its
+    // width and height from that box and the screen's turn. Centred level with the phone's middle)
+    const tr = Math.abs(+P.turn || 0) > 0.3 ? (Math.abs(+P.turn) * Math.PI) / 180 : 0;
+    const [ct, st2] = [Math.cos(tr), Math.sin(tr)];
+    const c2 = ct * ct - st2 * st2;
+    let [tw, th] = [sw, sh];
+    if (tr && c2 > 0.3) {
+      tw = (sw * ct - sh * st2) / c2;
+      th = (sh * ct - sw * st2) / c2;
+      if (!(tw > 0.3 * sw && th > 0.3 * sh)) [tw, th] = [sw, sh];
+    }
+    const colW = tw;
+    const panelTop = sy + sh / 2 - th / 2;
     const x = onLeft ? sx - gap - colW : sx + sw + gap;
-    const fs = Math.max(11, 0.04 * colW);
+    // (its text the phone's size; in a chat list no bigger than its rows allow: each row as tall as the phone's,
+    // the rows one for one with the phone's, the last one in the screen as on the phone)
+    const ys = P.pieces.filter((p) => p.avatar || p.name).map((p) => p.rect[1] * H).sort((a, b) => a - b);
+    const pitches = ys.slice(1).map((y, i) => y - ys[i]).filter((d) => d > 4).sort((a, b) => a - b);
+    const pitch = pitches.length ? pitches[Math.floor(pitches.length / 2)] : 0;
+    const fs = Math.max(9, Math.min(Math.max(11, 0.04 * colW), P.list && pitch ? pitch / 4.3 : 1e9));
     const pad = 0.5 * fs;
     const panel = document.createElement("div");
+    panel.className = "phone-panel";
     root.appendChild(panel);
     Object.assign(panel.style, {
       position: "absolute",
       left: `${x}px`,
-      top: `${sy}px`,
+      top: `${panelTop}px`,
       width: `${colW}px`,
-      height: `${sh}px`,
+      height: `${th}px`,
       overflow: "hidden",
       background: P.screen_bg || "#f2f3f6",
       // (square corners, as the phone's screen)
@@ -408,12 +432,12 @@ window.AS = (() => {
       const r = (d) => (d * Math.PI) / 180;
       const [a, b, c, d2] = [Math.cos(r(T.turn)), Math.sin(r(T.turn)), -Math.sin(r(T.turn + T.slant)), Math.cos(r(T.turn + T.slant))];
       Object.assign(panel.style, {
-        transformOrigin: `${sx + sw / 2 - x}px ${sh / 2}px`,
+        transformOrigin: `${sx + sw / 2 - x}px ${th / 2}px`,
         transform: `matrix(${a.toFixed(4)}, ${b.toFixed(4)}, ${c.toFixed(4)}, ${d2.toFixed(4)}, 0, 0)`,
       });
     }
     // (in the panel: places relative to its top left)
-    const put = (d, left, top) => Object.assign(d.style, { left: `${left - x}px`, top: `${top - sy}px` });
+    const put = (d, left, top) => Object.assign(d.style, { left: `${left - x}px`, top: `${top - panelTop}px` });
     // the buttons at the bottom right ("SELECT", "BACK"): each one's word beside the game's, in its style
     for (const b of P.buttons || []) {
       // (the game's buttons stay put: the place a button was first seen at is kept while it's read within a
@@ -455,7 +479,30 @@ window.AS = (() => {
       root.appendChild(d);
     }
     let below = -1e9;
-    for (const p of P.pieces) {
+    // (a row read before and missed this time stays a moment where it was: one reading in a few misses a row
+    // — a picture's dark edge, a line the OCR skips — and the row blinked out and back)
+    const nowT = Date.now();
+    const rowKey = (p) => (p.name || "") + "|" + (p.label ? p.ar : "");
+    // (and a plain line, or a nameless row, read where a contact's row was a moment ago is that row read badly —
+    // "Paradise Taxi Hi! Your driver…" run together as one line, translated whole: the row as it was)
+    const overHeld = (q) => !q.name && Object.keys(PHONE_ROWS).some((k) => {
+      const r = PHONE_ROWS[k];
+      return r.p.name && nowT - r.at <= 700 && q.rect[1] < r.p.rect[1] + r.p.rect[3] && r.p.rect[1] < q.rect[1] + q.rect[3];
+    });
+    const pieces = P.list ? P.pieces.filter((q) => !overHeld(q)) : P.pieces.slice();
+    const seenNow = new Set(pieces.map(rowKey));
+    if (P.list) {
+      for (const k in PHONE_ROWS) {
+        const r = PHONE_ROWS[k];
+        if (seenNow.has(k)) continue;
+        if (nowT - r.at > 700) { delete PHONE_ROWS[k]; continue; }
+        const [ry, rh] = [r.p.rect[1], r.p.rect[3]];
+        if (!pieces.some((q) => q.rect[1] < ry + rh && ry < q.rect[1] + q.rect[3])) pieces.push(r.p);
+      }
+      for (const p of pieces) if (p.name || p.label) PHONE_ROWS[rowKey(p)] = { p: p, at: nowT };
+      pieces.sort((a, b) => a.rect[1] - b.rect[1]);
+    }
+    for (const p of pieces) {
       if (!p.ar && !(P.list && (p.name || p.avatar))) continue;
       if (P.list) {
         // WhatUp's chat list, as on the phone: rows of the contact's picture, name and message's start (one
@@ -514,7 +561,7 @@ window.AS = (() => {
         // (the arrow points back: to the right in a right-to-left page)
         bar.innerHTML = `<span style="color:#3d6fe0;font-size:${(1.5 * fs).toFixed(1)}px;line-height:1">${rtl() ? "›" : "‹"}</span><b style="unicode-bidi:plaintext">${esc(p.ar)}</b>${pic}`;
         panel.appendChild(bar);
-        below = sy + bh;
+        below = panelTop + bh;
         continue;
       }
       const d = document.createElement("div");
@@ -582,7 +629,6 @@ window.AS = (() => {
       below = top + d.offsetHeight;
     }
     // (the panel as tall as its rows need: Arabic lines a little taller than the phone's, the last row was cut)
-    if (below - sy + pad > sh) panel.style.height = `${below - sy + pad}px`;
   }
 
   // ---- Game pages (a menu, a "mission failed" page …) ------------------------------------------

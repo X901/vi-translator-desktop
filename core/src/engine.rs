@@ -1345,6 +1345,19 @@ impl Reader {
                     crate::phone::find_screen(&f.rgba, f.w, f.h)
                         // (a short light part, a Snapmatic post's caption: a phone only with its buttons up)
                         .or_else(|| crate::phone::find_screen_unsure(&f.rgba, f.w, f.h).filter(|_| crate::phone::phone_buttons(&crate::phone::read_buttons(ocr, &f.rgba, f.w, f.h))))
+                        // (where the screen is, steady: a frame finding less of it is the last place — the reading
+                        // turned upright round the same middle, the rows in the same places)
+                        .map(|scr| {
+                            let mut last = PHONE_SCREEN.lock().unwrap();
+                            let prev = last.map(|(r, _)| r);
+                            let scr = crate::phone::steady_screen(&mut last, scr, Instant::now());
+                            // (the phone somewhere else now — turned to, walked with: its rows as read there, not
+                            // the ones remembered from the last place, which came back as doubles)
+                            if prev.is_some_and(|p| p.0.abs_diff(scr.0) > scr.2 / 5 || p.1.abs_diff(scr.1) > scr.3 / 5) {
+                                ctx.live.phone_pieces.lock().unwrap().clear();
+                            }
+                            scr
+                        })
                         .map(|scr| (scr, crate::phone::read_screen_any(ocr, &f.rgba, f.w, f.h, scr)))
                         .filter(|(_, r)| !r.pieces.is_empty())
                 } else {
@@ -1418,11 +1431,36 @@ impl Reader {
                                 // good? I saw": the whole line it starts, the row cutting it to one line again; a
                                 // reviewed whole line before a machine translation of the cut start)
                                 let whole = if p.avatar.is_some() && exact.as_ref().is_none_or(|(_, src)| src != "reviewed") { m.starting_with(&p.en) } else { None };
+                                let reviewed_now = matches!(&whole, Some((_, _, src)) if src == "reviewed") || matches!(&exact, Some((_, src)) if src == "reviewed");
                                 let ar = match (exact, whole) {
                                     (_, Some((_, ar, src))) if src == "reviewed" => Some(ar),
                                     (Some((ar, _)), _) => Some(ar),
                                     (None, Some((_, ar, _))) => Some(ar),
                                     (None, None) => None,
+                                };
+                                // (a contact's row keeps the reviewed translation it was given while its message reads much
+                                // the same: a reading a letter off missed the reviewed line, and the row flipped to the
+                                // translator's own words and back several times a second)
+                                let row_key = p.name.clone().filter(|_| p.avatar.is_some());
+                                let ar = {
+                                    let mut guard = PHONE_ROW_AR.lock().unwrap();
+                                    let rows = guard.get_or_insert_with(HashMap::new);
+                                    match (&row_key, &ar) {
+                                        (Some(k), Some(a)) if reviewed_now => {
+                                            rows.insert(k.clone(), (p.en.clone(), a.clone()));
+                                            Some(a.clone())
+                                        }
+                                        (Some(k), _) => match rows.get(k) {
+                                            Some((en, a)) if ocr::similar(en, &p.en) || {
+                                                // (most of its words the same: "hon my rum is be..." for "thnx hon my rum is be...")
+                                                let ws = |t: &str| t.to_lowercase().split_whitespace().map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string()).filter(|w| w.len() > 1).collect::<std::collections::HashSet<_>>();
+                                                let (a1, b1) = (ws(en), ws(&p.en));
+                                                !b1.is_empty() && a1.intersection(&b1).count() * 3 >= b1.len().max(a1.len()) * 2
+                                            } => Some(a.clone()),
+                                            _ => ar,
+                                        },
+                                        _ => ar,
+                                    }
                                 };
                                 // (a translation with no words in it for words: the translator gave up on a cut
                                 // line, "thnx hon 😘 my rum is be..." came back as a row of dots: none, not that;
@@ -2032,6 +2070,13 @@ impl Reader {
         done!(Duration::from_millis(interval_ms.max(MIN_INTERVAL_MS)).saturating_sub(spent));
     }
 }
+
+/// The reviewed translations the phone's contact rows were given, by contact: their message as read, its
+/// translation (a row keeps it while its message reads much the same).
+static PHONE_ROW_AR: Mutex<Option<HashMap<String, (String, String)>>> = Mutex::new(None);
+
+/// The phone screen's place as last read, and when (phone::steady_screen).
+static PHONE_SCREEN: Mutex<Option<((u32, u32, u32, u32), Instant)>> = Mutex::new(None);
 
 fn translate_loop(ctx: Context, latest: Arc<Mutex<HashMap<String, u64>>>, jobs: mpsc::Receiver<Job>, present: mpsc::Sender<PMsg>) {
     let Context { cfg, live: shared, memory, sink, paths } = ctx;

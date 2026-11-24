@@ -196,7 +196,44 @@ const SCALE: u32 = 6;
 pub fn find_screen(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)> {
     // (a white screen in sunset shade is about 200; at night, in a dark car, 150 down to 80: the brighter
     // first, the dimmer only when no phone is found so)
-    [175, 130, 100, 75].into_iter().find_map(|light_from| find_screen_at(rgba, fw, fh, light_from, true))
+    let ts = [175, 130, 100, 75];
+    let (i, first) = ts.iter().enumerate().find_map(|(i, &t)| find_screen_at(rgba, fw, fh, t, true).map(|r| (i, r)))?;
+    // (and as much of it as a dimmer light still finds, round what was found: at night the screen's top is a
+    // little dimmer than the rest, and some frames found only its lower part — the panel jumped, its top rows
+    // came and went. The dimmer one holding the first, no more than half as big again)
+    let area = |r: (u32, u32, u32, u32)| r.2 as u64 * r.3 as u64;
+    let holds = |big: (u32, u32, u32, u32), small: (u32, u32, u32, u32)| {
+        let (x0, y0) = (big.0.max(small.0), big.1.max(small.1));
+        let (x1, y1) = ((big.0 + big.2).min(small.0 + small.2), (big.1 + big.3).min(small.1 + small.3));
+        x1 > x0 && y1 > y0 && (x1 - x0) as u64 * (y1 - y0) as u64 * 10 >= area(small) * 9
+    };
+    let mut best = first;
+    for &t in &ts[i + 1..] {
+        if let Some(r) = find_screen_at(rgba, fw, fh, t, true) {
+            if holds(r, best) && area(r) > area(best) && area(r) * 2 <= area(first) * 3 {
+                best = r;
+            }
+        }
+    }
+    Some(best)
+}
+
+/// The screen's place made steady from one frame to the next: one found inside the last one (held
+/// within a second), less of it found this time, is the last one (the panel didn't jump, its rows
+/// didn't go); a different or bigger one is taken as found.
+pub fn steady_screen(last: &mut Option<((u32, u32, u32, u32), std::time::Instant)>, found: (u32, u32, u32, u32), now: std::time::Instant) -> (u32, u32, u32, u32) {
+    if let Some((prev, at)) = *last {
+        let (x0, y0) = (prev.0.max(found.0), prev.1.max(found.1));
+        let (x1, y1) = ((prev.0 + prev.2).min(found.0 + found.2), (prev.1 + prev.3).min(found.1 + found.3));
+        let inside = x1 > x0 && y1 > y0 && (x1 - x0) as u64 * (y1 - y0) as u64 * 10 >= found.2 as u64 * found.3 as u64 * 9;
+        let smaller = (found.2 as u64 * found.3 as u64) < prev.2 as u64 * prev.3 as u64;
+        if inside && smaller && now.saturating_duration_since(at) < std::time::Duration::from_millis(1200) {
+            *last = Some((prev, now));
+            return prev;
+        }
+    }
+    *last = Some((found, now));
+    found
 }
 
 /// A light part of a screen too short to be sure of by its shape alone: a Snapmatic post's caption
@@ -1149,8 +1186,10 @@ pub fn steady(seen: &mut Vec<Seen>, read: Vec<Piece>, screen: (u32, u32, u32, u3
         let near = |s: &Seen| (s.at.0 - at.0).abs() <= 30 && s.piece.title == p.title;
         let full = |p: &Piece| format!("{} {}", p.name.as_deref().unwrap_or(""), p.en);
         let alike = |s: &Seen| {
-            let (a, b) = (norm(&full(&s.piece)), norm(&full(&p)));
-            distance(&a, &b) * 10 <= a.len().max(b.len()) * 4
+            let close = |a: String, b: String| !a.is_empty() && distance(&a, &b) * 10 <= a.len().max(b.len()) * 4;
+            // (or the message alike, a row read without its name this time — "Shirley" in the chosen row's
+            // outline, missed now and then: the same row, not a new one in its place)
+            close(norm(&full(&s.piece)), norm(&full(&p))) || (s.piece.avatar.is_some() && p.avatar.is_some() && (s.piece.name.is_none() || p.name.is_none()) && close(norm(&s.piece.en), norm(&p.en)))
         };
         let found = seen.iter().enumerate().filter(|(i, s)| !used[*i] && near(s) && alike(s)).min_by_key(|(_, s)| (s.at.1 - at.1).abs()).map(|(i, _)| i);
         match found {
@@ -1163,6 +1202,10 @@ pub fn steady(seen: &mut Vec<Seen>, read: Vec<Piece>, screen: (u32, u32, u32, u3
                 let row_lost = seen[i].piece.avatar.is_some() && p.avatar.is_none();
                 if !row_lost && (clean_score(&p.en) > clean_score(&seen[i].piece.en) + 1 || (p.avatar.is_some() && seen[i].piece.avatar.is_none())) {
                     seen[i].piece = p.clone();
+                }
+                // (its name read now, missed before: the row with it)
+                if seen[i].piece.name.is_none() && p.name.is_some() && p.avatar.is_some() {
+                    seen[i].piece.name = p.name.clone();
                 }
                 if p.preview.is_some() {
                     seen[i].piece.preview = p.preview;
