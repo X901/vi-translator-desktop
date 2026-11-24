@@ -1317,6 +1317,23 @@ impl Reader {
                                 let _ = jobs.send(Job { area: SCREEN_REASON.into(), seq: seq_counter, en: layout.reason_en.clone(), phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: Instant::now(), text_box: None, game_box: None, parts: Vec::new() });
                             }
                         }
+                        // (dev builds: which page, read off what — a page taken for one wrongly is found by this)
+                        #[cfg(debug_assertions)]
+                        {
+                            let v = serde_json::to_value(&layout).unwrap_or_default();
+                            let was = screen.as_ref().and_then(|s| serde_json::to_value(s).ok()).and_then(|s| s.get("id").cloned());
+                            if was.as_ref() != v.get("id") {
+                                let ens = |k: &str| v.get(k).and_then(|a| a.as_array()).map(|a| a.iter().filter_map(|x| x.get("en").and_then(|e| e.as_str())).take(6).collect::<Vec<_>>().join(" | ")).unwrap_or_default();
+                                eprintln!(
+                                    "[page] detected {} | title {:?} | labels {} | menu {} | buttons {}",
+                                    v.get("id").and_then(|x| x.as_str()).unwrap_or("?"),
+                                    v.get("title_en").and_then(|x| x.as_str()).unwrap_or(""),
+                                    ens("labels"),
+                                    ens("menu"),
+                                    ens("buttons")
+                                );
+                            }
+                        }
                         *ctx.live.screen.lock().unwrap() = serde_json::to_value(&layout).ok();
                         ctx.sink.emit("screen", serde_json::to_value(Some(&layout)).unwrap_or_default());
                         ctx.live.screen_active.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -1465,6 +1482,12 @@ impl Reader {
                                     let rows = guard.get_or_insert_with(HashMap::new);
                                     match (&row_key, &ar) {
                                         (Some(k), Some(a)) if reviewed_now => {
+                                            rows.insert(k.clone(), (p.en.clone(), a.clone()));
+                                            Some(a.clone())
+                                        }
+                                        // (the first translation it got, whatever its source, held too: a machine translation of
+                                        // a reading a word different came out differently, and the row flipped between the two)
+                                        (Some(k), Some(a)) if !rows.contains_key(k) => {
                                             rows.insert(k.clone(), (p.en.clone(), a.clone()));
                                             Some(a.clone())
                                         }
