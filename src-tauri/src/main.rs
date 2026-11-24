@@ -898,6 +898,8 @@ fn phone_crops(file: &str, out: &str) -> anyhow::Result<()> {
     println!("turn {:.2} upright {} slant {:?}", read.angle, read.upright.is_some(), phone::tilt_of(&read.pieces));
     println!("quad {:?}", read.quad.map(|q| q.map(|(x, y)| (x.round(), y.round()))));
     let corners = read.quad_in_pieces;
+    println!("photos {:?}", read.photos);
+    let photo_boxes = read.photos.clone();
     let pieces = read.pieces;
     let up_img = read.upright.map(|u| image::RgbaImage::from_raw(w, h, u).expect("frame size"));
     let img = up_img.unwrap_or(img);
@@ -952,6 +954,9 @@ fn phone_crops(file: &str, out: &str) -> anyhow::Result<()> {
     }
     let (sx, sy, sw, sh) = scr;
     boxed((sx as i32, sy as i32, sw, sh), [255, 255, 0, 255]);
+    for r in &photo_boxes {
+        boxed((r.0 as i32, r.1 as i32, r.2, r.3), [0, 255, 0, 255]);
+    }
     for (x, y) in corners.into_iter().flatten() {
         boxed((x as i32 - 6, y as i32 - 6, 12, 12), [255, 0, 255, 255]);
     }

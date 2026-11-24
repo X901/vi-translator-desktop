@@ -373,6 +373,8 @@ window.AS = (() => {
   const PHONE_END = {};
   // each chat bubble's box as first drawn (renderPhone: kept while readings stay near it)
   const PHONE_BOX = {};
+  // each chat's photos' placeholders as drawn, and when last read (renderPhone)
+  const PHONE_PHOTOS = {};
   // The CSS matrix3d taking four points (an element's own, px) to four others (the page's): a perspective
   // transform (homography), solved from the eight equations the four pairs give.
   function matrix3d(src, dst) {
@@ -816,6 +818,43 @@ window.AS = (() => {
       put(d, left, top);
       if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
+    }
+    // (the chat's photos: a placeholder in each one's place and size — a darker box, a picture's sign in it)
+    if (Q) {
+      // (each kept where it was first drawn while new readings stay within 4 % of the screen's width of it — a
+      // photo's edges as read move a few pixels each frame; one missed for a moment stays)
+      const nowP = Date.now();
+      const kept = (PHONE_PHOTOS[chatId] = (PHONE_PHOTOS[chatId] || []).filter((k) => nowP - k.at < 3000));
+      kept.forEach((k) => (k.used = false));
+      const near = (a, b) => Math.abs(a[0] - b[0]) <= colW * 0.04 && Math.abs(a[1] - b[1]) <= colW * 0.04 && Math.abs(a[2] - b[2]) <= colW * 0.06 && Math.abs(a[3] - b[3]) <= colW * 0.06;
+      const boxesP = [];
+      for (const u of P.photos || []) {
+        const b = [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh];
+        const k = kept.find((k) => !k.used && near(k.b, b));
+        if (k) { k.used = true; k.at = nowP; boxesP.push(k.b); } else { kept.push({ b: b, at: nowP, used: true }); boxesP.push(b); }
+      }
+      const overlaps = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+      for (const k of kept) if (!k.used && nowP - k.at < 700 && !boxesP.some((b) => overlaps(b, k.b))) boxesP.push(k.b);
+      for (const bP of boxesP) {
+        const [px0, py0, pw, ph] = bP;
+        const ph2 = document.createElement("div");
+        ph2.className = "phone-photo";
+        const z = Math.min(pw, ph) * 0.32;
+        Object.assign(ph2.style, {
+          position: "absolute", boxSizing: "border-box", width: `${pw}px`, height: `${ph}px`,
+          borderRadius: `${0.3 * fs}px`, background: "rgba(0,0,0,0.13)", border: "1px solid rgba(0,0,0,0.08)",
+          display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none",
+        });
+        // (a picture's sign: a frame, a sun, two hills)
+        ph2.innerHTML =
+          `<svg width="${z * 1.3}" height="${z}" viewBox="0 0 26 20" style="display:block">` +
+          `<rect x="1" y="1" width="24" height="18" rx="2.5" style="fill:none;stroke:rgba(0,0,0,0.35);stroke-width:1.6px"/>` +
+          `<circle cx="18" cy="6.5" r="2.2" style="fill:rgba(0,0,0,0.35);stroke:none"/>` +
+          `<path d="M3 17 L10 9 L15 14 L18 11 L23 17 Z" style="fill:rgba(0,0,0,0.35);stroke:none"/>` +
+          `</svg>`;
+        panel.appendChild(ph2);
+        put(ph2, x + px0, panelTop + py0);
+      }
     }
     // (the chat's bubbles: the largest text size every one of them fits its box at — as big as the phone's, up to a
     // little bigger, one size for all as on the phone)

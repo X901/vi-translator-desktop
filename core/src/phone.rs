@@ -278,6 +278,7 @@ fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) ->
     }
     // connected bright regions (4-neighbours): their boxes and sizes
     let mut seen = vec![false; light.len()];
+    let mut label = vec![usize::MAX; light.len()];
     let mut regions: Vec<(u32, u32, u32, u32, u32)> = Vec::new(); // x0, y0, x1, y1, cells
     for start in 0..light.len() {
         if !light[start] || seen[start] {
@@ -287,6 +288,7 @@ fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) ->
         let mut stack = vec![start];
         seen[start] = true;
         while let Some(i) = stack.pop() {
+            label[i] = regions.len();
             let (x, y) = (i as u32 % cw, i as u32 / cw);
             x0 = x0.min(x);
             y0 = y0.min(y);
@@ -316,11 +318,52 @@ fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) ->
     }
     // the phone screen's width, in cells: an eighth to 45 % of the picture's height (1080p: 135-486 px)
     let (min_w, max_w) = (ch / 8, ch * 9 / 20);
-    let fits = |r: &(u32, u32, u32, u32, u32)| {
-        let (w, h) = (r.2 - r.0 + 1, r.3 - r.1 + 1);
-        (min_w..=max_w).contains(&w) && r.4 * 10 >= w * h * 5
+    // (the parts of its box the region holds inside it: a chat's photo is a dark hole in the screen's light, its
+    // bubble's light all round it — the screen with photos filled less than half its box, and wasn't found)
+    let holes = |idx: usize, r: &(u32, u32, u32, u32, u32)| -> u32 {
+        let (x0, y0, x1, y1) = (r.0, r.1, r.2, r.3);
+        let (bw, bh) = (x1 - x0 + 1, y1 - y0 + 1);
+        let mut out = vec![false; (bw * bh) as usize];
+        let mut stack: Vec<(u32, u32)> = Vec::new();
+        let other = |x: u32, y: u32| label[(y * cw + x) as usize] != idx;
+        for x in x0..=x1 {
+            for y in [y0, y1] {
+                if other(x, y) && !out[((y - y0) * bw + x - x0) as usize] {
+                    out[((y - y0) * bw + x - x0) as usize] = true;
+                    stack.push((x, y));
+                }
+            }
+        }
+        for y in y0..=y1 {
+            for x in [x0, x1] {
+                if other(x, y) && !out[((y - y0) * bw + x - x0) as usize] {
+                    out[((y - y0) * bw + x - x0) as usize] = true;
+                    stack.push((x, y));
+                }
+            }
+        }
+        while let Some((x, y)) = stack.pop() {
+            for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
+                let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                if nx < x0 as i32 || ny < y0 as i32 || nx > x1 as i32 || ny > y1 as i32 {
+                    continue;
+                }
+                let (nx, ny) = (nx as u32, ny as u32);
+                let k = ((ny - y0) * bw + nx - x0) as usize;
+                if !out[k] && other(nx, ny) {
+                    out[k] = true;
+                    stack.push((nx, ny));
+                }
+            }
+        }
+        let outside = out.iter().filter(|&&o| o).count() as u32;
+        (bw * bh).saturating_sub(outside).saturating_sub(r.4)
     };
-    let main = regions.iter().filter(|r| fits(r) && r.3 - r.1 + 1 >= (r.2 - r.0 + 1) / 2).max_by_key(|r| r.4)?;
+    let fits = |idx: usize, r: &(u32, u32, u32, u32, u32)| {
+        let (w, h) = (r.2 - r.0 + 1, r.3 - r.1 + 1);
+        (min_w..=max_w).contains(&w) && (r.4 * 10 >= w * h * 5 || (r.4 + holes(idx, r)) * 10 >= w * h * 7)
+    };
+    let main = regions.iter().enumerate().filter(|(i, r)| fits(*i, r) && r.3 - r.1 + 1 >= (r.2 - r.0 + 1) / 2).max_by_key(|(_, r)| r.4).map(|(_, r)| r)?;
     // the screen's other bright parts in its column (above or below a photo)
     let (mut x0, mut y0, mut x1, mut y1) = (main.0, main.1, main.2, main.3);
     let w = x1 - x0 + 1;
@@ -402,6 +445,8 @@ pub struct Read {
     /// the pieces are in (turned upright with them): where each piece is on the screen, across and down.
     pub quad: Option<[(f64, f64); 4]>,
     pub quad_in_pieces: Option<[(f64, f64); 4]>,
+    /// The photos on the screen (a chat's pictures), in the frame the pieces are in: shown as placeholders.
+    pub photos: Vec<(u32, u32, u32, u32)>,
 }
 
 impl Read {
@@ -429,13 +474,15 @@ pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u
     let quad = screen_quad(rgba, fw, fh, screen);
     let (pieces, angle) = read_screen_at(ocr, rgba, fw, fh, screen);
     if angle.abs() < 1.0 || angle.abs() > 35.0 {
-        return Read { pieces, angle, upright: None, screen: Some(screen_edges(rgba, fw, fh, screen)), quad, quad_in_pieces: quad };
+        let photos = photos_in(rgba, fw, fh, quad.map(|q| quad_box(q)).unwrap_or(screen), &pieces);
+        return Read { pieces, angle, upright: None, screen: Some(screen_edges(rgba, fw, fh, screen)), quad, quad_in_pieces: quad, photos };
     }
     let up = upright(rgba, fw, fh, screen, angle);
     let (again, _) = read_screen_at(ocr, &up, fw, fh, screen);
     // (read upright, at least as much as before: else as read)
     if again.len() + 1 < pieces.len() {
-        return Read { pieces, angle, upright: None, screen: None, quad, quad_in_pieces: quad };
+        let photos = photos_in(rgba, fw, fh, quad.map(|q| quad_box(q)).unwrap_or(screen), &pieces);
+        return Read { pieces, angle, upright: None, screen: None, quad, quad_in_pieces: quad, photos };
     }
     let edges = screen_edges(&up, fw, fh, screen);
     // (the corners turned upright as the frame was: upright() takes each point from c + R(angle)(p - c), so a
@@ -443,7 +490,8 @@ pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u
     let (ccx, ccy) = (screen.0 as f64 + screen.2 as f64 / 2.0, screen.1 as f64 + screen.3 as f64 / 2.0);
     let (sin, cos) = (-angle).to_radians().sin_cos();
     let quad_in_pieces = quad.map(|q| q.map(|(x, y)| (ccx + (x - ccx) * cos - (y - ccy) * sin, ccy + (x - ccx) * sin + (y - ccy) * cos)));
-    Read { pieces: again, angle, upright: Some(up), screen: Some(edges), quad, quad_in_pieces }
+    let photos = photos_in(&up, fw, fh, quad_in_pieces.map(|q| quad_box(q)).unwrap_or(screen), &again);
+    Read { pieces: again, angle, upright: Some(up), screen: Some(edges), quad, quad_in_pieces, photos }
 }
 
 /// A message's bubble round its text `r` (frame pixels): from the text outward, each way, as far as the pixels are
@@ -501,6 +549,115 @@ pub fn bubble_box(rgba: &[u8], fw: u32, fh: u32, r: (u32, u32, u32, u32), bg: [u
     let bottom = med(cols.iter().filter_map(|&xx| edge((xx, y + h), (0, 1))).collect())?;
     let (bx0, by0) = ((x - left).max(0) as u32, (y - top).max(0) as u32);
     Some((bx0, by0, (w + left + right) as u32, (h + top + bottom) as u32))
+}
+
+/// The box inside four corners (an upright screen's): its middles' left, top, right and bottom.
+fn quad_box(q: [(f64, f64); 4]) -> (u32, u32, u32, u32) {
+    let (left, right) = ((q[0].0 + q[3].0) / 2.0, (q[1].0 + q[2].0) / 2.0);
+    let (top, bottom) = ((q[0].1 + q[1].1) / 2.0, (q[3].1 + q[2].1) / 2.0);
+    (left.max(0.0) as u32, top.max(0.0) as u32, (right - left).max(1.0) as u32, (bottom - top).max(1.0) as u32)
+}
+
+/// The photos on a screen (`b`: the screen, frame pixels): big, mostly solid parts that are neither the screen's
+/// light nor its text — colourful or dark, a fifth of the screen's width and more, away from the pieces' words.
+pub fn photos_in(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32), pieces: &[Piece]) -> Vec<(u32, u32, u32, u32)> {
+    let cell = 6u32;
+    let (bx, by) = (b.0 + b.2 / 40, b.1 + b.3 / 40);
+    let (bw, bh) = (b.2 - b.2 / 20, b.3 - b.3 / 20);
+    let (gw, gh) = (bw / cell, bh / cell);
+    if gw < 8 || gh < 8 {
+        return Vec::new();
+    }
+    let lum = |p: [u8; 3]| (p[0] as u32 * 3 + p[1] as u32 * 6 + p[2] as u32) / 10;
+    // the screen's light: the brighter samples
+    let mut v: Vec<u32> = Vec::new();
+    for k in 1..12 {
+        for j in 1..8 {
+            let (x, y) = (bx + bw * j / 8, by + bh * k / 12);
+            if x < fw && y < fh {
+                v.push(lum(px(rgba, fw, x, y)));
+            }
+        }
+    }
+    v.sort_unstable();
+    let light = v.get(v.len() * 3 / 4).copied().unwrap_or(200);
+    let in_text = |x: u32, y: u32| pieces.iter().any(|p| x + 3 >= p.rect.0 && x <= p.rect.0 + p.rect.2 + 3 && y + 3 >= p.rect.1 && y <= p.rect.1 + p.rect.3 + 3 || p.avatar.is_some_and(|a| {
+        let (ax, ay) = (p.rect.0 as i32 + a.0, p.rect.1 as i32 + a.1);
+        (x as i32) >= ax && (x as i32) <= ax + a.2 as i32 && (y as i32) >= ay && (y as i32) <= ay + a.2 as i32
+    }));
+    let mut pic = vec![false; (gw * gh) as usize];
+    for gy in 0..gh {
+        for gx in 0..gw {
+            let (x0, y0) = (bx + gx * cell, by + gy * cell);
+            if in_text(x0 + cell / 2, y0 + cell / 2) {
+                continue;
+            }
+            let mut n = 0;
+            for (dx, dy) in [(1, 1), (4, 1), (1, 4), (4, 4), (2, 3)] {
+                let (x, y) = ((x0 + dx).min(fw - 1), (y0 + dy).min(fh - 1));
+                let p = px(rgba, fw, x, y);
+                let (lo, hi) = (*p.iter().min().unwrap() as u32, *p.iter().max().unwrap() as u32);
+                if hi - lo > 30 || lum(p) * 100 < light * 62 {
+                    n += 1;
+                }
+            }
+            pic[(gy * gw + gx) as usize] = n >= 3;
+        }
+    }
+    let mut seen = vec![false; pic.len()];
+    let mut out = Vec::new();
+    let mut parts: Vec<(u32, u32, u32, u32, u32)> = Vec::new();
+    for start in 0..pic.len() {
+        if !pic[start] || seen[start] {
+            continue;
+        }
+        let (mut x0, mut y0, mut x1, mut y1, mut n) = (u32::MAX, u32::MAX, 0u32, 0u32, 0u32);
+        let mut stack = vec![start];
+        seen[start] = true;
+        while let Some(i) = stack.pop() {
+            let (x, y) = (i as u32 % gw, i as u32 / gw);
+            (x0, y0, x1, y1, n) = (x0.min(x), y0.min(y), x1.max(x), y1.max(y), n + 1);
+            for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
+                let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                if nx < 0 || ny < 0 || nx as u32 >= gw || ny as u32 >= gh {
+                    continue;
+                }
+                let j = (ny as u32 * gw + nx as u32) as usize;
+                if pic[j] && !seen[j] {
+                    seen[j] = true;
+                    stack.push(j);
+                }
+            }
+        }
+        parts.push((x0, y0, x1, y1, n));
+    }
+    // (a photo's parts as one: a bright strip in it — a white railing, a sky — split it in two now and then, and
+    // its placeholder went from one box to two and back. Parts within two cells of each other merged)
+    let mut merged = true;
+    while merged {
+        merged = false;
+        'outer: for i in 0..parts.len() {
+            for j in i + 1..parts.len() {
+                let (a, b) = (parts[i], parts[j]);
+                let close = a.0 <= b.2 + 2 && b.0 <= a.2 + 2 && a.1 <= b.3 + 2 && b.1 <= a.3 + 2;
+                if close {
+                    parts[i] = (a.0.min(b.0), a.1.min(b.1), a.2.max(b.2), a.3.max(b.3), a.4 + b.4);
+                    parts.remove(j);
+                    merged = true;
+                    break 'outer;
+                }
+            }
+        }
+    }
+    for (x0, y0, x1, y1, n) in parts {
+        let (w, h) = (x1 - x0 + 1, y1 - y0 + 1);
+        // (a photo's size: a fifth of the screen's width, a sixteenth of its height; mostly solid)
+        if w * 5 >= gw && h * 16 >= gh && n * 100 >= w * h * 50 {
+            out.push((bx + x0 * cell, by + y0 * cell, w * cell, h * cell));
+        }
+    }
+    out.sort_by_key(|r| (r.1, r.0));
+    out
 }
 
 /// The screen's four corners in the frame (top left, top right, bottom right, bottom left; frame pixels), as it

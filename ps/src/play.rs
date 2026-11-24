@@ -60,6 +60,15 @@ pub fn scale(pcm: &mut [i16], gain: f32) {
     }
 }
 
+/// A controller pressed by the app itself (dev builds' debug server: driving the game to test its overlays), and
+/// until when: added to the real controllers' state while it lasts.
+static VIRTUAL: Mutex<Option<(Pad, Instant)>> = Mutex::new(None);
+
+/// Presses `p` on the PS5 for `hold`, with whatever real controllers do meanwhile.
+pub fn press(p: Pad, hold: Duration) {
+    *VIRTUAL.lock().unwrap() = Some((p, Instant::now() + hold));
+}
+
 /// What the player has done so far (for the app's status line).
 #[derive(Default)]
 pub struct Stats {
@@ -249,6 +258,19 @@ fn sdl_thread(rx: Receiver<ToSdl>, session: Arc<Mutex<Option<Session>>>, stop: A
             for (a, b) in [(&mut p.lx, s.lx), (&mut p.ly, s.ly), (&mut p.rx, s.rx), (&mut p.ry, s.ry)] {
                 if b.unsigned_abs() > a.unsigned_abs() {
                     *a = b;
+                }
+            }
+        }
+        // (and the app's own press, while it lasts)
+        if let Some((v, until)) = *VIRTUAL.lock().unwrap() {
+            if Instant::now() < until {
+                p.buttons |= v.buttons;
+                p.l2 = p.l2.max(v.l2);
+                p.r2 = p.r2.max(v.r2);
+                for (a, b) in [(&mut p.lx, v.lx), (&mut p.ly, v.ly), (&mut p.rx, v.rx), (&mut p.ry, v.ry)] {
+                    if b != 0 {
+                        *a = b;
+                    }
                 }
             }
         }

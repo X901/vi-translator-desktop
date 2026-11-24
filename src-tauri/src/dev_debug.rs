@@ -10,6 +10,8 @@
 //! GET /shot?w=main                a PNG of that window's page as drawn now (saved; its path back)
 //! GET /frame                      a PNG of the game's frame now (saved; its path back)
 //! GET /state                      the phone's, the game page's and the overlays' data now
+//! GET /pad?b=cross,down&ms=120    press the PS5's controller buttons (playing in the app: PS5 Remote Play) for
+//!                                 ms milliseconds, and sticks (lx, ly, rx, ry: -32768..32767; l2, r2: 0..255)
 //! GET /eval?w=main&js=…           run JavaScript in that window; what it gives `__devReport(v)` comes back
 //!                                 (waits up to 5 s; a plain expression: wrap it, `__devReport(1 + 1)`)
 
@@ -118,6 +120,43 @@ fn answer(path: &str, q: &HashMap<String, String>, app: &AppHandle, shared: &Sha
             "screen_reason": shared.screen_reason.lock().unwrap().clone(),
             "covers": shared.covers.lock().unwrap().clone(),
         })),
+        "/pad" => {
+            use vi_translator_ps::buttons as b;
+            let mut p = vi_translator_ps::Pad::default();
+            for name in q.get("b").map(String::as_str).unwrap_or("").split(',').filter(|n| !n.is_empty()) {
+                p.buttons |= match name.trim().to_lowercase().as_str() {
+                    "cross" | "x" => b::CROSS,
+                    "circle" | "o" => b::CIRCLE,
+                    "square" => b::SQUARE,
+                    "triangle" => b::TRIANGLE,
+                    "left" => b::LEFT,
+                    "right" => b::RIGHT,
+                    "up" => b::UP,
+                    "down" => b::DOWN,
+                    "l1" => b::L1,
+                    "r1" => b::R1,
+                    "l3" => b::L3,
+                    "r3" => b::R3,
+                    "options" => b::OPTIONS,
+                    "share" | "create" => b::SHARE,
+                    "touchpad" => b::TOUCHPAD,
+                    "ps" => b::PS,
+                    other => return Err(format!("no button {other:?}")),
+                };
+            }
+            let num = |k: &str| q.get(k).and_then(|v| v.parse::<i64>().ok());
+            p.lx = num("lx").unwrap_or(0).clamp(-32768, 32767) as i16;
+            p.ly = num("ly").unwrap_or(0).clamp(-32768, 32767) as i16;
+            p.rx = num("rx").unwrap_or(0).clamp(-32768, 32767) as i16;
+            p.ry = num("ry").unwrap_or(0).clamp(-32768, 32767) as i16;
+            p.l2 = num("l2").unwrap_or(0).clamp(0, 255) as u8;
+            p.r2 = num("r2").unwrap_or(0).clamp(0, 255) as u8;
+            let ms = num("ms").unwrap_or(120).clamp(30, 5000) as u64;
+            vi_translator_ps::play::press(p, Duration::from_millis(ms));
+            // (held for its time, then let go: the answer once it has been)
+            std::thread::sleep(Duration::from_millis(ms + 60));
+            Ok(serde_json::json!({ "pressed": format!("{:#x}", p.buttons), "ms": ms }))
+        }
         "/eval" => {
             let label = q.get("w").map(String::as_str).unwrap_or("main");
             let js = q.get("js").ok_or("js=…")?;
