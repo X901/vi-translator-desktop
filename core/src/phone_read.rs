@@ -63,11 +63,14 @@ pub fn sig(rgba: &[u8], fw: u32, fh: u32, q: [(f64, f64); 4]) -> (Vec<u8>, f64) 
     // (half of it: the text alone. VI_TRANSLATOR_PHONE_INK sets another share, in hundredths)
     let frac: u32 = std::env::var("VI_TRANSLATOR_PHONE_INK").ok().and_then(|v| v.parse().ok()).unwrap_or(50);
     let dark = light * frac / 100;
+    // (far apart by the screen's own light too, a sixth of it — 40 by day: at night the same text's pixels are
+    // half as far apart, and a dim phone was taken for a blurred one, with nothing shown for it)
+    let far = (light / 6).max(8) as u8;
     let mut edges = 0usize;
     let sig = px
         .chunks_exact(SUB * wide)
         .map(|band| {
-            edges += band.chunks_exact(wide).map(|row| row.windows(2).filter(|w| w[0].abs_diff(w[1]) > 40).count()).sum::<usize>();
+            edges += band.chunks_exact(wide).map(|row| row.windows(2).filter(|w| w[0].abs_diff(w[1]) > far).count()).sum::<usize>();
             let ink = band.iter().filter(|&&l| (l as u32) < dark).count();
             (ink * 255 * 3 / band.len()).min(255) as u8
         })
@@ -379,6 +382,19 @@ pub fn page(mut lines: Vec<Line>, col: (f64, f64), bottom: f64, tint: &dyn Fn(&L
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_dim_screen_s_text_is_detail_as_a_bright_one_s_is() {
+        // (a screen of text: a dark pixel in every eight, on white; its light as by day, and as at night)
+        let detail = |white: u8, text: u8| {
+            let (w, h) = (200u32, 400u32);
+            let rgba: Vec<u8> = (0..w * h).flat_map(|i| [if i % w % 8 == 0 { text } else { white }; 4]).collect();
+            sig(&rgba, w, h, corners((0, 0, w, h))).1
+        };
+        assert!(detail(240, 60) >= DETAIL_MIN && detail(100, 70) >= DETAIL_MIN, "day {} night {}", detail(240, 60), detail(100, 70));
+        // (a blur's pixels are a level or two apart, whatever its light)
+        assert!(detail(100, 97) < DETAIL_MIN && detail(240, 237) < DETAIL_MIN);
+    }
 
     #[test]
     fn read_once_a_screen_is_still_and_again_only_when_it_changes() {
