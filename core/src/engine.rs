@@ -1376,6 +1376,17 @@ impl Reader {
                         // second phone drawn through the same corners, each piece where it is on the screen)
                         let quad = read.quad;
                         let photos: Vec<[f64; 4]> = read.photos.iter().filter_map(|r| read.quad_in_pieces.and_then(|q| crate::phone::on_screen(q, *r))).collect();
+                        // (an emoji sent on its own: where it is on the screen, and its picture as it is)
+                        let stickers: Vec<serde_json::Value> = read
+                            .stickers
+                            .iter()
+                            .filter_map(|r| {
+                                let uv = read.quad_in_pieces.and_then(|q| crate::phone::on_screen(q, *r))?;
+                                let png = crate::phone::part_png(read.upright.as_deref().unwrap_or(&f.rgba[..]), f.w, f.h, *r, (0, 0, r.2, r.3), 48)?;
+                                use base64::Engine as _;
+                                Some(serde_json::json!({ "uv": uv, "png": format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png)) }))
+                            })
+                            .collect();
                         let quad_in = read.quad_in_pieces;
                         let uv = |r: (u32, u32, u32, u32)| quad_in.and_then(|q| crate::phone::on_screen(q, r));
                         // (steady from one read to the next: a misreading keeps the first reading, a missed piece stays a moment)
@@ -1533,7 +1544,7 @@ impl Reader {
                             }
                         }
                         let sbg = crate::phone::screen_bg(fr, f.w, f.h, scr, scr.1, scr.1 + scr.3);
-                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some() && !p.title), "buttons": btns, "turn": turn, "slant": slant, "screen_own": screen_own.map(frac), "quad": quad.map(|q| q.map(|(x, y)| [x / w, y / h])), "photos": photos });
+                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some() && !p.title), "buttons": btns, "turn": turn, "slant": slant, "screen_own": screen_own.map(frac), "quad": quad.map(|q| q.map(|(x, y)| [x / w, y / h])), "photos": photos, "stickers": stickers });
                         let mut up = ctx.live.phone.lock().unwrap();
                         if up.as_ref() != Some(&v) {
                             *up = Some(v.clone());

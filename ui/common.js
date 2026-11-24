@@ -593,6 +593,9 @@ window.AS = (() => {
     const fitList = [];
     // (the other person's bubbles' left margin, the smallest: the character's own keep the same on the right)
     const margins = { left: null };
+    // (the chat's photos on the flat screen: a bubble whose words have a photo right under them holds it, as on the
+    // phone — its box runs on round the photo)
+    const photoFlat = Q ? (P.photos || []).map((u) => [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh]) : [];
     // (the character's own messages: blue bubbles, its blue clearly above its red; the other person's grey-white)
     const isOwn = (p) => {
       const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(p.bg || "");
@@ -772,6 +775,17 @@ window.AS = (() => {
         // (the bubble as measured on the phone, where its colour gives way to the screen's; else its text's box and
         // the phone's usual padding)
         let bx = p.box ? p.box.slice() : [p.rect[0] * W - bpx, p.rect[1] * H - bpy, p.rect[2] * W + 2 * bpx, p.rect[3] * H + 2 * bpy];
+        for (const ph of photoFlat) {
+          const under = ph[1] >= bx[1] + bx[3] - 2 * fs && ph[1] <= bx[1] + bx[3] + 1.5 * fs;
+          const across = Math.min(bx[0] + bx[2], ph[0] + ph[2]) - Math.max(bx[0], ph[0]) >= Math.min(bx[2], ph[2]) * 0.5;
+          if (under && across) {
+            const [x0, x1] = [Math.min(bx[0], ph[0] - 0.4 * fs), Math.max(bx[0] + bx[2], ph[0] + ph[2] + 0.4 * fs)];
+            bx = [x0, bx[1], x1 - x0, ph[1] + ph[3] + 0.4 * fs - bx[1]];
+            // (its words at the top of it, over the photo's top, as on the phone: see below)
+            d.dataset.photo = "1";
+            ph.taken = true;
+          }
+        }
         bx[0] = Math.max(0.3 * pad, bx[0]);
         if (bx[0] + bx[2] > colW - 0.3 * pad) bx[2] = colW - 0.3 * pad - bx[0];
         // (the character's own, to the right: as close to the right edge as the other person's are to the left.
@@ -785,8 +799,8 @@ window.AS = (() => {
         else PHONE_BOX[bk] = bx;
         Object.assign(d.style, {
           width: `${bx[2]}px`, height: `${bx[3]}px`, maxWidth: "none", overflow: "hidden",
-          display: "flex", alignItems: "center", justifyContent: "flex-start",
-          padding: `${0.3 * bpy}px ${0.8 * bpx}px`,
+          display: "flex", alignItems: d.dataset.photo ? "flex-start" : "center", justifyContent: "flex-start",
+          padding: `${(d.dataset.photo ? 1.2 : 0.3) * bpy}px ${0.8 * bpx}px`,
         });
         // (its text's size: one for all the chat's bubbles, worked out once they're all drawn — fitBubbles)
         fitList.push(d);
@@ -819,41 +833,34 @@ window.AS = (() => {
       if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
     }
-    // (the chat's photos: a placeholder in each one's place and size — a darker box, a picture's sign in it)
+    // (the chat's photos: left as empty space, in their place and size — the bubbles round them keep it. One with no
+    // words above it on the screen — its message's words scrolled off — in a bubble of its own, as on the phone)
     if (Q) {
-      // (each kept where it was first drawn while new readings stay within 4 % of the screen's width of it — a
-      // photo's edges as read move a few pixels each frame; one missed for a moment stays)
-      const nowP = Date.now();
-      const kept = (PHONE_PHOTOS[chatId] = (PHONE_PHOTOS[chatId] || []).filter((k) => nowP - k.at < 3000));
-      kept.forEach((k) => (k.used = false));
-      const near = (a, b) => Math.abs(a[0] - b[0]) <= colW * 0.04 && Math.abs(a[1] - b[1]) <= colW * 0.04 && Math.abs(a[2] - b[2]) <= colW * 0.06 && Math.abs(a[3] - b[3]) <= colW * 0.06;
-      const boxesP = [];
-      for (const u of P.photos || []) {
-        const b = [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh];
-        const k = kept.find((k) => !k.used && near(k.b, b));
-        if (k) { k.used = true; k.at = nowP; boxesP.push(k.b); } else { kept.push({ b: b, at: nowP, used: true }); boxesP.push(b); }
+      const otherBgP = (P.pieces.find((p) => !p.title && !p.label && !isOwn(p)) || {}).bg || P.screen_bg || "#f4f4f6";
+      for (const ph of photoFlat) {
+        if (ph.taken) continue;
+        const m = 0.45 * fs;
+        const bub = document.createElement("div");
+        Object.assign(bub.style, { position: "absolute", boxSizing: "border-box", width: `${ph[2] + 2 * m}px`, height: `${ph[3] + 2 * m}px`, borderRadius: `${0.45 * fs}px`, background: otherBgP });
+        panel.insertBefore(bub, panel.firstChild.nextSibling);
+        put(bub, x + ph[0] - m, panelTop + ph[1] - m);
       }
-      const overlaps = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
-      for (const k of kept) if (!k.used && nowP - k.at < 700 && !boxesP.some((b) => overlaps(b, k.b))) boxesP.push(k.b);
-      for (const bP of boxesP) {
-        const [px0, py0, pw, ph] = bP;
-        const ph2 = document.createElement("div");
-        ph2.className = "phone-photo";
-        const z = Math.min(pw, ph) * 0.32;
-        Object.assign(ph2.style, {
-          position: "absolute", boxSizing: "border-box", width: `${pw}px`, height: `${ph}px`,
-          borderRadius: `${0.3 * fs}px`, background: "rgba(0,0,0,0.13)", border: "1px solid rgba(0,0,0,0.08)",
-          display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none",
+    }
+    // (an emoji sent on its own: as it is, in a small bubble of the other person's colour, where it is on the screen)
+    if (Q && P.stickers && P.stickers.length) {
+      const otherBg = (P.pieces.find((p) => !p.title && !p.label && !isOwn(p)) || {}).bg || P.screen_bg || "#f4f4f6";
+      for (const st of P.stickers) {
+        const u = st.uv;
+        const [sx0, sy0, sw0, sh0] = [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh];
+        const padS = 0.45 * fs;
+        const bub = document.createElement("div");
+        Object.assign(bub.style, {
+          position: "absolute", boxSizing: "border-box", width: `${sw0 + 2 * padS}px`, height: `${sh0 + 2 * padS}px`,
+          borderRadius: `${0.45 * fs}px`, background: otherBg, display: "flex", alignItems: "center", justifyContent: "center",
         });
-        // (a picture's sign: a frame, a sun, two hills)
-        ph2.innerHTML =
-          `<svg width="${z * 1.3}" height="${z}" viewBox="0 0 26 20" style="display:block">` +
-          `<rect x="1" y="1" width="24" height="18" rx="2.5" style="fill:none;stroke:rgba(0,0,0,0.35);stroke-width:1.6px"/>` +
-          `<circle cx="18" cy="6.5" r="2.2" style="fill:rgba(0,0,0,0.35);stroke:none"/>` +
-          `<path d="M3 17 L10 9 L15 14 L18 11 L23 17 Z" style="fill:rgba(0,0,0,0.35);stroke:none"/>` +
-          `</svg>`;
-        panel.appendChild(ph2);
-        put(ph2, x + px0, panelTop + py0);
+        bub.innerHTML = `<img src="${st.png}" style="width:${sw0}px;height:${sh0}px;object-fit:contain">`;
+        panel.appendChild(bub);
+        put(bub, x + sx0 - padS, panelTop + sy0 - padS);
       }
     }
     // (the chat's bubbles: the largest text size every one of them fits its box at — as big as the phone's, up to a
@@ -865,6 +872,7 @@ window.AS = (() => {
       };
       let size = fs * 1.15;
       for (const d of fitList) {
+        if (d.dataset.photo) continue;
         if (fits(d, size)) continue;
         let [lo, hi] = [fs * 0.4, size];
         for (let i = 0; i < 9; i++) {

@@ -447,6 +447,8 @@ pub struct Read {
     pub quad_in_pieces: Option<[(f64, f64); 4]>,
     /// The photos on the screen (a chat's pictures), in the frame the pieces are in: shown as placeholders.
     pub photos: Vec<(u32, u32, u32, u32)>,
+    /// The emojis sent on their own (no words by them), in the same frame: shown as they are.
+    pub stickers: Vec<(u32, u32, u32, u32)>,
 }
 
 impl Read {
@@ -474,15 +476,15 @@ pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u
     let quad = screen_quad(rgba, fw, fh, screen);
     let (pieces, angle) = read_screen_at(ocr, rgba, fw, fh, screen);
     if angle.abs() < 1.0 || angle.abs() > 35.0 {
-        let photos = photos_in(rgba, fw, fh, quad.map(|q| quad_box(q)).unwrap_or(screen), &pieces);
-        return Read { pieces, angle, upright: None, screen: Some(screen_edges(rgba, fw, fh, screen)), quad, quad_in_pieces: quad, photos };
+        let (photos, stickers) = photos_and_stickers(rgba, fw, fh, quad.map(|q| quad_box(q)).unwrap_or(screen), &pieces);
+        return Read { pieces, angle, upright: None, screen: Some(screen_edges(rgba, fw, fh, screen)), quad, quad_in_pieces: quad, photos, stickers };
     }
     let up = upright(rgba, fw, fh, screen, angle);
     let (again, _) = read_screen_at(ocr, &up, fw, fh, screen);
     // (read upright, at least as much as before: else as read)
     if again.len() + 1 < pieces.len() {
-        let photos = photos_in(rgba, fw, fh, quad.map(|q| quad_box(q)).unwrap_or(screen), &pieces);
-        return Read { pieces, angle, upright: None, screen: None, quad, quad_in_pieces: quad, photos };
+        let (photos, stickers) = photos_and_stickers(rgba, fw, fh, quad.map(|q| quad_box(q)).unwrap_or(screen), &pieces);
+        return Read { pieces, angle, upright: None, screen: None, quad, quad_in_pieces: quad, photos, stickers };
     }
     let edges = screen_edges(&up, fw, fh, screen);
     // (the corners turned upright as the frame was: upright() takes each point from c + R(angle)(p - c), so a
@@ -490,8 +492,8 @@ pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u
     let (ccx, ccy) = (screen.0 as f64 + screen.2 as f64 / 2.0, screen.1 as f64 + screen.3 as f64 / 2.0);
     let (sin, cos) = (-angle).to_radians().sin_cos();
     let quad_in_pieces = quad.map(|q| q.map(|(x, y)| (ccx + (x - ccx) * cos - (y - ccy) * sin, ccy + (x - ccx) * sin + (y - ccy) * cos)));
-    let photos = photos_in(&up, fw, fh, quad_in_pieces.map(|q| quad_box(q)).unwrap_or(screen), &again);
-    Read { pieces: again, angle, upright: Some(up), screen: Some(edges), quad, quad_in_pieces, photos }
+    let (photos, stickers) = photos_and_stickers(&up, fw, fh, quad_in_pieces.map(|q| quad_box(q)).unwrap_or(screen), &again);
+    Read { pieces: again, angle, upright: Some(up), screen: Some(edges), quad, quad_in_pieces, photos, stickers }
 }
 
 /// A message's bubble round its text `r` (frame pixels): from the text outward, each way, as far as the pixels are
@@ -561,12 +563,18 @@ fn quad_box(q: [(f64, f64); 4]) -> (u32, u32, u32, u32) {
 /// The photos on a screen (`b`: the screen, frame pixels): big, mostly solid parts that are neither the screen's
 /// light nor its text — colourful or dark, a fifth of the screen's width and more, away from the pieces' words.
 pub fn photos_in(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32), pieces: &[Piece]) -> Vec<(u32, u32, u32, u32)> {
+    photos_and_stickers(rgba, fw, fh, b, pieces).0
+}
+
+/// As photos_in, and the small pictures on their own (an emoji sent as a message, with no words by it: the reading
+/// has nothing there) — a twentieth to a sixth of the screen's width, about square.
+pub fn photos_and_stickers(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32), pieces: &[Piece]) -> (Vec<(u32, u32, u32, u32)>, Vec<(u32, u32, u32, u32)>) {
     let cell = 6u32;
     let (bx, by) = (b.0 + b.2 / 40, b.1 + b.3 / 40);
     let (bw, bh) = (b.2 - b.2 / 20, b.3 - b.3 / 20);
     let (gw, gh) = (bw / cell, bh / cell);
     if gw < 8 || gh < 8 {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     }
     let lum = |p: [u8; 3]| (p[0] as u32 * 3 + p[1] as u32 * 6 + p[2] as u32) / 10;
     // the screen's light: the brighter samples
@@ -606,6 +614,7 @@ pub fn photos_in(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32), pieces:
     }
     let mut seen = vec![false; pic.len()];
     let mut out = Vec::new();
+    let mut stickers = Vec::new();
     let mut parts: Vec<(u32, u32, u32, u32, u32)> = Vec::new();
     for start in 0..pic.len() {
         if !pic[start] || seen[start] {
@@ -649,15 +658,41 @@ pub fn photos_in(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32), pieces:
             }
         }
     }
-    for (x0, y0, x1, y1, n) in parts {
+    for (mut x0, mut y0, mut x1, mut y1, _) in parts {
+        // (its solid part only: rows and columns at its edges mostly empty are something round it — the chosen
+        // bubble's thin coloured outline, a word's fringe — not the photo; the outline made one box of the photo
+        // and the bubble round it, words and all)
+        let filled = |ax: u32, ay: u32, bx_: u32, by_: u32| -> u32 { (ay..=by_).map(|y| (ax..=bx_).filter(|&x| pic[(y * gw + x) as usize]).count() as u32).sum() };
+        loop {
+            let (w, h) = (x1 - x0 + 1, y1 - y0 + 1);
+            if w < 2 || h < 2 {
+                break;
+            }
+            if filled(x0, y0, x1, y0) * 10 < w * 5 {
+                y0 += 1;
+            } else if filled(x0, y1, x1, y1) * 10 < w * 5 {
+                y1 -= 1;
+            } else if filled(x0, y0, x0, y1) * 10 < h * 5 {
+                x0 += 1;
+            } else if filled(x1, y0, x1, y1) * 10 < h * 5 {
+                x1 -= 1;
+            } else {
+                break;
+            }
+        }
+        let n = filled(x0, y0, x1, y1);
         let (w, h) = (x1 - x0 + 1, y1 - y0 + 1);
         // (a photo's size: a fifth of the screen's width, a sixteenth of its height; mostly solid)
         if w * 5 >= gw && h * 16 >= gh && n * 100 >= w * h * 50 {
             out.push((bx + x0 * cell, by + y0 * cell, w * cell, h * cell));
+        } else if w * 20 >= gw && w * 6 <= gw && h * 10 >= w * 7 && h * 7 <= w * 10 && n * 100 >= w * h * 45 {
+            // (an emoji on its own: a little round of colour, a cell's margin round it)
+            stickers.push(((bx + x0 * cell).saturating_sub(2), (by + y0 * cell).saturating_sub(2), w * cell + 4, h * cell + 4));
         }
     }
     out.sort_by_key(|r| (r.1, r.0));
-    out
+    stickers.sort_by_key(|r| (r.1, r.0));
+    (out, stickers)
 }
 
 /// The screen's four corners in the frame (top left, top right, bottom right, bottom left; frame pixels), as it
