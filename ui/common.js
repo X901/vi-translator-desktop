@@ -366,6 +366,13 @@ window.AS = (() => {
   const PHONE_TILT = { turn: 0, slant: 0, at: 0, side: null };
   // where the second phone's screen corners were last drawn (eased toward each reading's: renderPhone)
   const PHONE_QUAD = { q: null };
+  // the text size each chat settled on, and each bubble's width (renderPhone: kept, so its lines don't rewrap)
+  const PHONE_FIT = {};
+  const PHONE_WIDE = {};
+  // each bubble's side (the character's own on the right), kept until three readings agree on the other
+  const PHONE_END = {};
+  // each chat bubble's box as first drawn (renderPhone: kept while readings stay near it)
+  const PHONE_BOX = {};
   // The CSS matrix3d taking four points (an element's own, px) to four others (the page's): a perspective
   // transform (homography), solved from the eight equations the four pairs give.
   function matrix3d(src, dst) {
@@ -396,7 +403,7 @@ window.AS = (() => {
   // the chat list's rows last drawn, by contact (or header), and when: held a moment when missed (renderPhone)
   const PHONE_ROWS = {};
 
-  function renderPhone(root, P, fit) {
+  function renderPhone(root, P, fit, again) {
     root.innerHTML = "";
     if (P && P.chat) renderChat(root, P.chat);
     if (!P || !P.pieces || !P.pieces.length) return;
@@ -408,11 +415,18 @@ window.AS = (() => {
     // same size, turn, slant and perspective as the phone in the hand)
     const Q = P.quad && P.pieces.every((p) => p.uv) ? P.quad.map((c) => [c[0] * W, c[1] * H]) : null;
     const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-    const qw = Q ? (dist(Q[0], Q[1]) + dist(Q[3], Q[2])) / 2 : 0, qh = Q ? (dist(Q[0], Q[3]) + dist(Q[1], Q[2])) / 2 : 0;
+    const qw0 = Q ? (dist(Q[0], Q[1]) + dist(Q[3], Q[2])) / 2 : 0, qh0 = Q ? (dist(Q[0], Q[3]) + dist(Q[1], Q[2])) / 2 : 0;
+    // (laid out at a fixed width, its height the screen's shape — kept while within 3 % — and put on the screen by
+    // the transform: measured each frame, the screen's size wobbled a pixel or two, and the bubbles drifted)
+    if (Q && (!PHONE_QUAD.aspect || Math.abs(qh0 / qw0 - PHONE_QUAD.aspect) > PHONE_QUAD.aspect * 0.03)) PHONE_QUAD.aspect = qh0 / qw0;
+    const qw = Q ? 360 : 0, qh = Q ? 360 * PHONE_QUAD.aspect : 0;
     if (Q && !P._flat) {
       P = Object.assign({}, P, {
         _flat: true,
-        pieces: P.pieces.map((p) => Object.assign({}, p, { rect: [(p.uv[0] * qw) / W, (p.uv[1] * qh) / H, (p.uv[2] * qw) / W, (p.uv[3] * qh) / H] })),
+        pieces: P.pieces.map((p) => Object.assign({}, p, {
+          rect: [(p.uv[0] * qw) / W, (p.uv[1] * qh) / H, (p.uv[2] * qw) / W, (p.uv[3] * qh) / H],
+          box: p.box_uv ? [p.box_uv[0] * qw, p.box_uv[1] * qh, p.box_uv[2] * qw, p.box_uv[3] * qh] : null,
+        })),
       });
     }
     // A second phone beside the game's, in the same world: the same screen size, held at the same angle, its
@@ -439,7 +453,7 @@ window.AS = (() => {
     }
     // the phone's body round the screen: thin sides, a little more above (its earpiece) and below
     const side = 0.045 * colW, topB = 0.09 * colW, botB = 0.1 * colW;
-    const roomLeft = sx - gap * 2 - 2 * side - (Q ? qw : 0), roomRight = W - (sx + sw) - gap * 2 - 2 * side - (Q ? qw : 0);
+    const roomLeft = sx - gap * 2 - (Q ? qw0 * 1.1 : 2 * side), roomRight = W - (sx + sw) - gap * 2 - (Q ? qw0 * 1.1 : 2 * side);
     // (the side it was on, unless the other has clearly more room: chosen anew each frame, the panel jumped
     // from one side of the phone to the other)
     const T0 = PHONE_TILT;
@@ -452,7 +466,16 @@ window.AS = (() => {
     const ys = P.pieces.filter((p) => p.avatar || p.name).map((p) => p.rect[1] * H).sort((a, b) => a - b);
     const pitches = ys.slice(1).map((y, i) => y - ys[i]).filter((d) => d > 4).sort((a, b) => a - b);
     const pitch = pitches.length ? pitches[Math.floor(pitches.length / 2)] : 0;
-    const fs = Math.max(8, Math.min(Math.max(11, 0.04 * colW), P.list && pitch ? pitch / 4.3 : 1e9) * (fit || 1));
+    // (the size a chat settled on is kept: worked out anew each frame it came out a little different, and the
+    // bubbles' words moved from line to line; it only gets smaller when what's shown no longer fits)
+    // (by what it shows: the same chat with the same messages keeps its size; new messages, another chat, worked
+    // out again from the phone's own size)
+    const chatId = P.list ? "list" : ((P.pieces.find((p) => p.title) || {}).ar || "");
+    const chatKey = chatId + "|" + P.pieces.length + "|" + P.pieces.reduce((n, p) => n + (p.ar || "").length, 0);
+    if (!again) fit = PHONE_FIT[chatKey] || 1;
+    // (the phone's text is about 4.5 % of its screen's width: laid out on the screen's shape, the same share)
+    const base = Q ? 0.045 * colW : Math.max(11, 0.04 * colW);
+    const fs = Math.max(Q ? 0.025 * colW : 8, Math.min(base, P.list && pitch ? pitch / 4.3 : 1e9) * (fit || 1));
     const pad = 0.5 * fs;
     const body = document.createElement("div");
     body.className = "phone-body";
@@ -494,7 +517,7 @@ window.AS = (() => {
     // its column of pictures slanting as theirs (`slant` more), round the game phone screen's middle — the two
     // held together. Eased from one reading to the next: the hand sways, it follows smoothly)
     const T = PHONE_TILT;
-    if (!fit) {
+    if (!again) {
       const k = T.at ? 0.35 : 1;
       T.turn += ((+P.turn || 0) - T.turn) * k;
       T.slant += ((+P.slant || 0) - T.slant) * k;
@@ -503,11 +526,12 @@ window.AS = (() => {
     if (Q) {
       // (the game's screen corners moved along its own top edge by a phone's width and a gap: beside it, the same
       // way up; eased from one reading to the next as the hand sways)
-      const ux = [(Q[1][0] - Q[0][0]) / qw, (Q[1][1] - Q[0][1]) / qw];
-      const shift = (qw + 2 * side + gap) * (onLeft ? -1 : 1);
+      const ux = [(Q[1][0] - Q[0][0]) / dist(Q[0], Q[1]), (Q[1][1] - Q[0][1]) / dist(Q[0], Q[1])];
+      // (moved by the real screen's width and the body's sides at its scale, and a gap)
+      const shift = (qw0 * (1 + (2 * side) / qw) + gap) * (onLeft ? -1 : 1);
       const target = Q.map((c) => [c[0] + ux[0] * shift, c[1] + ux[1] * shift]);
       const E = PHONE_QUAD;
-      if (!fit) {
+      if (!again) {
         const k = E.q ? 0.4 : 1;
         E.q = target.map((c, i) => (E.q ? [E.q[i][0] + (c[0] - E.q[i][0]) * k, E.q[i][1] + (c[1] - E.q[i][1]) * k] : c));
       }
@@ -564,6 +588,7 @@ window.AS = (() => {
       root.appendChild(d);
     }
     let below = -1e9;
+    const fitList = [];
     // (a row read before and missed this time stays a moment where it was: one reading in a few misses a row
     // — a picture's dark edge, a line the OCR skips — and the row blinked out and back)
     const nowT = Date.now();
@@ -666,7 +691,14 @@ window.AS = (() => {
         width: "max-content",
       });
       // (a bubble as wide as the game's: its words' width, its padding round them)
-      const wide = Math.min(colW - 2 * pad, p.rect[2] * W * (colW / sw) + 1.4 * fs);
+      // (its width kept while a new reading is within 15 % of it: the words' box as read is a few pixels wider or
+      // narrower each frame, and the Arabic wrapped differently each time. Laid out on the screen's own size, the
+      // piece's width is the screen's already)
+      let wide = Math.round(Math.min(colW - 2 * pad, p.rect[2] * W * (Q ? 1 : colW / sw) + 1.4 * fs));
+      const wk = chatId + "|" + p.ar;
+      const was = PHONE_WIDE[wk];
+      if (was && Math.abs(was - wide) <= was * 0.15) wide = was;
+      else PHONE_WIDE[wk] = wide;
       if (p.boxed) {
         // a map pin's card: bordered, its pin before the words
         Object.assign(d.style, {
@@ -693,7 +725,7 @@ window.AS = (() => {
       }
       panel.appendChild(d);
       // (the reply to pick: its send button beside it)
-      if (p.edge && p.end) {
+      if (false) {
         const send = document.createElement("div");
         const ss = 1.3 * fs;
         Object.assign(send.style, {
@@ -706,16 +738,84 @@ window.AS = (() => {
       }
       // (the character's own messages on the right, as on the phone; the rest on the left; labels centred)
       // (the reply to pick leaves room for its send button)
-      const room = d._send ? 1.6 * fs : 0;
-      const left = p.label ? x + (colW - d.offsetWidth) / 2 : p.end ? x + colW - pad - room - d.offsetWidth : x + pad;
-      const top = Math.max(p.rect[1] * H - 0.4 * fs, below + 0.25 * fs);
+      const room = 0;
+      // (its side as it was, until three readings in a row say otherwise: the bubble's colour read a little
+      // different now and then, and the character's own message jumped from right to left and back)
+      const sk = chatId + "|" + p.ar;
+      const S = PHONE_END[sk] || (PHONE_END[sk] = { end: !!p.end, other: 0 });
+      if (!!p.end !== S.end) { if (++S.other >= 3) { S.end = !!p.end; S.other = 0; } } else S.other = 0;
+      let left = p.label ? x + (colW - d.offsetWidth) / 2 : S.end ? x + colW - pad - room - d.offsetWidth : x + pad;
+      let top = Math.max(p.rect[1] * H - 0.4 * fs, below + 0.25 * fs);
+      if (Q && !p.label) {
+        // (laid out on the screen's own shape: each bubble the game's bubble — its words' box and the phone's padding
+        // round them, where it is on the screen, as wide and as tall — the Arabic fitted inside it. Kept while a new
+        // reading is within 4 % of the screen's width of it: the box as read moves a pixel or two each frame)
+        const [bpx, bpy] = [0.7 * fs, 0.4 * fs];
+        // (the bubble as measured on the phone, where its colour gives way to the screen's; else its text's box and
+        // the phone's usual padding)
+        let bx = p.box ? p.box.slice() : [p.rect[0] * W - bpx, p.rect[1] * H - bpy, p.rect[2] * W + 2 * bpx, p.rect[3] * H + 2 * bpy];
+        bx[0] = Math.max(0.3 * pad, bx[0]);
+        if (bx[0] + bx[2] > colW - 0.3 * pad) bx[2] = colW - 0.3 * pad - bx[0];
+        const bk = chatId + "|" + p.ar;
+        const wasB = PHONE_BOX[bk];
+        if (wasB && bx.every((v, i) => Math.abs(v - wasB[i]) <= colW * 0.04)) bx = wasB;
+        else PHONE_BOX[bk] = bx;
+        Object.assign(d.style, {
+          width: `${bx[2]}px`, height: `${bx[3]}px`, maxWidth: "none", overflow: "hidden",
+          display: "flex", alignItems: "center", justifyContent: "flex-start",
+          padding: `${0.3 * bpy}px ${0.8 * bpx}px`,
+        });
+        // (its text's size: one for all the chat's bubbles, worked out once they're all drawn — fitBubbles)
+        fitList.push(d);
+        [left, top] = [x + bx[0], panelTop + bx[1]];
+        // (its tail, as the phone's bubbles have: the character's own, blue, at the bottom right; the other
+        // person's, white, at the bottom left — a small curved point out of the corner, the bubble's colour)
+        if (!p.boxed) {
+          const ts = 0.75 * fs;
+          const tail = document.createElement("div");
+          // (the character's own messages sit to the right, the other person's to the left: by where it is)
+          const own = bx[0] > colW - (bx[0] + bx[2]);
+          Object.assign(tail.style, {
+            position: "absolute",
+            width: `${ts}px`,
+            height: `${ts}px`,
+            background: p.edge || p.bg || "#f8f9fb",
+            clipPath: own ? "polygon(0 0, 100% 100%, 0 78%)" : "polygon(100% 0, 100% 78%, 0 100%)",
+          });
+          panel.appendChild(tail);
+          put(tail, own ? left + bx[2] - ts * 0.45 : left - ts * 0.55, top + bx[3] - ts * 0.95);
+        }
+      }
       put(d, left, top);
       if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
     }
+    // (the chat's bubbles: the largest text size every one of them fits its box at — as big as the phone's, up to a
+    // little bigger, one size for all as on the phone)
+    if (fitList.length) {
+      const fits = (d, z) => {
+        d.style.fontSize = `${z}px`;
+        return d.scrollHeight <= d.clientHeight + 1 && d.scrollWidth <= d.clientWidth + 1;
+      };
+      let size = fs * 1.15;
+      for (const d of fitList) {
+        if (fits(d, size)) continue;
+        let [lo, hi] = [fs * 0.4, size];
+        for (let i = 0; i < 9; i++) {
+          const mid = (lo + hi) / 2;
+          if (fits(d, mid)) lo = mid; else hi = mid;
+        }
+        size = lo;
+      }
+      for (const d of fitList) d.style.fontSize = `${size}px`;
+    }
     // (what it shows runs past its screen's foot: drawn again with smaller text, a few times at most)
     const over = (below - panelTop + pad) / th;
-    if (over > 1.02 && (fit || 1) > 0.55) return renderPhone(root, P, (fit || 1) * Math.max(0.55, Math.min(0.95, 1 / Math.sqrt(over))));
+    if (over > 1.02 && (fit || 1) > 0.55) {
+      const next = (fit || 1) * Math.max(0.55, Math.min(0.95, 1 / Math.sqrt(over)));
+      PHONE_FIT[chatKey] = next;
+      return renderPhone(root, P, next, true);
+    }
   }
 
   // ---- Game pages (a menu, a "mission failed" page …) ------------------------------------------

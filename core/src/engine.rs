@@ -1427,7 +1427,7 @@ impl Reader {
                                         use base64::Engine as _;
                                         format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
                                     });
-                                    out.push(serde_json::json!({ "rect": frac(p.rect), "uv": uv(p.rect), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]), "bg": format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2]), "avatar": pic }));
+                                    out.push(serde_json::json!({ "rect": frac(p.rect), "uv": uv(p.rect), "box_uv": p.bubble.and_then(uv), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]), "bg": format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2]), "avatar": pic }));
                                     continue;
                                 }
                                 // (its emojis as slots after its words, as the game's lines have them: "… babe ⟦1⟧")
@@ -1495,7 +1495,7 @@ impl Reader {
                                 };
                                 if ar.is_none() && p.avatar.is_some() {
                                     out.push(serde_json::json!({
-                                        "rect": frac(p.rect), "uv": uv(p.rect), "ar": "", "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
+                                        "rect": frac(p.rect), "uv": uv(p.rect), "box_uv": p.bubble.and_then(uv), "ar": "", "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
                                         "bg": hex(p.look.bg), "fg": hex(p.look.fg), "edge": p.look.edge.map(hex),
                                         "avatar": p.avatar.and_then(|a| png((a.0, a.1, a.2, a.2), 56)),
                                         "badge": p.badge.and_then(|b| png(b, 28)),
@@ -1503,7 +1503,7 @@ impl Reader {
                                 }
                                 match ar {
                                     Some(ar) => out.push(serde_json::json!({
-                                        "rect": frac(p.rect), "uv": uv(p.rect),
+                                        "rect": frac(p.rect), "uv": uv(p.rect), "box_uv": p.bubble.and_then(uv),
                                         "ar": ar,
                                         "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
                                         "bg": hex(p.look.bg),

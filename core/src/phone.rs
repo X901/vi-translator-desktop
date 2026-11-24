@@ -28,6 +28,9 @@ pub struct Piece {
     pub badge: Option<(i32, i32, u32, u32)>,
     /// The emojis by its text (frame pixels, in reading order; see chat::emoji_in).
     pub emoji: Vec<(u32, u32, u32, u32)>,
+    /// A chat message's bubble as it is on the phone, round its text (frame pixels): where its colour gives way to
+    /// the screen's (see bubble_box). None for a header, a list's row, or a bubble its edges weren't found for.
+    pub bubble: Option<(u32, u32, u32, u32)>,
 }
 
 /// A piece's look on the phone: its bubble's colour and its text's (a message from the other person:
@@ -441,6 +444,63 @@ pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u
     let (sin, cos) = (-angle).to_radians().sin_cos();
     let quad_in_pieces = quad.map(|q| q.map(|(x, y)| (ccx + (x - ccx) * cos - (y - ccy) * sin, ccy + (x - ccx) * sin + (y - ccy) * cos)));
     Read { pieces: again, angle, upright: Some(up), screen: Some(edges), quad, quad_in_pieces }
+}
+
+/// A message's bubble round its text `r` (frame pixels): from the text outward, each way, as far as the pixels are
+/// nearer the bubble's colour than the screen's (several lines across it each way, the median: a letter or an
+/// emoji on one of them is no edge). None when no edge is found within a few lines of the text.
+pub fn bubble_box(rgba: &[u8], fw: u32, fh: u32, r: (u32, u32, u32, u32), bg: [u8; 3], sbg: [u8; 3], screen: (u32, u32, u32, u32)) -> Option<(u32, u32, u32, u32)> {
+    // (a white bubble on the grey screen at night differs from it by a few levels only: enough, side by side)
+    if dist(bg, sbg) < 4 {
+        return None;
+    }
+    let (x, y, w, h) = (r.0 as i32, r.1 as i32, r.2 as i32, r.3 as i32);
+    let lh = (h.min(40)).max(10);
+    let reach = lh * 2;
+    let (s0x, s0y, s1x, s1y) = (screen.0 as i32, screen.1 as i32, (screen.0 + screen.2) as i32, (screen.1 + screen.3) as i32);
+    let bubble_at = |px_: i32, py_: i32| -> Option<bool> {
+        if px_ < s0x.max(0) || py_ < s0y.max(0) || px_ >= s1x.min(fw as i32) || py_ >= s1y.min(fh as i32) {
+            return None;
+        }
+        let c = px(rgba, fw, px_ as u32, py_ as u32);
+        Some(dist(c, bg) < dist(c, sbg))
+    };
+    // (from `from` along `step`, past the text's own last pixels, until three in a row are the screen's)
+    let edge = |from: (i32, i32), step: (i32, i32)| -> Option<i32> {
+        let mut screen_run = 0;
+        let mut last_bubble = 0;
+        for k in 1..=reach {
+            match bubble_at(from.0 + step.0 * k, from.1 + step.1 * k) {
+                None => return None,
+                Some(true) => {
+                    screen_run = 0;
+                    last_bubble = k;
+                }
+                Some(false) => {
+                    screen_run += 1;
+                    if screen_run >= 3 && last_bubble > 0 {
+                        return Some(last_bubble);
+                    }
+                }
+            }
+        }
+        None
+    };
+    let med = |mut v: Vec<i32>| -> Option<i32> {
+        if v.len() < 2 {
+            return None;
+        }
+        v.sort_unstable();
+        Some(v[v.len() / 2])
+    };
+    let rows: Vec<i32> = (1..6).map(|k| y + h * k / 6).collect();
+    let cols: Vec<i32> = (1..8).map(|k| x + w * k / 8).collect();
+    let left = med(rows.iter().filter_map(|&yy| edge((x, yy), (-1, 0))).collect())?;
+    let right = med(rows.iter().filter_map(|&yy| edge((x + w, yy), (1, 0))).collect())?;
+    let top = med(cols.iter().filter_map(|&xx| edge((xx, y), (0, -1))).collect())?;
+    let bottom = med(cols.iter().filter_map(|&xx| edge((xx, y + h), (0, 1))).collect())?;
+    let (bx0, by0) = ((x - left).max(0) as u32, (y - top).max(0) as u32);
+    Some((bx0, by0, (w + left + right) as u32, (h + top + bottom) as u32))
 }
 
 /// The screen's four corners in the frame (top left, top right, bottom right, bottom left; frame pixels), as it
@@ -885,6 +945,12 @@ fn read_screen_at(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u
     if let Some(t) = out.iter().find(|p| p.title).map(|p| p.rect) {
         out.retain(|p| p.title || p.split.is_some() || !(p.rect.1 >= t.1 + t.3 && p.rect.1 < t.1 + t.3 + t.3 * 13 / 10 && p.rect.3 < t.3 * 8 / 5));
     }
+    // (each chat message's bubble as it is: the overlay draws its own bubble the same size, in the same place)
+    let (sx, sy, sw, sh) = screen;
+    for p in out.iter_mut().filter(|p| !p.title && !p.look.label && p.avatar.is_none()) {
+        let sbg = screen_bg(rgba, fw, fh, screen, p.rect.1, p.rect.1 + p.rect.3);
+        p.bubble = bubble_box(rgba, fw, fh, p.rect, p.look.bg, sbg, (sx, sy, sw, sh));
+    }
     // ("Ok" read with a zero, "0k. There's some cash…": the word it is, so the line is found and translated)
     for p in &mut out {
         p.en = zero_ok(&p.en);
@@ -1300,10 +1366,10 @@ pub fn pieces(words: &[Word], crop_w: u32, crop_h: u32) -> Vec<Piece> {
             && first_text.chars().next().is_some_and(|c| c.is_uppercase())
             && first_w * 10 < rest_w * 7;
         if named && !rest.is_empty() {
-            out.push(Piece { rect, en: ocr::clean(&rest), title: false, name: Some(first_text), look: Look::default(), split: None, avatar: None, preview: None, badge: None, emoji: Vec::new() });
+            out.push(Piece { rect, en: ocr::clean(&rest), title: false, name: Some(first_text), look: Look::default(), split: None, avatar: None, preview: None, badge: None, emoji: Vec::new(), bubble: None });
         } else {
             let split = (g.len() >= 2 && !rest.is_empty()).then(|| (first_text.clone(), ocr::clean(&rest)));
-            out.push(Piece { rect, en, title, name: None, look: Look::default(), split, avatar: None, preview: None, badge: None, emoji: Vec::new() });
+            out.push(Piece { rect, en, title, name: None, look: Look::default(), split, avatar: None, preview: None, badge: None, emoji: Vec::new(), bubble: None });
         }
     }
     out
@@ -1489,7 +1555,7 @@ mod tests {
     #[test]
     fn a_misread_or_missed_piece_stays_as_first_read() {
         let t = std::time::Instant::now();
-        let p = |en: &str, y: u32| Piece { rect: (824, y, 205, 48), en: en.into(), title: false, name: None, look: Look::default(), split: None, avatar: None, preview: None, badge: None, emoji: Vec::new() };
+        let p = |en: &str, y: u32| Piece { rect: (824, y, 205, 48), en: en.into(), title: false, name: None, look: Look::default(), split: None, avatar: None, preview: None, badge: None, emoji: Vec::new(), bubble: None };
         let mut seen = Vec::new();
         let screen = (690, 480, 402, 420);
         steady(&mut seen, vec![p("I won't screw it up. And I'll remember. Thanks.", 738)], screen, t);
