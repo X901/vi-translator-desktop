@@ -230,8 +230,10 @@ pub fn steady_screen(last: &mut Option<((u32, u32, u32, u32), std::time::Instant
         let (x1, y1) = ((prev.0 + prev.2).min(found.0 + found.2), (prev.1 + prev.3).min(found.1 + found.3));
         let inside = x1 > x0 && y1 > y0 && (x1 - x0) as u64 * (y1 - y0) as u64 * 10 >= found.2 as u64 * found.3 as u64 * 9;
         let smaller = (found.2 as u64 * found.3 as u64) < prev.2 as u64 * prev.3 as u64;
+        // (held a moment from when it was last really found, not from when it was last held: renewed each frame
+        // the held box never let go — one frame that took the white phone's body in with its screen, and the
+        // screen stayed that big, its corners unfound and the overlay's phone bigger with it)
         if inside && smaller && now.saturating_duration_since(at) < std::time::Duration::from_millis(1200) {
-            *last = Some((prev, now));
             return prev;
         }
     }

@@ -1558,9 +1558,26 @@ impl Reader {
                                         "badge": p.badge.and_then(|b| png(b, 28)),
                                     }));
                                 }
+                                // (a chat's message not translated yet: its English meanwhile, marked pending — it's in its place
+                                // and size from the first reading, and only its words change when its translation comes; before,
+                                // it appeared only then, and the chat's layout moved round it)
+                                let ask_needed = ar.is_none();
+                                let (ar, pending) = match ar {
+                                    Some(a) => (Some(a), false),
+                                    None if p.avatar.is_none() && !p.title && !p.en.trim().is_empty() => (Some(p.en.clone()), true),
+                                    None => (None, false),
+                                };
+                                if ask_needed {
+                                    let ask = if gave_up { cut_en.clone() } else { p.en.clone() };
+                                    if !ask.is_empty() && !menu_asked.contains(&ask) && !menu_asked.iter().any(|a| ocr::similar(a, &ask)) && menu_asked.insert(ask.clone()) {
+                                        seq_counter += 1;
+                                        let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: ask, phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
+                                    }
+                                }
                                 match ar {
                                     Some(ar) => out.push(serde_json::json!({
                                         "rect": frac(p.rect), "uv": uv(p.rect), "box_uv": p.bubble.and_then(uv),
+                                        "pending": pending,
                                         "ar": ar,
                                         "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
                                         "bg": hex(p.look.bg),
@@ -1578,13 +1595,7 @@ impl Reader {
                                             format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
                                         }).collect::<Vec<_>>(),
                                     })),
-                                    None => {
-                                        let ask = if gave_up { cut_en.clone() } else { p.en.clone() };
-                                        if !ask.is_empty() && !menu_asked.contains(&ask) && !menu_asked.iter().any(|a| ocr::similar(a, &ask)) && menu_asked.insert(ask.clone()) {
-                                            seq_counter += 1;
-                                            let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: ask, phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
-                                        }
-                                    }
+                                    None => {}
                                 }
                             }
                         }

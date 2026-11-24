@@ -387,9 +387,24 @@ window.AS = (() => {
   const PHONE_CARD_ICON = {};
   // each chat's lone emojis as last read, and when (renderPhone)
   const PHONE_STK = {};
+  // each chat's text size as kept (renderPhone)
+  const PHONE_SIZE = {};
   // A box kept as first drawn: a reading near it (within 4 % of the screen's width each way) changes nothing, and a
   // different one changes it only when five readings in a row agree on it — a frame read once a little differently
   // (a photo missed, a bubble's colour) no longer moved it, and moved it back
+  // The key of the held box nearest `b` among those kept under `base` (within 8 % of the screen's width), or a new
+  // one: a photo's or an emoji's — by a band of its height, one read near a band's edge took two keys, and its box
+  // went from one to the other
+  function nearKey(base, b, colW) {
+    let best = null, bestD = colW * 0.08;
+    for (const k of Object.keys(PHONE_BOX)) {
+      if (!k.startsWith(base + "#")) continue;
+      const c = PHONE_BOX[k].b;
+      const d = Math.max(Math.abs(c[0] - b[0]), Math.abs(c[1] - b[1]));
+      if (d <= bestD) [best, bestD] = [k, d];
+    }
+    return best || base + "#" + Object.keys(PHONE_BOX).length + "-" + Math.round(b[1]);
+  }
   function holdBox(key, b, colW) {
     const near = (a, c) => a.every((v, i) => Math.abs(v - c[i]) <= colW * 0.04);
     const H0 = PHONE_BOX[key];
@@ -453,8 +468,11 @@ window.AS = (() => {
     } else if (!again) {
       // (a chat's header missed by a reading — its short name — kept a moment: the chat's held places are found by it)
       const tP = P.pieces.find((p) => p.title);
+      // (kept for the whole chat — "Cal" went unread for seconds at a time — until the list is back or another
+      // chat's header is read)
       if (tP) [PHONE_TITLE.p, PHONE_TITLE.at] = [tP, Date.now()];
-      else if (!P.list && PHONE_TITLE.p && Date.now() - PHONE_TITLE.at < 1500) P = Object.assign({}, P, { pieces: [PHONE_TITLE.p].concat(P.pieces) });
+      else if (P.list) PHONE_TITLE.p = null;
+      else if (PHONE_TITLE.p) P = Object.assign({}, P, { pieces: [PHONE_TITLE.p].concat(P.pieces) });
       PHONE_LAST.P = P;
       PHONE_LAST.at = Date.now();
     }
@@ -547,6 +565,7 @@ window.AS = (() => {
       if (Math.abs(med) > 0.015 * qh) {
         for (const k of Object.keys(PHONE_BOX)) if (k.startsWith(chatId + "|")) delete PHONE_BOX[k];
         PHONE_PIECE[chatId] = [];
+        delete PHONE_SIZE[chatId];
         PHONE_SCROLL.at = Date.now();
       }
     }
@@ -732,13 +751,21 @@ window.AS = (() => {
         const y = p.rect[1] * H;
         let h = held.find((k) => Math.abs(k.y - y) <= tol);
         if (!h) {
-          h = { y: y, ar: p.ar, label: !!p.label, name: p.name || "", hist: [] };
+          h = { y: y, ar: p.ar, label: !!p.label, name: p.name || "", pending: !!p.pending, hist: [] };
           held.push(h);
         }
         h.y = y;
         // (the words and kind it was read as most often over its last ten readings — a stray misreading, even its
         // first, doesn't stay; the one shown now keeps a tie)
         // (a list's row: its contact's name too — "Shirley" read once as "my rum", the row's name was that)
+        // (its translation come, its English shown meanwhile: the translation at once)
+        if (h.pending && !p.pending) [h.hist, h.ar, h.label, h.name, h.pending] = [[], p.ar, !!p.label, p.name || "", false];
+        if (p.pending && !h.pending) {
+          h.p = Object.assign({}, p, { ar: h.ar, label: h.label, name: h.name || null, pending: false });
+          h.at = Date.now();
+          h.seen = true;
+          return h.p;
+        }
         h.hist.push((p.label ? "L" : "B") + p.ar + "\u0001" + (p.name || ""));
         if (h.hist.length > 10) h.hist.shift();
         const tally = {};
@@ -750,7 +777,7 @@ window.AS = (() => {
           const [w0, n0] = best.slice(1).split("\u0001");
           [h.label, h.ar, h.name] = [best[0] === "L", w0, n0];
         }
-        h.p = Object.assign({}, p, { ar: h.ar, label: h.label, name: h.name || null });
+        h.p = Object.assign({}, p, { ar: h.ar, label: h.label, name: h.name || null, pending: h.pending });
         h.at = Date.now();
         h.seen = true;
         return h.p;
@@ -1026,6 +1053,11 @@ window.AS = (() => {
           padding: `${(d.dataset.photo ? 1.2 : 0.3) * bpy}px ${0.8 * bpx}px`,
         });
         // (its text's size: one for all the chat's bubbles, worked out once they're all drawn — fitBubbles)
+        if (p.pending) {
+          d.dataset.pending = "1";
+          d.style.direction = "ltr";
+          d.style.opacity = "0.75";
+        }
         fitList.push(d);
         [left, top] = [x + bx[0], panelTop + bx[1]];
         // (the bubble and its tail one shape, as the phone draws it: a rounded box whose bottom corner runs out
@@ -1090,7 +1122,7 @@ window.AS = (() => {
       for (const ph of photoFlat) {
         if (ph.taken) continue;
         const m = 0.45 * fs;
-        const kept = holdBox(chatId + "|photo|" + Math.round(ph[1] / (0.1 * colW)), ph.slice(0, 4), colW);
+        const kept = holdBox(nearKey(chatId + "|photo", ph, colW), ph.slice(0, 4), colW);
         [ph[0], ph[1], ph[2], ph[3]] = kept;
         const bub = document.createElement("div");
         Object.assign(bub.style, { position: "absolute", boxSizing: "border-box", width: `${ph[2] + 2 * m}px`, height: `${ph[3] + 2 * m}px`, borderRadius: `${0.45 * fs}px`, background: otherBgP });
@@ -1111,7 +1143,8 @@ window.AS = (() => {
         const u = st.uv;
         const [sy1, sy2] = [u[1] * qh, (u[1] + u[3]) * qh];
         if (pieces.some((p) => !p.title && p.rect[1] * H < sy2 && sy1 < (p.rect[1] + p.rect[3]) * H)) continue;
-        const [sx0, sy0, sw0, sh0] = holdBox(chatId + "|sticker|" + Math.round((u[1] * qh) / (0.1 * colW)), [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh], colW);
+        const ub = [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh];
+        const [sx0, sy0, sw0, sh0] = holdBox(nearKey(chatId + "|sticker", ub, colW), ub, colW);
         const padS = 0.45 * fs;
         const bub = document.createElement("div");
         Object.assign(bub.style, {
@@ -1130,9 +1163,12 @@ window.AS = (() => {
         d.style.fontSize = `${z}px`;
         return d.scrollHeight <= d.clientHeight + 1 && d.scrollWidth <= d.clientWidth + 1;
       };
-      let size = fs * 1.15;
+      // (the chat's size kept from one reading to the next — worked out anew each time, every translation that came
+      // changed it and every bubble's lines moved; smaller only when a translated bubble doesn't fit at it; a
+      // message still in English is no measure of it)
+      let size = PHONE_SIZE[chatId] || fs * 1.15;
       for (const d of fitList) {
-        if (d.dataset.photo) continue;
+        if (d.dataset.photo || d.dataset.pending) continue;
         if (fits(d, size)) continue;
         let [lo, hi] = [fs * 0.4, size];
         for (let i = 0; i < 9; i++) {
@@ -1141,6 +1177,7 @@ window.AS = (() => {
         }
         size = lo;
       }
+      PHONE_SIZE[chatId] = size;
       for (const d of fitList) d.style.fontSize = `${size}px`;
     }
     // (what it shows runs past its screen's foot: drawn again with smaller text, a few times at most)
