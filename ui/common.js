@@ -454,9 +454,133 @@ window.AS = (() => {
   // the chat list's rows last drawn, by contact (or header), and when: held a moment when missed (renderPhone)
   const PHONE_ROWS = {};
 
+  // the buttons at the bottom right ("SELECT", "BACK"): each one's word beside the game's, in its style
+  function phoneButtons(root, P, W, H) {
+    for (const b of P.buttons || []) {
+      // (the game's buttons stay put: the place a button was first seen at is kept while it's read within a
+      // few pixels of it, the reading's box shifting a pixel or two from frame to frame)
+      const key = b.en || b.ar;
+      const was = PHONE_BUTTON_AT[key];
+      const near = was && Math.abs(was[0] - b.rect[0]) < 0.006 && Math.abs(was[1] - b.rect[1]) < 0.01 && Math.abs(was[3] - b.rect[3]) < 0.006;
+      const r = near ? was : (PHONE_BUTTON_AT[key] = b.rect);
+      const capH = r[3] * H;
+      const d = document.createElement("div");
+      Object.assign(d.style, {
+        position: "absolute",
+        right: `${W - r[0] * W + capH * 1.2}px`,
+        top: `${(r[1] + r[3] / 2) * H}px`,
+        transform: "translateY(-50%)",
+        display: "flex",
+        alignItems: "center",
+        gap: `${capH * 0.45}px`,
+        whiteSpace: "nowrap",
+        direction: dir(),
+        fontFamily: `"Noto Sans Arabic", ${fonts()}`,
+        fontWeight: "700",
+        fontSize: `${capH * 1.3}px`,
+        lineHeight: "1",
+        color: "#ffffff",
+        textShadow: "0 1px 3px rgba(0,0,0,0.85)",
+      });
+      // (its icon first: on the right in a right-to-left row, as the game's after its word)
+      if (b.icon) {
+        const img = document.createElement("img");
+        img.src = b.icon;
+        const ih = b.icon_rect ? b.icon_rect[3] * H : capH * 1.3;
+        Object.assign(img.style, { height: `${ih}px`, width: `${ih}px`, objectFit: "contain", flex: "none", display: "block" });
+        d.appendChild(img);
+      }
+      const label = document.createElement("span");
+      label.textContent = b.ar;
+      d.appendChild(label);
+      root.appendChild(d);
+    }
+  }
+
+  // GTA VI's phone read whole (the core's phone_read.rs: `P.read`, its title and its pieces top
+  // to bottom): a second phone beside the game's, upright, where the core put it once — the hand sways the
+  // phone, this one stays still. Its pieces one under the other as a chat's (others' on the left, the
+  // player's own on the right, as the game's), their text as big as fits the screen.
+  function renderPhoneRead(root, P) {
+    const W = root.clientWidth, H = root.clientHeight;
+    if (!W || !H) return;
+    phoneButtons(root, P, W, H);
+    const R = P.read;
+    // (read, and nothing on it to translate: no second phone)
+    if (R && !R.title && !(R.items || []).length) return;
+    const [sx, sy, sw, sh] = [P.screen[0] * W, P.screen[1] * H, P.screen[2] * W, P.screen[3] * H];
+    const side = 0.045 * sw, topB = 0.09 * sw, botB = 0.1 * sw, gap = 0.012 * W;
+    // (on the side with more room)
+    const x = sx > W - sx - sw ? sx - gap - side - sw : sx + sw + gap + side;
+    const el = (parent, css, text) => {
+      const d = document.createElement("div");
+      Object.assign(d.style, css);
+      if (text != null) d.textContent = text;
+      parent.appendChild(d);
+      return d;
+    };
+    const body = el(root, {
+      position: "absolute",
+      left: `${x - side}px`,
+      top: `${sy - topB}px`,
+      width: `${sw + 2 * side}px`,
+      height: `${sh + topB + botB}px`,
+      borderRadius: `${Math.max(6, 0.12 * sw)}px`,
+      background: "linear-gradient(135deg, #3a3b3f 0%, #1d1e21 45%, #0e0f11 100%)",
+      boxShadow: `0 ${0.04 * sw}px ${0.12 * sw}px rgba(0,0,0,0.55), inset 0 0 0 ${Math.max(1, 0.008 * sw)}px rgba(255,255,255,0.10)`,
+    });
+    let fs = 0.058 * sw;
+    const panel = el(body, {
+      position: "absolute",
+      left: `${side}px`,
+      top: `${topB}px`,
+      width: `${sw}px`,
+      height: `${sh}px`,
+      boxSizing: "border-box",
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+      background: P.screen_bg || "#f2f3f6",
+      borderRadius: `${Math.max(2, 0.025 * sw)}px`,
+      fontFamily: `"Noto Sans Arabic", ${fonts()}`,
+      fontSize: `${fs}px`,
+      lineHeight: "1.45",
+      color: "#1b1c20",
+    });
+    if (!R) {
+      // (its first reading on its way)
+      el(panel, { margin: "auto", fontSize: "2em", opacity: "0.45" }, "…");
+      return;
+    }
+    if (R.title) el(panel, { flex: "none", padding: "0.45em 0.6em", textAlign: "center", fontWeight: "700", direction: dir(), background: "rgba(255,255,255,0.55)", borderBottom: "1px solid rgba(0,0,0,0.12)", opacity: P.wait ? "0.3" : "1" }, R.title);
+    // (the screen moved since it was read — a scroll, another chat opened: what's here is the screen before, faded
+    // and marked "…" until its answer comes)
+    const list = el(panel, { flex: "1 1 auto", minHeight: "0", display: "flex", flexDirection: "column", gap: "0.4em", padding: "0.5em", overflow: "hidden", opacity: P.wait ? "0.3" : "1" });
+    if (P.wait) el(panel, { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", padding: "0 0.7em 0.3em", borderRadius: "1em", background: "rgba(0,0,0,0.65)", color: "#fff", fontSize: "1.8em", lineHeight: "1.2" }, "…");
+    const LOOK = {
+      msg: { alignSelf: "flex-start", background: "rgba(255,255,255,0.9)", border: "1px solid rgba(70,90,200,0.35)" },
+      me: { alignSelf: "flex-end", background: "#cfe1f7" },
+      card: { alignSelf: "flex-start", background: "rgba(0,0,0,0.07)", border: "1px solid rgba(0,0,0,0.12)", fontWeight: "700", fontSize: "0.9em" },
+      label: { alignSelf: "center", fontSize: "0.82em", opacity: "0.7", padding: "0 0.4em" },
+    };
+    for (const it of R.items || []) {
+      if (!it.text) continue;
+      const d = el(list, Object.assign({ flex: "none", maxWidth: "92%", padding: "0.3em 0.6em", borderRadius: "0.6em", direction: dir(), textAlign: "start", overflowWrap: "anywhere" }, LOOK[it.k] || LOOK.msg));
+      // (the sender's name in the colour the game writes it in — each sender's own, as read off the phone — else purple)
+      if (it.from) el(d, { fontWeight: "700", fontSize: "0.9em", color: /^#[0-9a-f]{6}$/i.test(it.color || "") ? it.color : "#5b46b0" }, it.from);
+      el(d, {}, it.text);
+    }
+    // (as big as fits: smaller until its last piece is on the screen, no smaller than half the size)
+    for (let i = 0; i < 12 && list.scrollHeight > list.clientHeight + 1; i++) {
+      fs *= 0.94;
+      panel.style.fontSize = `${fs}px`;
+    }
+  }
+
   function renderPhone(root, P, fit, again) {
     root.innerHTML = "";
     if (P && P.chat) renderChat(root, P.chat);
+    if (P && "read" in P) return renderPhoneRead(root, P);
     // (the phone not read for a moment — a frame it wasn't found in: the last one drawn stays up a little)
     // (`replay`: the last phone drawn again — its text's size and everything as a reading's, only nothing measured
     // anew: no easing, no scroll told)
@@ -645,46 +769,7 @@ window.AS = (() => {
     }
     // (in the panel: places relative to its top left)
     const put = (d, left, top) => Object.assign(d.style, { left: `${left - x}px`, top: `${top - panelTop}px` });
-    // the buttons at the bottom right ("SELECT", "BACK"): each one's word beside the game's, in its style
-    for (const b of P.buttons || []) {
-      // (the game's buttons stay put: the place a button was first seen at is kept while it's read within a
-      // few pixels of it, the reading's box shifting a pixel or two from frame to frame)
-      const key = b.en || b.ar;
-      const was = PHONE_BUTTON_AT[key];
-      const near = was && Math.abs(was[0] - b.rect[0]) < 0.006 && Math.abs(was[1] - b.rect[1]) < 0.01 && Math.abs(was[3] - b.rect[3]) < 0.006;
-      const r = near ? was : (PHONE_BUTTON_AT[key] = b.rect);
-      const capH = r[3] * H;
-      const d = document.createElement("div");
-      Object.assign(d.style, {
-        position: "absolute",
-        right: `${W - r[0] * W + capH * 1.2}px`,
-        top: `${(r[1] + r[3] / 2) * H}px`,
-        transform: "translateY(-50%)",
-        display: "flex",
-        alignItems: "center",
-        gap: `${capH * 0.45}px`,
-        whiteSpace: "nowrap",
-        direction: dir(),
-        fontFamily: `"Noto Sans Arabic", ${fonts()}`,
-        fontWeight: "700",
-        fontSize: `${capH * 1.3}px`,
-        lineHeight: "1",
-        color: "#ffffff",
-        textShadow: "0 1px 3px rgba(0,0,0,0.85)",
-      });
-      // (its icon first: on the right in a right-to-left row, as the game's after its word)
-      if (b.icon) {
-        const img = document.createElement("img");
-        img.src = b.icon;
-        const ih = b.icon_rect ? b.icon_rect[3] * H : capH * 1.3;
-        Object.assign(img.style, { height: `${ih}px`, width: `${ih}px`, objectFit: "contain", flex: "none", display: "block" });
-        d.appendChild(img);
-      }
-      const label = document.createElement("span");
-      label.textContent = b.ar;
-      d.appendChild(label);
-      root.appendChild(d);
-    }
+    phoneButtons(root, P, W, H);
     let below = -1e9;
     const fitList = [];
     // (the other person's bubbles' left margin, the smallest: the character's own keep the same on the right)
