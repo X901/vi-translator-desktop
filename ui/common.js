@@ -48,6 +48,27 @@ window.AS = (() => {
   // The game draws the other speaker's subtitle line in grey.
   const DIM = "#9a9a9a";
 
+  // Steady boxes: the same thing measured again a few pixels off stays where it was. The game's text is
+  // still; its readings aren't (a pause menu's items came 2–3 px apart from one read to the next, and
+  // the translation over them shook). A real change — a selected item growing, the next line — is
+  // bigger and moves it. (fractions of the picture: about 9 px across and 7 px down at 1080p)
+  const STEADY = { on: true, dx: 0.005, dy: 0.007, holdMs: 300 };
+  let steadyAt = {}, steadyCount = 0;
+  // r: {x, y, w, h} or [x, y, w, h] (the same kind back); key: the thing it is (an area, a menu item …)
+  function steady(key, r) {
+    if (!STEADY.on || !r) return r;
+    const arr = Array.isArray(r);
+    const [x, y, w, h] = arr ? r : [r.x, r.y, r.w, r.h];
+    const was = steadyAt[key];
+    if (was && Math.abs(was.v[0] - x) < STEADY.dx && Math.abs(was.v[1] - y) < STEADY.dy &&
+        Math.abs(was.v[0] + was.v[2] - (x + w)) < STEADY.dx && Math.abs(was.v[1] + was.v[3] - (y + h)) < STEADY.dy) {
+      return arr ? was.v.slice() : { x: was.v[0], y: was.v[1], w: was.v[2], h: was.v[3] };
+    }
+    if (!was && ++steadyCount > 4000) { steadyAt = {}; steadyCount = 0; }
+    steadyAt[key] = { v: [x, y, w, h] };
+    return r;
+  }
+
   // Segments -> HTML. Color segments become colored spans; "icon:<png>" segments become the game's
   // button icon, sized to the text (1.2em) and sitting on the line like a letter.
   function segHtml(segments, keepColors = true) {
@@ -341,6 +362,8 @@ window.AS = (() => {
 
   // where each of the phone's buttons was first seen (see renderPhone)
   const PHONE_BUTTON_AT = {};
+  // the phone's tilt as last drawn (eased toward each reading's: renderPhone)
+  const PHONE_TILT = { turn: 0, slant: 0, at: 0 };
 
   function renderPhone(root, P) {
     root.innerHTML = "";
@@ -373,6 +396,22 @@ window.AS = (() => {
       boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
       opacity: "0.97",
     });
+    // (held tilted, the panel as the phone: turned as its lines of text are (`turn`, degrees clockwise), its
+    // column of pictures slanting as theirs (`slant` more), round the phone screen's middle — one piece with
+    // the phone. Eased from one reading to the next: the hand sways, the panel follows it smoothly)
+    const T = PHONE_TILT;
+    const k = T.at ? 0.35 : 1;
+    T.turn += ((+P.turn || 0) - T.turn) * k;
+    T.slant += ((+P.slant || 0) - T.slant) * k;
+    T.at = 1;
+    if (Math.abs(T.turn) > 0.3 || Math.abs(T.slant) > 0.3) {
+      const r = (d) => (d * Math.PI) / 180;
+      const [a, b, c, d2] = [Math.cos(r(T.turn)), Math.sin(r(T.turn)), -Math.sin(r(T.turn + T.slant)), Math.cos(r(T.turn + T.slant))];
+      Object.assign(panel.style, {
+        transformOrigin: `${sx + sw / 2 - x}px ${sh / 2}px`,
+        transform: `matrix(${a.toFixed(4)}, ${b.toFixed(4)}, ${c.toFixed(4)}, ${d2.toFixed(4)}, 0, 0)`,
+      });
+    }
     // (in the panel: places relative to its top left)
     const put = (d, left, top) => Object.assign(d.style, { left: `${left - x}px`, top: `${top - sy}px` });
     // the buttons at the bottom right ("SELECT", "BACK"): each one's word beside the game's, in its style
@@ -542,6 +581,8 @@ window.AS = (() => {
       if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
     }
+    // (the panel as tall as its rows need: Arabic lines a little taller than the phone's, the last row was cut)
+    if (below - sy + pad > sh) panel.style.height = `${below - sy + pad}px`;
   }
 
   // ---- Game pages (a menu, a "mission failed" page …) ------------------------------------------
@@ -551,6 +592,20 @@ window.AS = (() => {
   function renderScreen(root, L, reasonSegs, opts) {
     root.innerHTML = "";
     if (!L) return;
+    // (each item where it was when read again a few pixels off: see `steady`)
+    // (by the item's English, and which one of that English it is: two "Off"s in a list are two items)
+    const nth = {};
+    const sk = (kind, it, i) => {
+      const id = `${L.id}|${kind}|${it.en || "#" + i}`;
+      nth[id] = (nth[id] || 0) + 1;
+      return `${id}|${nth[id]}`;
+    };
+    for (const kind of ["labels", "menu", "cards"]) (L[kind] || []).forEach((it, i) => { if (it.rect) it.rect = steady(sk(kind, it, i), it.rect); });
+    (L.buttons || []).forEach((b, i) => {
+      if (b.text_rect) b.text_rect = steady(sk("button-text", b, i), b.text_rect);
+      if (b.icon_rect) b.icon_rect = steady(sk("button-icon", b, i), b.icon_rect);
+    });
+    if (L.title) L.title = steady(`${L.id}|title`, L.title);
     const W = root.clientWidth;
     const H = root.clientHeight;
     const shadow = (fs) => `0 ${(fs * 0.05).toFixed(1)}px ${(fs * 0.08).toFixed(1)}px rgba(0,0,0,0.8)`;
@@ -1091,12 +1146,14 @@ window.AS = (() => {
       renderBox(box, [], baseStyle, k, 1, "", a);
       return false;
     }
-    const tb = P.noBoxes ? null : src.text_box;
+    // (the game's text and box where they were when read again a few pixels off: see `steady`)
+    const tb = P.noBoxes ? null : steady(a.id + "|text", src.text_box);
+    const gbox = P.noBoxes ? null : steady(a.id + "|game", src.game_box);
     const L = look(a, styleOf(a, baseStyle), opts, tb);
     renderBox(box, has ? ev.segments : [], L.style, k, a.font_scale, L.placement, L.area, matchedPx(a, src.line_h, sizeH),
       { fadeMs: fx.fade_ms, empty: early, accent: fx.accent });
     if (atText(L.placement)) {
-      placeAtText(box, L.placement, tb, src.line_h, P.W, P.H, P.ox, P.oy, P.areaW, P.areaH, P.noBoxes ? null : src.game_box,
+      placeAtText(box, L.placement, tb, src.line_h, P.W, P.H, P.ox, P.oy, P.areaW, P.areaH, gbox,
         { min: early || fx.cover_min, also: has && early === false && cover && coverLook(opts) && fx.cover_early && fx.stack_up ? cover : null });
     } else if (P.ride) {
       placeRide(box, P.ride, P, fx.fade_ms);
@@ -1158,5 +1215,5 @@ window.AS = (() => {
   // An area's text style: its own, else the profile's (areas from before had none of their own).
   const styleOf = (area, base) => (area && area.style) || base;
 
-  return { setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText, look, COVER, fxOf, coverLook, drawLine, ridePlace, measureBox, renderPhone };
+  return { STEADY, steady, setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText, look, COVER, fxOf, coverLook, drawLine, ridePlace, measureBox, renderPhone };
 })();

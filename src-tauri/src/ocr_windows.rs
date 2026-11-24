@@ -40,19 +40,32 @@ impl Engine {
         let buffer = writer.DetachBuffer()?;
         let bitmap = SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w as i32, h as i32)?;
         let result = self.engine.RecognizeAsync(&bitmap)?.join().map_err(|e| anyhow!("OCR failed: {e}"))?;
+        // Text that is turned (a phone held tilted): Windows reads it straightened, turned by TextAngle round the
+        // picture's middle, and gives its words' boxes in that straightened picture. Each box turned back to where
+        // the word is in this one (its middle; its size as read). Without it a tilted phone's words were placed
+        // up to tens of pixels off, more the further from the middle.
+        let angle = result.TextAngle().ok().and_then(|a| a.Value().ok()).unwrap_or(0.0);
+        let (cx, cy) = (w as f64 / 2.0, h as f64 / 2.0);
+        let (sin, cos) = angle.to_radians().sin_cos();
+        let back = |x: f64, y: f64| (cx + (x - cx) * cos - (y - cy) * sin, cy + (x - cx) * sin + (y - cy) * cos);
         let mut words = Vec::new();
         for (line_no, line) in result.Lines()?.into_iter().enumerate() {
             for word in line.Words()? {
                 let r = word.BoundingRect()?;
+                let (rw, rh) = (r.Width as f64, r.Height as f64);
+                let (mx, my) = if angle.abs() > 0.2 { back(r.X as f64 + rw / 2.0, r.Y as f64 + rh / 2.0) } else { (r.X as f64 + rw / 2.0, r.Y as f64 + rh / 2.0) };
                 words.push(RawWord {
                     line: line_no as u32,
                     text: word.Text()?.to_string(),
-                    x: r.X as f64,
-                    y: r.Y as f64,
-                    w: r.Width as f64,
-                    h: r.Height as f64,
+                    x: mx - rw / 2.0,
+                    y: my - rh / 2.0,
+                    w: rw,
+                    h: rh,
                 });
             }
+        }
+        if std::env::var_os("VIT_DISK_DEBUG").is_some() && angle.abs() > 0.2 {
+            eprintln!("[ocr] text angle {angle:.2}°");
         }
         Ok(words)
     }

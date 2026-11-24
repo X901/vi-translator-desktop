@@ -1345,17 +1345,21 @@ impl Reader {
                     crate::phone::find_screen(&f.rgba, f.w, f.h)
                         // (a short light part, a Snapmatic post's caption: a phone only with its buttons up)
                         .or_else(|| crate::phone::find_screen_unsure(&f.rgba, f.w, f.h).filter(|_| crate::phone::phone_buttons(&crate::phone::read_buttons(ocr, &f.rgba, f.w, f.h))))
-                        .map(|scr| (scr, crate::phone::read_screen(ocr, &f.rgba, f.w, f.h, scr)))
-                        .filter(|(_, p)| !p.is_empty())
+                        .map(|scr| (scr, crate::phone::read_screen_any(ocr, &f.rgba, f.w, f.h, scr)))
+                        .filter(|(_, r)| !r.pieces.is_empty())
                 } else {
                     None
                 };
                 let now = Instant::now();
                 match found {
-                    Some((scr, pieces)) => {
+                    Some((scr, read)) => {
                         *ctx.live.phone_seen.lock().unwrap() = Some(now);
+                        // (a phone held tilted: read upright — its pieces' places and pictures are in that frame,
+                        // `fr`; its turn, and the pictures' column's slant in it, go to the overlay, drawn as turned)
+                        let fr: &[u8] = read.upright.as_deref().unwrap_or(&f.rgba[..]);
+                        let (turn, slant) = (read.angle, crate::phone::tilt_of(&read.pieces).unwrap_or(0.0));
                         // (steady from one read to the next: a misreading keeps the first reading, a missed piece stays a moment)
-                        let pieces = crate::phone::steady(&mut ctx.live.phone_pieces.lock().unwrap(), pieces, scr, now);
+                        let pieces = crate::phone::steady(&mut ctx.live.phone_pieces.lock().unwrap(), read.pieces, scr, now);
                         let (w, h) = (f.w as f64, f.h as f64);
                         let frac = |r: (u32, u32, u32, u32)| [r.0 as f64 / w, r.1 as f64 / h, r.2 as f64 / w, r.3 as f64 / h];
                         let lang = c.target_lang.clone();
@@ -1400,7 +1404,7 @@ impl Reader {
                                     let fg = p.look.fg;
                                     let bg = p.look.bg;
                                     // (the chat's header: its contact's picture at its end)
-                                    let pic = p.avatar.and_then(|a| crate::phone::part_png(&f.rgba, f.w, f.h, p.rect, (a.0, a.1, a.2, a.2), 56)).map(|png| {
+                                    let pic = p.avatar.and_then(|a| crate::phone::part_png(fr, f.w, f.h, p.rect, (a.0, a.1, a.2, a.2), 56)).map(|png| {
                                         use base64::Engine as _;
                                         format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
                                     });
@@ -1420,16 +1424,27 @@ impl Reader {
                                     (None, Some((_, ar, _))) => Some(ar),
                                     (None, None) => None,
                                 };
+                                // (a translation with no words in it for words: the translator gave up on a cut
+                                // line, "thnx hon 😘 my rum is be..." came back as a row of dots: none, not that;
+                                // asked again without the cut word at its end, "thnx hon my rum is", shown with "…")
+                                let has_words = |a: &str| !p.en.chars().any(char::is_alphabetic) || a.replace(|c: char| c == '{' || c == '}' || c.is_ascii_digit(), "").chars().any(char::is_alphabetic);
+                                let cut_en = {
+                                    let t = p.en.trim_end_matches(['.', '…', ' ']);
+                                    if t.len() < p.en.len() { t.rsplit_once(' ').map(|(a, _)| a.to_string()).unwrap_or_else(|| t.to_string()) } else { t.to_string() }
+                                };
+                                let gave_up = cache.map.get(&p.en).is_some_and(|a| !has_words(a));
                                 let ar = ar
                                     .or_else(|| cache.map.get(&p.en).cloned())
-                                    .or_else(|| cache.map.iter().find(|(k, _)| ocr::similar(k, &p.en)).map(|(_, v)| v.clone()));
+                                    .or_else(|| cache.map.iter().find(|(k, _)| ocr::similar(k, &p.en)).map(|(_, v)| v.clone()))
+                                    .filter(|a| has_words(a))
+                                    .or_else(|| cache.map.get(&cut_en).filter(|a| has_words(a)).map(|a| format!("{}…", a.trim_end_matches(['.', '…', ' ']))));
                                 let hex = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
                                 // (a translation without its slots: the emojis after it)
                                 let ar = ar.map(|a| if p.emoji.is_empty() || a.contains('{') { a } else { format!("{a} {}", (1..=p.emoji.len()).map(|i| format!("{{{i}}}")).collect::<String>()) });
                                 // (a chat list's row shows while its message's translation comes: its contact, its picture)
                                 let ar = if p.avatar.is_some() && p.en.is_empty() { Some(String::new()) } else { ar };
                                 let png = |o: (i32, i32, u32, u32), h: u32| {
-                                    crate::phone::part_png(&f.rgba, f.w, f.h, p.rect, o, h).map(|png| {
+                                    crate::phone::part_png(fr, f.w, f.h, p.rect, o, h).map(|png| {
                                         use base64::Engine as _;
                                         format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
                                     })
@@ -1457,22 +1472,23 @@ impl Reader {
                                         "avatar": p.avatar.and_then(|a| png((a.0, a.1, a.2, a.2), 56)),
                                         "preview": p.preview.and_then(|b| png(b, 28)),
                                         "badge": p.badge.and_then(|b| png(b, 28)),
-                                        "emoji": p.emoji.iter().filter_map(|e| crate::phone::part_png(&f.rgba, f.w, f.h, *e, (0, 0, e.2, e.3), 40)).map(|png| {
+                                        "emoji": p.emoji.iter().filter_map(|e| crate::phone::part_png(fr, f.w, f.h, *e, (0, 0, e.2, e.3), 40)).map(|png| {
                                             use base64::Engine as _;
                                             format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
                                         }).collect::<Vec<_>>(),
                                     })),
                                     None => {
-                                        if !menu_asked.contains(&p.en) && !menu_asked.iter().any(|a| ocr::similar(a, &p.en)) && menu_asked.insert(p.en.clone()) {
+                                        let ask = if gave_up { cut_en.clone() } else { p.en.clone() };
+                                        if !ask.is_empty() && !menu_asked.contains(&ask) && !menu_asked.iter().any(|a| ocr::similar(a, &ask)) && menu_asked.insert(ask.clone()) {
                                             seq_counter += 1;
-                                            let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: p.en.clone(), phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
+                                            let _ = jobs.send(Job { area: MENU_TEXT.into(), seq: seq_counter, en: ask, phrases: Vec::new(), icons: Vec::new(), line_h: 0.0, en_start: now, text_box: None, game_box: None, parts: Vec::new() });
                                         }
                                     }
                                 }
                             }
                         }
-                        let sbg = crate::phone::screen_bg(&f.rgba, f.w, f.h, scr, scr.1, scr.1 + scr.3);
-                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some()), "buttons": btns });
+                        let sbg = crate::phone::screen_bg(fr, f.w, f.h, scr, scr.1, scr.1 + scr.3);
+                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some()), "buttons": btns, "turn": turn, "slant": slant });
                         let mut up = ctx.live.phone.lock().unwrap();
                         if up.as_ref() != Some(&v) {
                             *up = Some(v.clone());

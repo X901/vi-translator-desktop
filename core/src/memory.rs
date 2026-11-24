@@ -402,7 +402,16 @@ impl Memory {
         let head = words.join(" ");
         let mut best: Option<&Entry> = None;
         for k in rarest {
-            let Some(rest) = k.strip_prefix(head.as_str()) else { continue };
+            // (its icons' slots aside: a chat row's start is read without its emoji, "thnx hon my rum is be...",
+            // the game's line has it between the words, "thnx hon {1} my rum is behind counter")
+            let bare: String;
+            let k_cmp: &str = if k.contains('{') {
+                bare = k.split(' ').filter(|w| !(w.starts_with('{') && w.ends_with('}'))).collect::<Vec<_>>().join(" ");
+                &bare
+            } else {
+                k
+            };
+            let Some(rest) = k_cmp.strip_prefix(head.as_str()) else { continue };
             let Some(next) = rest.strip_prefix(' ').and_then(|r| r.split(' ').next()) else { continue };
             if !next.starts_with(part) {
                 continue;

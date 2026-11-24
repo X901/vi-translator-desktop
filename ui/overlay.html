@@ -75,9 +75,19 @@
       document.fonts.ready.then(draw);
       if (SCREEN) {
         invoke("get_screen").then((s) => { layout = s.layout; segments = s.reason || []; draw(); });
-        listen("screen", (e) => { layout = e.payload; if (!layout) segments = []; draw(); });
+        // (a page gone for a moment and back — not read on one frame — stays up: see AS.STEADY)
+        let pageGone = null;
+        listen("screen", (e) => {
+          clearTimeout(pageGone);
+          if (e.payload || !layout || !AS.STEADY.on) {
+            layout = e.payload; if (!layout) segments = []; draw();
+            return;
+          }
+          pageGone = setTimeout(() => { layout = null; segments = []; draw(); }, AS.STEADY.holdMs);
+        });
       }
       const MY_TEXT = SCREEN ? "__screen_reason" : AREA;
+      let lineGone = null;
       if (PHONE) {
         invoke("get_phone").then((p) => { phone = p; draw(); }).catch(() => {});
         listen("phone", (e) => { phone = e.payload; draw(); });
@@ -94,6 +104,14 @@
           if (e.payload.area !== MY_TEXT && !SCREEN && cfg && AS.fxOf(cfg.area_fx, AREA).ride) draw();
         }
         if (e.payload.area !== MY_TEXT || e.payload.error) return;
+        // (a translation taken down and the same one back a moment later stays up, not blinking: every
+        // area but the subtitles, whose lines leave with their English at once — see AS.STEADY)
+        clearTimeout(lineGone);
+        const empty = !(e.payload.segments && e.payload.segments.length);
+        if (empty && segments.length && AS.STEADY.on && AREA !== "subtitles" && !SCREEN) {
+          lineGone = setTimeout(() => { segments = []; draw(); }, AS.STEADY.holdMs);
+          return;
+        }
         segments = e.payload.segments;
         if (e.payload.line_h) lineH = e.payload.line_h;
         if (e.payload.text_box) textBox = e.payload.text_box;

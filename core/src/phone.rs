@@ -348,12 +348,109 @@ fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) ->
 /// The screen's text in pieces (each in frame pixels), top to bottom: lines one under the other (a
 /// line pitch apart) are one piece; a gap wider than a line starts the next (the next message's bubble,
 /// a button). The first piece, a few words near the screen's top, is its title (the chat's contact).
-pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32)) -> Vec<Piece> {
+/// The phone's screen read at any tilt: its pieces, how far it is turned (degrees, clockwise, from its lines
+/// of text) and — turned more than a degree — the frame with the screen turned upright, which the pieces'
+/// places and crops are in (the reading's lines, rows and pictures are found as on a phone held straight).
+pub struct Read {
+    pub pieces: Vec<Piece>,
+    pub angle: f64,
+    pub upright: Option<Vec<u8>>,
+}
+
+pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32)) -> Read {
+    let (pieces, angle) = read_screen_at(ocr, rgba, fw, fh, screen);
+    if angle.abs() < 1.0 || angle.abs() > 35.0 {
+        return Read { pieces, angle, upright: None };
+    }
+    let up = upright(rgba, fw, fh, screen, angle);
+    let (again, _) = read_screen_at(ocr, &up, fw, fh, screen);
+    // (read upright, at least as much as before: else as read)
+    if again.len() + 1 < pieces.len() {
+        return Read { pieces, angle, upright: None };
+    }
+    Read { pieces: again, angle, upright: Some(up) }
+}
+
+/// How far a reading's lines are turned (degrees, clockwise): each line of two words or more, from its first
+/// word's middle to its last's; the median of the long ones. 0 with fewer than two.
+fn lines_angle(words: &[Word]) -> f64 {
+    let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+    hs.sort_unstable();
+    let lh = hs.get(hs.len() / 2).copied().unwrap_or(10).max(6) as f64;
+    let mut by_line: std::collections::BTreeMap<u32, Vec<&Word>> = std::collections::BTreeMap::new();
+    for w in words {
+        by_line.entry(w.line).or_default().push(w);
+    }
+    let mut a: Vec<f64> = by_line
+        .values()
+        .filter(|l| l.len() >= 2)
+        .filter_map(|l| {
+            let first = l.iter().min_by_key(|w| w.rect.0)?;
+            let last = l.iter().max_by_key(|w| w.rect.0 + w.rect.2)?;
+            let mid = |w: &Word| (w.rect.0 as f64 + w.rect.2 as f64 / 2.0, w.rect.1 as f64 + w.rect.3 as f64 / 2.0);
+            let ((x0, y0), (x1, y1)) = (mid(first), mid(last));
+            (x1 - x0 >= lh * 4.0).then(|| (y1 - y0).atan2(x1 - x0).to_degrees())
+        })
+        .collect();
+    if a.len() < 2 {
+        return 0.0;
+    }
+    a.sort_by(|x, y| x.total_cmp(y));
+    a[a.len() / 2]
+}
+
+/// "0k" / "0K" read for "Ok" at a word's start (the OCR takes the round O for a zero).
+fn zero_ok(t: &str) -> String {
+    t.split(' ')
+        .map(|w| {
+            let core = w.trim_end_matches(['.', ',', '!', '?']);
+            if core == "0k" || core == "0K" || core == "0kay" { format!("O{}", &w[1..]) } else { w.to_string() }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The frame with the phone's screen (and a margin round it) turned upright: turned back by `angle` round
+/// the screen's middle (bilinear). The rest of the frame as it is.
+pub fn upright(rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32), angle: f64) -> Vec<u8> {
+    let mut out = rgba.to_vec();
     let (sx, sy, sw, sh) = screen;
-    let Some(crop) = Crop::from_frame(rgba, fw, fh, sx as f64 / fw as f64, sy as f64 / fh as f64, sw as f64 / fw as f64, sh as f64 / fh as f64) else { return Vec::new() };
+    let (mx, my) = (sw / 8, sh / 12);
+    let (x0, y0) = (sx.saturating_sub(mx), sy.saturating_sub(my));
+    let (x1, y1) = ((sx + sw + mx).min(fw), (sy + sh + my).min(fh));
+    let (cx, cy) = (sx as f64 + sw as f64 / 2.0, sy as f64 + sh as f64 / 2.0);
+    let (sin, cos) = angle.to_radians().sin_cos();
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let (dx, dy) = (x as f64 - cx, y as f64 - cy);
+            let (u, v) = (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos);
+            if u < 0.0 || v < 0.0 || u >= (fw - 1) as f64 || v >= (fh - 1) as f64 {
+                continue;
+            }
+            let (ux, vy) = (u.floor() as u32, v.floor() as u32);
+            let (fx, fy) = (u - ux as f64, v - vy as f64);
+            let at = |xx: u32, yy: u32, c: usize| rgba[((yy * fw + xx) * 4) as usize + c] as f64;
+            let o = ((y * fw + x) * 4) as usize;
+            for c in 0..3 {
+                let top = at(ux, vy, c) * (1.0 - fx) + at(ux + 1, vy, c) * fx;
+                let bot = at(ux, vy + 1, c) * (1.0 - fx) + at(ux + 1, vy + 1, c) * fx;
+                out[o + c] = (top * (1.0 - fy) + bot * fy).round() as u8;
+            }
+        }
+    }
+    out
+}
+
+pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32)) -> Vec<Piece> {
+    read_screen_at(ocr, rgba, fw, fh, screen).0
+}
+
+fn read_screen_at(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32)) -> (Vec<Piece>, f64) {
+    let (sx, sy, sw, sh) = screen;
+    let Some(crop) = Crop::from_frame(rgba, fw, fh, sx as f64 / fw as f64, sy as f64 / fh as f64, sw as f64 / fw as f64, sh as f64 / fh as f64) else { return (Vec::new(), 0.0) };
     let mut words = match ocr.recognize_checked(&crop) {
         Ok((w, _)) => w,
-        Err(_) => return Vec::new(),
+        Err(_) => return (Vec::new(), 0.0),
     };
     // the character's own messages, white on a bright blue: read again by the darkest channel (by the
     // brightest, the blue is as bright as the letters), what the first reading missed added
@@ -372,6 +469,13 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
             let overlaps = |a: &Word, b: &Word| a.rect.0 < b.rect.0 + b.rect.2 && b.rect.0 < a.rect.0 + a.rect.2 && a.rect.1 < b.rect.1 + b.rect.3 && b.rect.1 < a.rect.1 + a.rect.3;
             let new: Vec<Word> = more.into_iter().filter(|m| m.text.chars().any(|c| c.is_alphanumeric()) && !words.iter().any(|w| overlaps(w, m))).collect();
             words.extend(new);
+        }
+    }
+    let angle = lines_angle(&words);
+    if std::env::var_os("VIT_DISK_DEBUG").is_some() {
+        eprintln!("[phone] lines turned {angle:.2}°");
+        for w in &words {
+            eprintln!("[word] {:?} line {} at {:?}", w.text, w.line, w.rect);
         }
     }
     // (a line the screen's edge cuts — scrolled half out: "pln her riee from tho" — is no text to translate)
@@ -418,16 +522,24 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
         avs.sort_by_key(|a| a.2);
         let typical = avs[avs.len() / 2];
         let side = typical.2;
-        for p in &mut out {
+        // (the rows whose picture was found where it is, not given the usual one)
+        let mut found: Vec<bool> = out.iter().map(|p| p.avatar.is_some()).collect();
+        for (i, p) in out.iter_mut().enumerate() {
             if p.avatar.is_none() && (p.split.is_some() || p.name.is_some()) && p.rect.0.abs_diff(row_x) <= sw / 30 {
                 p.avatar = Some(typical);
+                found[i] = false;
             }
             // a row of one line read (its message an emoji, or missed): the contact's name, and the
             // message's place under it shown as it is
             if p.avatar.is_none() && p.split.is_none() && p.name.is_none() && p.rect.0.abs_diff(row_x) <= sw / 30 && p.en.split_whitespace().count() <= 4 {
-                let a = avatar_of(rgba, fw, fh, (p.rect.0, p.rect.1, p.rect.2, p.rect.3 * 2), p.look.bg, screen);
+                // (its picture as the circle it is, level with the name's foot, the row's middle; else as before)
+                let sbg = screen_bg(rgba, fw, fh, screen, p.rect.1, p.rect.1 + p.rect.3 * 2);
+                let a = disk_at(rgba, fw, fh, p.rect.0, p.rect.1 + p.rect.3, p.look.bg, sbg, side)
+                    .map(|(dx, dy, d)| (dx as i32 + d as i32 / 2 - p.rect.0 as i32, dy as i32 + d as i32 / 2 - p.rect.1 as i32, d))
+                    .or_else(|| avatar_of(rgba, fw, fh, (p.rect.0, p.rect.1, p.rect.2, p.rect.3 * 2), p.look.bg, screen));
                 if a.is_some() {
                     p.avatar = a;
+                    found[i] = true;
                     p.split = Some((p.en.clone(), String::new()));
                     let below = (p.rect.0, p.rect.1 + p.rect.3 + p.rect.3 / 5, (sw * 55 / 100).min(sx + sw - p.rect.0), p.rect.3 * 7 / 5);
                     p.preview = ink_box(rgba, fw, fh, below, p.look.bg, 70).filter(|b| b.2 <= b.3 * 4).map(|b| (b.0 as i32 - p.rect.0 as i32, b.1 as i32 - p.rect.1 as i32, b.2, b.3));
@@ -437,15 +549,39 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
         // (each picture as a square of the rows' usual size, from its bottom right corner, a little wider:
         // the unread dot on its corner in it too)
         // (where the pictures end, the rows' usual; level with each row's text)
-        let mut ends: Vec<i32> = out.iter().filter_map(|p| p.avatar.map(|a| p.rect.0 as i32 + a.0)).collect();
-        ends.sort_unstable();
-        let end_x = ends[ends.len() / 2];
+        // (where each row's own picture ends, found; else by its text, the rows' usual gap before it. Held
+        // tilted, the rows don't line up: one place for them all cut the top rows' pictures from the phone's
+        // edge and the bottom rows' from their names, and the gap itself changes down the screen)
+        let mut gaps: Vec<i32> = out.iter().zip(&found).filter(|(_, f)| **f).filter_map(|(p, _)| p.avatar.map(|a| -a.0)).collect();
+        gaps.sort_unstable();
+        let gap = gaps.get(gaps.len() / 2).copied().unwrap_or(side as i32 / 4);
         let m = (side / 10) as i32;
-        for p in &mut out {
-            if p.avatar.is_some() {
+        // (the pictures found as the circles they are, where they are: any tilt, the phone's edge beside them
+        // or not; all of the size most of them are, each a square round its own circle, a little bigger)
+        let disks: Vec<Option<(u32, u32, u32)>> = out
+            .iter()
+            .map(|p| {
+                p.avatar?;
                 let one_line = p.split.as_ref().is_some_and(|s| s.1.is_empty()) || p.en.is_empty();
-                let mid = p.rect.1 as i32 + if one_line { (p.rect.3 * 11 / 10) as i32 } else { (p.rect.3 / 2) as i32 };
-                p.avatar = Some((end_x - side as i32 - m - p.rect.0 as i32, mid - side as i32 / 2 - m - p.rect.1 as i32, side + 2 * m as u32));
+                let cy = p.rect.1 + if one_line { p.rect.3 * 11 / 10 } else { p.rect.3 / 2 };
+                let sbg = screen_bg(rgba, fw, fh, screen, p.rect.1, p.rect.1 + p.rect.3);
+                disk_at(rgba, fw, fh, p.rect.0, cy, p.look.bg, sbg, side)
+            })
+            .collect();
+        let mut ds: Vec<u32> = disks.iter().flatten().map(|d| d.2).collect();
+        ds.sort_unstable();
+        let disk_d = ds.get(ds.len() / 2).copied();
+        for (i, p) in out.iter_mut().enumerate() {
+            if let Some(a) = p.avatar {
+                if let (Some((dx, dy, _)), Some(d)) = (disks[i], disk_d) {
+                    let s = d * 23 / 20;
+                    p.avatar = Some((dx as i32 - s as i32 / 2 - p.rect.0 as i32, dy as i32 - s as i32 / 2 - p.rect.1 as i32, s));
+                    continue;
+                }
+                let end = if found[i] { a.0 } else { -gap };
+                let one_line = p.split.as_ref().is_some_and(|s| s.1.is_empty()) || p.en.is_empty();
+                let mid = if found[i] { a.1 - side as i32 / 2 } else { (p.rect.1 as i32 + if one_line { (p.rect.3 * 11 / 10) as i32 } else { (p.rect.3 / 2) as i32 }) - p.rect.1 as i32 };
+                p.avatar = Some((end - side as i32 - m, mid - side as i32 / 2 - m, side + 2 * m as u32));
             }
         }
         // (a row scrolled half out of the screen: its picture cut by the screen's edge; left out)
@@ -470,7 +606,7 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
                 let lh = if p.split.as_ref().is_some_and(|s| s.1.is_empty()) { p.rect.3 } else { p.rect.3 / 2 };
                 let area = (x0, p.rect.1.saturating_sub(lh / 4), (sx + sw).saturating_sub(x0 + sw / 40), lh + lh / 4);
                 p.badge = ink_box(rgba, fw, fh, area, p.look.bg, 40)
-                    .filter(|b| b.2 >= 8 && b.3 >= 8 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16)
+                    .filter(|b| b.2 >= 8 && b.3 >= 8 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16 && !mostly_dark(rgba, fw, *b))
                     .map(|b| (b.0 as i32 - p.rect.0 as i32, b.1 as i32 - p.rect.1 as i32, b.2, b.3));
             }
         }
@@ -492,16 +628,23 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
                 p.look.label = true;
                 // a section's header: its icon before it ("Suggested"), read as a stray letter: "e Suggested"
                 let mut words: Vec<&str> = p.en.split_whitespace().collect();
-                if words.len() > 1 && words[0].chars().filter(|c| c.is_alphanumeric()).count() <= 1 {
+                let stray = words.len() > 1 && words[0].chars().filter(|c| c.is_alphanumeric()).count() <= 1;
+                if stray {
                     words.remove(0);
                     p.en = words.join(" ");
                 }
                 let lh = p.rect.3;
-                let area = (p.rect.0.saturating_sub(lh * 2).max(sx), p.rect.1.saturating_sub(lh / 4), lh * 2 - 3, lh + lh / 2);
+                // (the icon read as that letter is the text's start itself: looked for there, not before it,
+                // where the phone's edge is)
+                let area = if stray {
+                    (p.rect.0.saturating_sub(lh / 2).max(sx), p.rect.1.saturating_sub(lh / 4), lh * 2, lh + lh / 2)
+                } else {
+                    (p.rect.0.saturating_sub(lh * 2).max(sx), p.rect.1.saturating_sub(lh / 4), lh * 2 - 3, lh + lh / 2)
+                };
                 // (only with room for one before it: "Messages" starts at the screen's edge)
-                let room = p.rect.0 > sx + lh * 3 / 2;
+                let room = stray || p.rect.0 > sx + lh * 3 / 2;
                 p.badge = ink_box(rgba, fw, fh, area, p.look.bg, 40)
-                    .filter(|b| room && b.2 >= 8 && b.3 >= 8 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16)
+                    .filter(|b| room && b.2 >= 8 && b.3 >= 8 && b.2 * 10 <= b.3 * 16 && b.3 * 10 <= b.2 * 16 && !mostly_dark(rgba, fw, *b))
                     .map(|b| (b.0 as i32 - p.rect.0 as i32, b.1 as i32 - p.rect.1 as i32, b.2, b.3));
             }
         }
@@ -522,7 +665,15 @@ pub fn read_screen(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, 
         let area = (p.rect.0.saturating_sub(2), p.rect.1.saturating_sub(2), x1.saturating_sub(p.rect.0 - 2), p.rect.3 + lh + 4);
         p.emoji = crate::chat::emoji_in(rgba, fw, fh, area, p.look.bg, p.look.fg, lh);
     }
-    out
+    // ("Ok" read with a zero, "0k. There's some cash…": the word it is, so the line is found and translated)
+    for p in &mut out {
+        p.en = zero_ok(&p.en);
+        if let Some((a, b)) = p.split.as_mut() {
+            *a = zero_ok(a);
+            *b = zero_ok(b);
+        }
+    }
+    (out, angle)
 }
 
 /// The contact's round picture before a chat list's row (`r`: its text): a block about the text's
@@ -604,6 +755,118 @@ fn row_edge(rgba: &[u8], fw: u32, r: (u32, u32, u32, u32), bg: [u8; 3], screen: 
         }
     }
     Some((median(&mut found), near))
+}
+
+/// How far the phone is turned (degrees, clockwise as CSS turns things), from a chat list's pictures: down a
+/// straight phone they are one above the other; held tilted, each lower one is further left (or right).
+/// None with fewer than three pictures, or ones that don't line up.
+pub fn tilt_of(pieces: &[Piece]) -> Option<f64> {
+    let c: Vec<(f64, f64)> = pieces
+        .iter()
+        .filter_map(|p| p.avatar.map(|a| ((p.rect.0 as i32 + a.0) as f64 + a.2 as f64 / 2.0, (p.rect.1 as i32 + a.1) as f64 + a.2 as f64 / 2.0)))
+        .collect();
+    if c.len() < 3 {
+        return None;
+    }
+    // x = a + b·y, least squares; and how far the pictures are off that line
+    let n = c.len() as f64;
+    let (my, mx) = (c.iter().map(|p| p.1).sum::<f64>() / n, c.iter().map(|p| p.0).sum::<f64>() / n);
+    let syy: f64 = c.iter().map(|p| (p.1 - my).powi(2)).sum();
+    if syy < 1.0 {
+        return None;
+    }
+    let b = c.iter().map(|p| (p.1 - my) * (p.0 - mx)).sum::<f64>() / syy;
+    let off = (c.iter().map(|p| (p.0 - mx - b * (p.1 - my)).powi(2)).sum::<f64>() / n).sqrt();
+    let side = pieces.iter().filter_map(|p| p.avatar.map(|a| a.2 as f64)).sum::<f64>() / n;
+    // (pictures a third of their size or more off the line: not one column of them; and no phone is held
+    // more than 30° over)
+    let deg = (-b).atan().to_degrees();
+    (off <= side / 3.0 && deg.abs() <= 30.0).then_some(deg)
+}
+
+/// A contact's round picture before a row's text, found as the circle it is: from the text's start
+/// (`from_x`) leftwards along the row's middle (`cy`), the first run of pixels unlike the row and the
+/// screen is the picture; its middle up and down gives its height, and across again its width. Its
+/// centre and diameter (frame pixels). Held tilted, the phone's edge and the ground beside it come
+/// after the row's own colour, past the picture: the run stops at that gap.
+pub fn disk_at(rgba: &[u8], fw: u32, fh: u32, from_x: u32, cy: u32, bg: [u8; 3], sbg: [u8; 3], expect: u32) -> Option<(u32, u32, u32)> {
+    let unlike = |x: u32, y: u32| x < fw && y < fh && {
+        let p = px(rgba, fw, x, y);
+        dist(p, bg) > 40 && dist(p, sbg) > 40
+    };
+    // (a run of the picture along a line from `start`, `step` each way: where it ends, through gaps of a
+    // few pixels — a light beard, a white border — and no further than `max`)
+    let run = |start: i32, fixed: u32, along_x: bool, step: i32, max: i32| -> i32 {
+        let (mut last, mut gap, mut i) = (start, 0, start);
+        while (i - start).abs() <= max {
+            let hit = if along_x { i >= 0 && unlike(i as u32, fixed) } else { i >= 0 && unlike(fixed, i as u32) };
+            if hit {
+                last = i;
+                gap = 0;
+            } else {
+                gap += 1;
+                if gap > (expect as i32 / 12).max(3) {
+                    break;
+                }
+            }
+            i += step;
+        }
+        last
+    };
+    // the picture: going left from the text, the first run of unlike pixels as wide as a third of a picture
+    // at least (through gaps of a few pixels) — not a letter's stroke (held tilted, the line under starts
+    // further left), not the chosen row's thin outline
+    let limit = from_x as i32 - 2 - expect as i32 * 2;
+    let (mut x, mut found) = (from_x as i32 - 2, None);
+    while x > limit.max(1) {
+        if !unlike(x as u32, cy) {
+            x -= 1;
+            continue;
+        }
+        let end = run(x, cy, true, -1, expect as i32 * 3 / 2);
+        if (x - end + 1) as u32 >= (expect * 35 / 100).max(8) {
+            found = Some((x, end));
+            break;
+        }
+        x = end - 1;
+    }
+    let (x1, x0) = found?;
+    // (its middle across, on this line; up and down from there its whole height: the diameter, through
+    // a picture whose inside is white too — a logo — where across breaks)
+    let mx = ((x0 + x1) / 2) as u32;
+    let (y0, y1) = (run(cy as i32, mx, false, -1, expect as i32), run(cy as i32, mx, false, 1, expect as i32));
+    let my = ((y0 + y1) / 2) as u32;
+    let (bx0, bx1) = (run(mx as i32, my, true, -1, expect as i32), run(mx as i32, my, true, 1, expect as i32));
+    let (w, h) = ((bx1 - bx0 + 1) as u32, (y1 - y0 + 1) as u32);
+    if std::env::var_os("VIT_DISK_DEBUG").is_some() {
+        eprintln!("[disk] from {from_x},{cy} expect {expect}: x1 {x1} x0 {x0} y {y0}..{y1} x {bx0}..{bx1} -> {w}x{h}");
+    }
+    // (round: no wider than tall; and about the size a row's picture is)
+    if w > h * 5 / 4 || h * 2 < expect || h > expect * 2 || ((x1 - x0 + 1) as u32) > h * 5 / 4 {
+        return None;
+    }
+    // (across through its middle, when it held: the middle of that; else of the first line across)
+    let cx = if w * 5 >= h * 4 { ((bx0 + bx1) / 2) as u32 } else { mx };
+    Some((cx, my, h))
+}
+
+/// Whether a box (frame pixels) is mostly dark: the phone's edge, or the ground beside a phone held tilted
+/// (a mark on the light screen — a pin, an arrow, an icon — is mostly light or coloured).
+fn mostly_dark(rgba: &[u8], fw: u32, b: (u32, u32, u32, u32)) -> bool {
+    let (mut n, mut dark) = (0u32, 0u32);
+    for yy in (b.1..b.1 + b.3).step_by(2) {
+        for xx in (b.0..(b.0 + b.2).min(fw)).step_by(2) {
+            if ((yy * fw + xx) * 4 + 2) as usize >= rgba.len() {
+                continue;
+            }
+            n += 1;
+            let p = px(rgba, fw, xx, yy);
+            if (p[0] as u32 + p[1] as u32 + p[2] as u32) < 3 * 70 {
+                dark += 1;
+            }
+        }
+    }
+    n > 0 && dark * 2 > n
 }
 
 /// What's drawn in `area` (frame pixels) on a row of colour `bg`: the box round its pixels unlike it.
@@ -725,14 +988,25 @@ pub fn pieces(words: &[Word], crop_w: u32, crop_h: u32) -> Vec<Piece> {
     hs.sort_unstable();
     let lh = hs[hs.len() / 2].max(6);
     // visual lines, top to bottom (middles within half a line)
-    let mut order: Vec<&Word> = words.clone();
-    order.sort_by_key(|w| w.rect.1 + w.rect.3 / 2);
+    // (the reading's own lines, when it gives them: held tilted, a line's first word sits lower or higher
+    // than its last, and by height alone "Ok." went to a line of its own after "There's some cash")
     let mut lines: Vec<Vec<&Word>> = Vec::new();
-    for w in order {
-        let m = w.rect.1 + w.rect.3 / 2;
-        match lines.last_mut() {
-            Some(l) if m <= l[0].rect.1 + l[0].rect.3 / 2 + lh / 2 => l.push(w),
-            _ => lines.push(vec![w]),
+    if words.iter().any(|w| w.line > 0) {
+        let mut by: std::collections::BTreeMap<u32, Vec<&Word>> = std::collections::BTreeMap::new();
+        for w in &words {
+            by.entry(w.line).or_default().push(w);
+        }
+        lines = by.into_values().collect();
+        lines.sort_by_key(|l| l.iter().map(|w| w.rect.1 + w.rect.3 / 2).sum::<u32>() / l.len() as u32);
+    } else {
+        let mut order: Vec<&Word> = words.clone();
+        order.sort_by_key(|w| w.rect.1 + w.rect.3 / 2);
+        for w in order {
+            let m = w.rect.1 + w.rect.3 / 2;
+            match lines.last_mut() {
+                Some(l) if m <= l[0].rect.1 + l[0].rect.3 / 2 + lh / 2 => l.push(w),
+                _ => lines.push(vec![w]),
+            }
         }
     }
     let span = |ws: &[&Word]| {
@@ -762,6 +1036,17 @@ pub fn pieces(words: &[Word], crop_w: u32, crop_h: u32) -> Vec<Piece> {
         let all: Vec<&Word> = g.iter().flatten().copied().collect();
         let owned: Vec<Word> = all.iter().map(|w| (*w).clone()).collect();
         let en = ocr::clean(&owned);
+        // (a contact's short name alone on its line, its message an emoji the reading has no words for — "Cal"
+        // over 😍: the clean-up takes a lone short word for noise, and the row was lost. A capitalised word
+        // of three letters or more, as read)
+        let en = if en.is_empty() && all.len() == 1 && {
+            let t = all[0].text.trim_matches(|c: char| !c.is_alphanumeric());
+            t.chars().count() >= 3 && t.chars().all(char::is_alphabetic) && t.chars().next().is_some_and(char::is_uppercase)
+        } {
+            all[0].text.trim_matches(|c: char| !c.is_alphanumeric()).to_string()
+        } else {
+            en
+        };
         if en.is_empty() || !ocr::looks_like_words(&en) {
             continue;
         }
@@ -920,6 +1205,43 @@ pub fn steady(seen: &mut Vec<Seen>, read: Vec<Piece>, screen: (u32, u32, u32, u3
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ok_read_with_a_zero_is_ok() {
+        assert_eq!(super::zero_ok("0k. There's some cash"), "Ok. There's some cash");
+        assert_eq!(super::zero_ok("Room 0k"), "Room Ok");
+        assert_eq!(super::zero_ok("10k cash"), "10k cash");
+    }
+
+    #[test]
+    fn a_tilted_reading_s_lines_give_its_turn() {
+        // two lines going down to the right, 5 px over 100 px: about 2.9°
+        let at = |t: &str, x: u32, y: u32, line: u32| Word { text: t.into(), rect: (x, y, 20, 12), line };
+        let words = vec![at("a", 0, 100, 0), at("b", 100, 105, 0), at("c", 0, 140, 1), at("d", 100, 145, 1)];
+        let a = super::lines_angle(&words);
+        assert!((a - 2.86).abs() < 0.1, "{a}");
+        // straight, or one line only: none
+        assert_eq!(super::lines_angle(&words[..2]), 0.0);
+    }
+
+    #[test]
+    fn a_turned_screen_is_turned_back_upright() {
+        // a dark dot turned 10° round the middle comes back where it was
+        let (w, h) = (200u32, 200u32);
+        let mut rgba = vec![255u8; (w * h * 4) as usize];
+        let (sin, cos) = 10f64.to_radians().sin_cos();
+        let (dx, dy) = (60.0, 0.0);
+        let (x, y) = ((100.0 + dx * cos - dy * sin) as u32, (100.0 + dx * sin + dy * cos) as u32);
+        for yy in y - 2..=y + 2 {
+            for xx in x - 2..=x + 2 {
+                let i = ((yy * w + xx) * 4) as usize;
+                rgba[i..i + 3].copy_from_slice(&[0, 0, 0]);
+            }
+        }
+        let up = super::upright(&rgba, w, h, (20, 20, 160, 160), 10.0);
+        let i = ((100 * w + 160) * 4) as usize;
+        assert!(up[i] < 80, "the dot upright at (160, 100): {}", up[i]);
+    }
 
     fn w(t: &str, x: u32, y: u32, wd: u32) -> Word {
         Word { text: t.into(), rect: (x, y, wd, 18), line: 0 }
