@@ -234,6 +234,8 @@ I18N.add("sw", {
   "Where it shows": "Mahali pa kuonyesha",
   "Text style": "Mtindo wa maandishi",
   "Game pages": "Kurasa za mchezo",
+  "Phone translations": "Tafsiri za simu",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Mazungumzo ya WhatUp kwenye simu, yametafsiriwa kwenye simu ya pili kando yake.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Wasifu una maeneo ya kusoma ya mchezo, jinsi tafsiri zinavyoonekana, na kurasa za mchezo unaozitafsiri. Wasifu uliojengewa ndani haubadilishwi: tengeneza nakala ili kuurekebisha.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Kurasa za mchezo wenyewe zinazopata tafsiri iliyoandaliwa kwa mkono, kwa mwonekano wa mchezo.",
   "{name} (copy)": "{name} (nakala)",

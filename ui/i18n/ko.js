@@ -234,6 +234,8 @@ I18N.add("ko", {
   "Where it shows": "표시 위치",
   "Text style": "텍스트 스타일",
   "Game pages": "게임 화면",
+  "Phone translations": "휴대폰 번역",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "휴대폰의 WhatUp 채팅을 옆에 있는 두 번째 휴대폰에 번역해 보여 줍니다.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "프로필에는 게임의 읽기 영역, 번역의 모양, 번역할 게임 고유 화면이 들어 있습니다. 기본 제공 프로필은 바꿀 수 없으니 조정하려면 복사본을 만드세요.",
   "The game's own pages that get a hand-made translation, in the game's look.": "게임의 모양 그대로 손으로 만든 번역이 표시되는 게임 고유 화면입니다.",
   "{name} (copy)": "{name} (복사본)",

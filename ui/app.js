@@ -2477,12 +2477,19 @@ async function renderPages() {
       <label class="check" style="font-weight:600"><input type="checkbox" data-more="${AS.esc(opt.id)}" ${isOn(opt) ? "checked" : ""}/> ${AS.esc(scriptText(opt.name) || opt.id)}</label>
       ${scriptText(opt.about) ? `<p class="muted small" style="margin:6px 0 0">${AS.esc(scriptText(opt.about))}</p>` : ""}
     </div>`).join("");
-  f.innerHTML = declared + `
+  // (GTA VI's phone in the hand — its WhatUp chats translated on a second phone beside it: shown or not, the player's)
+  const phone = game === "gta6" ? `
+    <div class="card">
+      <label class="check" style="font-weight:600"><input type="checkbox" id="pf-phone" data-keep ${cfg.phone_text !== false ? "checked" : ""}/> ${t("Phone translations")}</label>
+      <p class="muted small" style="margin:6px 0 0">${t("The phone's WhatUp chats, translated on a second phone beside it.")}</p>
+    </div>` : "";
+  f.innerHTML = phone + declared + `
     <div class="card">
       <div class="field"><label>${t("Title font")}</label><select id="pf-title">${fontOptions(o.title_font)}</select></div>
       <div class="field" style="margin-top:10px"><label>${t("Reason and button font")}</label><select id="pf-text">${fontOptions(o.text_font)}</select></div>
     </div>`;
   f.querySelectorAll("[data-more]").forEach((el) => el.addEventListener("change", () => { o.more[el.dataset.more] = el.checked; setShown("page", el.dataset.more, el.checked); save(); }));
+  if ($("pf-phone")) $("pf-phone").addEventListener("change", (e) => { cfg.phone_text = e.target.checked; save(); });
   for (const [id, key] of [["pf-title", "title_font"], ["pf-text", "text_font"]]) {
     const sel = $(id);
     paintFonts(sel);
@@ -2505,7 +2512,7 @@ function applyTheme() {
 function lockControls() {
   const on = locked();
   document.querySelectorAll("#tab-areas, #tab-pages").forEach((tab) =>
-    tab.querySelectorAll("input:not(.en):not([data-more]), select:not([data-more]), textarea, button:not([data-copy])").forEach((el) => { el.disabled = on || el.dataset.matched === "1"; }));
+    tab.querySelectorAll("input:not(.en):not([data-more]):not([data-keep]), select:not([data-more]), textarea, button:not([data-copy])").forEach((el) => { el.disabled = on || el.dataset.matched === "1"; }));
   $("add-area").disabled = on;
   // (its boxes can't be moved or resized, so the hint about doing that is gone too)
   $("drag-hint").hidden = on;

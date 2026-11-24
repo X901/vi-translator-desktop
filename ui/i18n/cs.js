@@ -234,6 +234,8 @@ I18N.add("cs", {
   "Where it shows": "Kde se zobrazí",
   "Text style": "Styl textu",
   "Game pages": "Stránky hry",
+  "Phone translations": "Překlady telefonu",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Chaty WhatUp v telefonu, přeložené na druhém telefonu vedle něj.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Profil obsahuje oblasti čtení hry, vzhled překladů a stránky hry, které překládá. Vestavěné profily nelze měnit: chcete-li některý upravit, vytvořte kopii.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Vlastní stránky hry, které dostávají ručně připravený překlad ve stylu hry.",
   "{name} (copy)": "{name} (kopie)",

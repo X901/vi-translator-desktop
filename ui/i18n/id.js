@@ -234,6 +234,8 @@ I18N.add("id", {
   "Where it shows": "Posisi",
   "Text style": "Gaya teks",
   "Game pages": "Halaman game",
+  "Phone translations": "Terjemahan ponsel",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Obrolan WhatUp di ponsel, diterjemahkan di ponsel kedua di sampingnya.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Profil berisi area baca game, tampilan terjemahannya, dan halaman game yang diterjemahkannya. Profil bawaan tidak bisa diubah: buat salinan untuk menyesuaikannya.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Halaman game itu sendiri yang mendapat terjemahan buatan tangan, dengan tampilan game.",
   "{name} (copy)": "{name} (salinan)",

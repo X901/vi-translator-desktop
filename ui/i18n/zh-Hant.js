@@ -234,6 +234,8 @@ I18N.add("zh-Hant", {
   "Where it shows": "顯示位置",
   "Text style": "文字樣式",
   "Game pages": "遊戲頁面",
+  "Phone translations": "手機翻譯",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "手機裡的 WhatUp 聊天，翻譯後顯示在旁邊的第二支手機上。",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "設定檔包含遊戲的讀取區域、譯文外觀以及要翻譯的遊戲頁面。內建設定檔無法變更：如需調整，請建立副本。",
   "The game's own pages that get a hand-made translation, in the game's look.": "以遊戲原有外觀、手工翻譯的遊戲本身頁面。",
   "{name} (copy)": "{name}（副本）",

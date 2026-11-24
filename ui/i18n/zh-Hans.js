@@ -234,6 +234,8 @@ I18N.add("zh-Hans", {
   "Where it shows": "显示位置",
   "Text style": "文字样式",
   "Game pages": "游戏页面",
+  "Phone translations": "手机翻译",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "手机里的 WhatUp 聊天，翻译后显示在旁边的第二部手机上。",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "配置包含游戏的读取区域、译文外观以及它要翻译的游戏页面。内置配置无法更改：如需调整，请创建副本。",
   "The game's own pages that get a hand-made translation, in the game's look.": "以游戏原有外观、手工翻译的游戏自身页面。",
   "{name} (copy)": "{name}（副本）",

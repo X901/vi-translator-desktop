@@ -234,6 +234,8 @@ I18N.add("te", {
   "Where it shows": "ఎక్కడ చూపాలి",
   "Text style": "టెక్స్ట్ శైలి",
   "Game pages": "గేమ్ పేజీలు",
+  "Phone translations": "ఫోన్ అనువాదాలు",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "ఫోన్‌లోని WhatUp చాట్‌లు, పక్కనే రెండో ఫోన్‌లో అనువదించబడతాయి.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "ప్రొఫైల్‌లో గేమ్ రీడ్ ఏరియాలు, అనువాదాల రూపం, అది అనువదించే గేమ్ పేజీలు ఉంటాయి. బిల్ట్-ఇన్ ప్రొఫైల్‌లను మార్చలేరు: మార్చడానికి కాపీ చేయండి.",
   "The game's own pages that get a hand-made translation, in the game's look.": "గేమ్ రూపంలోనే చేతితో చేసిన అనువాదం పొందే గేమ్ సొంత పేజీలు.",
   "{name} (copy)": "{name} (కాపీ)",

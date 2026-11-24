@@ -234,6 +234,8 @@ I18N.add("es-ES", {
   "Where it shows": "Dónde aparece",
   "Text style": "Estilo del texto",
   "Game pages": "Páginas del juego",
+  "Phone translations": "Traducciones del móvil",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Los chats de WhatUp del móvil, traducidos en un segundo móvil a su lado.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Un perfil contiene las zonas de lectura de un juego, cómo se ven sus traducciones y las páginas propias del juego que traduce. Los perfiles integrados no se pueden modificar: haz una copia para ajustar uno.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Las páginas propias del juego que reciben una traducción hecha a mano, con el estilo del juego.",
   "{name} (copy)": "{name} (copia)",

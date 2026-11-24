@@ -234,6 +234,8 @@ I18N.add("ar", {
   "Where it shows": "مكان الظهور",
   "Text style": "شكل النص",
   "Game pages": "صفحات اللعبة",
+  "Phone translations": "ترجمات الهاتف",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "محادثات WhatUp في الهاتف، مترجمة على هاتف ثانٍ بجانبه.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "يضم الملف مناطق القراءة للعبة، وشكل ترجماتها، وصفحات اللعبة التي يترجمها. لا يمكن تعديل الملفات المدمجة: أنشئ نسخة لتعديلها.",
   "The game's own pages that get a hand-made translation, in the game's look.": "صفحات اللعبة التي تحصل على ترجمة مصممة يدويًا بشكل اللعبة نفسه.",
   "{name} (copy)": "{name} (نسخة)",

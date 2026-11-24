@@ -234,6 +234,8 @@ I18N.add("ja", {
   "Where it shows": "表示する位置",
   "Text style": "テキストのスタイル",
   "Game pages": "ゲームの画面",
+  "Phone translations": "スマホの翻訳",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "スマホの WhatUp チャットを、隣に並べたもう 1 台のスマホに翻訳して表示します。",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "プロファイルには、ゲームの読み取りエリア、翻訳の見た目、翻訳するゲーム固有の画面が含まれます。組み込みプロファイルは変更できません。調整するにはコピーを作成してください。",
   "The game's own pages that get a hand-made translation, in the game's look.": "ゲームの見た目に合わせて手作業で翻訳される、ゲーム固有の画面です。",
   "{name} (copy)": "{name}（コピー）",

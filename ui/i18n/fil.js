@@ -234,6 +234,8 @@ I18N.add("fil", {
   "Where it shows": "Saan ipapakita",
   "Text style": "Istilo ng teksto",
   "Game pages": "Mga pahina ng laro",
+  "Phone translations": "Mga salin sa telepono",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Ang mga WhatUp chat ng telepono, isinalin sa pangalawang telepono sa tabi nito.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Hawak ng profile ang mga read area ng laro, ang itsura ng mga salin, at ang mga sariling pahina ng laro na isinasalin nito. Hindi mababago ang mga built-in na profile: gumawa ng kopya para baguhin.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Ang mga sariling pahina ng laro na may gawang-kamay na salin, sa itsura ng laro.",
   "{name} (copy)": "{name} (kopya)",

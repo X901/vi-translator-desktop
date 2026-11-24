@@ -234,6 +234,8 @@ I18N.add("fa", {
   "Where it shows": "محل نمایش",
   "Text style": "سبک متن",
   "Game pages": "صفحه‌های بازی",
+  "Phone translations": "ترجمه‌های گوشی",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "گفتگوهای WhatUp گوشی، ترجمه‌شده روی گوشی دومی در کنار آن.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "نمایه شامل ناحیه‌های خواندن بازی، ظاهر ترجمه‌ها و صفحه‌هایی از بازی است که ترجمه می‌کند. نمایه‌های داخلی تغییر نمی‌کنند: برای تنظیم، از آن کپی بگیرید.",
   "The game's own pages that get a hand-made translation, in the game's look.": "صفحه‌های خود بازی که ترجمهٔ دست‌ساز با ظاهر خود بازی می‌گیرند.",
   "{name} (copy)": "{name} (کپی)",

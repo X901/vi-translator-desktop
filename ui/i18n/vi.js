@@ -234,6 +234,8 @@ I18N.add("vi", {
   "Where it shows": "Vị trí hiển thị",
   "Text style": "Kiểu chữ",
   "Game pages": "Trang trong game",
+  "Phone translations": "Bản dịch điện thoại",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Các cuộc trò chuyện WhatUp trên điện thoại, được dịch trên một chiếc điện thoại thứ hai bên cạnh.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Hồ sơ gồm các vùng đọc của game, cách bản dịch hiển thị và các trang của game mà nó dịch. Hồ sơ có sẵn không thể sửa: hãy tạo bản sao để chỉnh.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Các trang của chính game được dịch thủ công, theo đúng giao diện game.",
   "{name} (copy)": "{name} (bản sao)",

@@ -234,6 +234,8 @@ I18N.add("ur", {
   "Where it shows": "کہاں دکھے",
   "Text style": "متن کا انداز",
   "Game pages": "گیم کے صفحات",
+  "Phone translations": "فون کے ترجمے",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "فون کی WhatUp چیٹس، اس کے ساتھ دوسرے فون پر ترجمہ شدہ۔",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "پروفائل میں گیم کے ریڈ ایریاز، ترجموں کی شکل اور گیم کے وہ صفحات ہوتے ہیں جن کا وہ ترجمہ کرتا ہے۔ بلٹ اِن پروفائلز تبدیل نہیں ہو سکتے: تبدیل کرنے کے لیے کاپی بنائیں۔",
   "The game's own pages that get a hand-made translation, in the game's look.": "گیم کے اپنے صفحات جنہیں گیم ہی کے انداز میں ہاتھ سے بنا ترجمہ ملتا ہے۔",
   "{name} (copy)": "{name} (کاپی)",

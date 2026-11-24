@@ -234,6 +234,8 @@ I18N.add("ta", {
   "Where it shows": "எங்கே காட்டுவது",
   "Text style": "உரை பாணி",
   "Game pages": "விளையாட்டுப் பக்கங்கள்",
+  "Phone translations": "தொலைபேசி மொழிபெயர்ப்புகள்",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "தொலைபேசியின் WhatUp உரையாடல்கள், அருகில் இரண்டாவது தொலைபேசியில் மொழிபெயர்க்கப்பட்டவை.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "ஒரு சுயவிவரம் விளையாட்டின் படிக்கும் பகுதிகள், மொழிபெயர்ப்புகளின் தோற்றம், அது மொழிபெயர்க்கும் விளையாட்டுப் பக்கங்கள் ஆகியவற்றைக் கொண்டது. உள்ளமைந்த சுயவிவரங்களை மாற்ற முடியாது: மாற்ற ஒரு நகலை உருவாக்குங்கள்.",
   "The game's own pages that get a hand-made translation, in the game's look.": "விளையாட்டின் தோற்றத்திலேயே கையால் உருவாக்கிய மொழிபெயர்ப்பைப் பெறும் விளையாட்டின் சொந்தப் பக்கங்கள்.",
   "{name} (copy)": "{name} (நகல்)",

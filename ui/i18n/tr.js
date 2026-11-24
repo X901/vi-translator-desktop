@@ -234,6 +234,8 @@ I18N.add("tr", {
   "Where it shows": "Nerede görünsün",
   "Text style": "Metin stili",
   "Game pages": "Oyun sayfaları",
+  "Phone translations": "Telefon çevirileri",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Telefondaki WhatUp sohbetleri, yanındaki ikinci bir telefonda çevrilmiş olarak.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Bir profil, oyunun okuma alanlarını, çevirilerin görünümünü ve çevirdiği oyun sayfalarını içerir. Yerleşik profiller değiştirilemez: ayarlamak için bir kopyasını oluşturun.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Oyunun kendi görünümünde, elle hazırlanmış çeviri alan kendi sayfaları.",
   "{name} (copy)": "{name} (kopya)",

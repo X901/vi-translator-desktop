@@ -234,6 +234,8 @@ I18N.add("nl", {
   "Where it shows": "Waar het staat",
   "Text style": "Tekststijl",
   "Game pages": "Gamepagina's",
+  "Phone translations": "Telefoonvertalingen",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "De WhatUp-chats van de telefoon, vertaald op een tweede telefoon ernaast.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Een profiel bevat de leesgebieden van een game, hoe de vertalingen eruitzien en de eigen pagina's van de game die het vertaalt. Ingebouwde profielen kun je niet wijzigen: maak een kopie om er een aan te passen.",
   "The game's own pages that get a hand-made translation, in the game's look.": "De eigen pagina's van de game die een met de hand gemaakte vertaling krijgen, in de stijl van de game.",
   "{name} (copy)": "{name} (kopie)",

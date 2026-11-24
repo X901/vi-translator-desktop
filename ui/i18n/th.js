@@ -234,6 +234,8 @@ I18N.add("th", {
   "Where it shows": "ตำแหน่งที่แสดง",
   "Text style": "รูปแบบข้อความ",
   "Game pages": "หน้าของเกม",
+  "Phone translations": "คำแปลในโทรศัพท์",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "แชต WhatUp ในโทรศัพท์ แปลบนโทรศัพท์เครื่องที่สองข้าง ๆ",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "โปรไฟล์เก็บพื้นที่อ่านของเกม ลักษณะคำแปล และหน้าของเกมที่แปล โปรไฟล์ในตัวแก้ไขไม่ได้: สร้างสำเนาเพื่อปรับแต่ง",
   "The game's own pages that get a hand-made translation, in the game's look.": "หน้าของเกมเองที่ได้รับคำแปลแบบทำมือ ในหน้าตาของเกม",
   "{name} (copy)": "{name} (สำเนา)",

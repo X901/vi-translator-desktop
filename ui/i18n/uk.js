@@ -234,6 +234,8 @@ I18N.add("uk", {
   "Where it shows": "Де показувати",
   "Text style": "Стиль тексту",
   "Game pages": "Сторінки гри",
+  "Phone translations": "Переклади телефону",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Чати WhatUp у телефоні, перекладені на другому телефоні поруч.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Профіль містить зони читання гри, вигляд перекладів і сторінки гри, які він перекладає. Вбудовані профілі змінювати не можна: зробіть копію, щоб налаштувати.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Власні сторінки гри, що отримують ручний переклад у стилі гри.",
   "{name} (copy)": "{name} (копія)",

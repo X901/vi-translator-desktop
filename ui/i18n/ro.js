@@ -234,6 +234,8 @@ I18N.add("ro", {
   "Where it shows": "Unde apare",
   "Text style": "Stil text",
   "Game pages": "Pagini din joc",
+  "Phone translations": "Traduceri ale telefonului",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Conversațiile WhatUp de pe telefon, traduse pe un al doilea telefon alături.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Un profil conține zonele de citire ale jocului, aspectul traducerilor și paginile jocului pe care le traduce. Profilurile integrate nu pot fi modificate: fă o copie ca să ajustezi unul.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Paginile proprii ale jocului care primesc o traducere făcută manual, în stilul jocului.",
   "{name} (copy)": "{name} (copie)",

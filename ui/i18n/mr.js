@@ -234,6 +234,8 @@ I18N.add("mr", {
   "Where it shows": "कुठे दिसावे",
   "Text style": "मजकूर शैली",
   "Game pages": "गेमची पाने",
+  "Phone translations": "फोनचे भाषांतर",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "फोनमधील WhatUp चॅट, शेजारी दुसऱ्या फोनवर भाषांतरित.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "प्रोफाइलमध्ये गेमचे रीड एरिया, भाषांतरांचे स्वरूप आणि ते भाषांतर करत असलेली गेमची पाने असतात. बिल्ट-इन प्रोफाइल बदलता येत नाहीत: बदलण्यासाठी प्रत बनवा.",
   "The game's own pages that get a hand-made translation, in the game's look.": "गेमची स्वतःची पाने, ज्यांना गेमच्याच स्वरूपात हाताने बनवलेले भाषांतर मिळते.",
   "{name} (copy)": "{name} (प्रत)",

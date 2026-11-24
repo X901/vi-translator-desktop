@@ -234,6 +234,8 @@ I18N.add("el", {
   "Where it shows": "Πού εμφανίζεται",
   "Text style": "Στυλ κειμένου",
   "Game pages": "Σελίδες παιχνιδιού",
+  "Phone translations": "Μεταφράσεις τηλεφώνου",
+  "The phone's WhatUp chats, translated on a second phone beside it.": "Οι συνομιλίες WhatUp του τηλεφώνου, μεταφρασμένες σε ένα δεύτερο τηλέφωνο δίπλα του.",
   "A profile holds a game's read areas, how its translations look, and the game's own pages it translates. Built-in profiles can't be changed: make a copy to adjust one.": "Ένα προφίλ περιέχει τις περιοχές ανάγνωσης του παιχνιδιού, την εμφάνιση των μεταφράσεων και τις σελίδες του παιχνιδιού που μεταφράζει. Τα ενσωματωμένα προφίλ δεν αλλάζουν: φτιάξτε αντίγραφο για να το προσαρμόσετε.",
   "The game's own pages that get a hand-made translation, in the game's look.": "Οι σελίδες του ίδιου του παιχνιδιού που παίρνουν χειροποίητη μετάφραση, στην εμφάνιση του παιχνιδιού.",
   "{name} (copy)": "{name} (αντίγραφο)",
