@@ -2191,9 +2191,20 @@ static PHONE_TR: Mutex<Option<Translator>> = Mutex::new(None);
 
 /// The phone's screen as read (phone_read.rs's `page`: its title and its pieces), for the overlay
 /// ({"title", "items": [{"k", "from", "color", "en", "text"}]}): each message translated as a line of the
-/// game's is — the memory first, then the translator in use.
+/// game's is — the memory first, then the translator in use. A message cut off at the screen's top or bottom
+/// after a scroll — a piece of one the memory has whole — is shown as the whole message's translation (the
+/// piece alone isn't in it, and each scroll showed another piece: another translation asked each time).
 fn phone_page(c: &Config, memory: &Arc<Mutex<memory::Memory>>, model_dir: PathBuf, title: String, items: Vec<crate::phone_read::Item>) -> anyhow::Result<serde_json::Value> {
-    let translate = |tr: &mut Translator, en: &str| translate_spoken(tr, c, memory, en, &[], &[], &|_| {}).0.map(|segs| segs.iter().map(|s| s.0.as_str()).collect::<String>());
+    let translate = |tr: &mut Translator, en: &str| {
+        let whole = {
+            let m = memory.lock().unwrap();
+            (m.lang() == c.target_lang && !m.knows(en)).then(|| m.containing(en)).flatten()
+        };
+        match whole {
+            Some((_, ar, _)) => Ok(ar),
+            None => translate_spoken(tr, c, memory, en, &[], &[], &|_| {}).0.map(|segs| segs.iter().map(|s| s.0.as_str()).collect::<String>()),
+        }
+    };
     let needs = |it: &crate::phone_read::Item| it.k != "card" && it.en.chars().any(char::is_alphabetic);
     let mut got: Vec<Option<anyhow::Result<String>>> = if c.engine == "local" {
         // (the offline translator: one, kept — it holds a model — a message after another)
