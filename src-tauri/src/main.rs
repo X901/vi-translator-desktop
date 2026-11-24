@@ -896,6 +896,8 @@ fn phone_crops(file: &str, out: &str) -> anyhow::Result<()> {
     println!("screen {scr:?}");
     let read = phone::read_screen_any(&ocr, rgba, w, h, scr);
     println!("turn {:.2} upright {} slant {:?}", read.angle, read.upright.is_some(), phone::tilt_of(&read.pieces));
+    println!("quad {:?}", read.quad.map(|q| q.map(|(x, y)| (x.round(), y.round()))));
+    let corners = read.quad_in_pieces;
     let pieces = read.pieces;
     let up_img = read.upright.map(|u| image::RgbaImage::from_raw(w, h, u).expect("frame size"));
     let img = up_img.unwrap_or(img);
@@ -950,6 +952,9 @@ fn phone_crops(file: &str, out: &str) -> anyhow::Result<()> {
     }
     let (sx, sy, sw, sh) = scr;
     boxed((sx as i32, sy as i32, sw, sh), [255, 255, 0, 255]);
+    for (x, y) in corners.into_iter().flatten() {
+        boxed((x as i32 - 6, y as i32 - 6, 12, 12), [255, 0, 255, 255]);
+    }
     let cut = image::imageops::crop_imm(&marked, sx.saturating_sub(60), sy.saturating_sub(40), (sw + 120).min(w), (sh + 80).min(h)).to_image();
     cut.save(std::path::Path::new(out).join("marked.png"))?;
     Ok(())

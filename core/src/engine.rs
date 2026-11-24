@@ -1371,6 +1371,12 @@ impl Reader {
                         // `fr`; its turn, and the pictures' column's slant in it, go to the overlay, drawn as turned)
                         let fr: &[u8] = read.upright.as_deref().unwrap_or(&f.rgba[..]);
                         let (turn, slant) = (read.angle, crate::phone::tilt_of(&read.pieces).unwrap_or(0.0));
+                        let screen_own = read.screen;
+                        // (the screen's corners as it is in the frame, and where each piece is on it: the overlay's
+                        // second phone drawn through the same corners, each piece where it is on the screen)
+                        let quad = read.quad;
+                        let quad_in = read.quad_in_pieces;
+                        let uv = |r: (u32, u32, u32, u32)| quad_in.and_then(|q| crate::phone::on_screen(q, r));
                         // (steady from one read to the next: a misreading keeps the first reading, a missed piece stays a moment)
                         let pieces = crate::phone::steady(&mut ctx.live.phone_pieces.lock().unwrap(), read.pieces, scr, now);
                         let (w, h) = (f.w as f64, f.h as f64);
@@ -1421,7 +1427,7 @@ impl Reader {
                                         use base64::Engine as _;
                                         format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(png))
                                     });
-                                    out.push(serde_json::json!({ "rect": frac(p.rect), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]), "bg": format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2]), "avatar": pic }));
+                                    out.push(serde_json::json!({ "rect": frac(p.rect), "uv": uv(p.rect), "title": true, "ar": speaker::name_in(&lang, &p.en, None), "fg": format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2]), "bg": format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2]), "avatar": pic }));
                                     continue;
                                 }
                                 // (its emojis as slots after its words, as the game's lines have them: "… babe ⟦1⟧")
@@ -1489,7 +1495,7 @@ impl Reader {
                                 };
                                 if ar.is_none() && p.avatar.is_some() {
                                     out.push(serde_json::json!({
-                                        "rect": frac(p.rect), "ar": "", "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
+                                        "rect": frac(p.rect), "uv": uv(p.rect), "ar": "", "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
                                         "bg": hex(p.look.bg), "fg": hex(p.look.fg), "edge": p.look.edge.map(hex),
                                         "avatar": p.avatar.and_then(|a| png((a.0, a.1, a.2, a.2), 56)),
                                         "badge": p.badge.and_then(|b| png(b, 28)),
@@ -1497,7 +1503,7 @@ impl Reader {
                                 }
                                 match ar {
                                     Some(ar) => out.push(serde_json::json!({
-                                        "rect": frac(p.rect),
+                                        "rect": frac(p.rect), "uv": uv(p.rect),
                                         "ar": ar,
                                         "name": p.name.as_ref().map(|n| speaker::name_in(&lang, n, None)),
                                         "bg": hex(p.look.bg),
@@ -1526,7 +1532,7 @@ impl Reader {
                             }
                         }
                         let sbg = crate::phone::screen_bg(fr, f.w, f.h, scr, scr.1, scr.1 + scr.3);
-                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some()), "buttons": btns, "turn": turn, "slant": slant });
+                        let v = serde_json::json!({ "screen": frac(scr), "screen_bg": format!("#{:02x}{:02x}{:02x}", sbg[0], sbg[1], sbg[2]), "pieces": out, "list": pieces.iter().any(|p| p.avatar.is_some()), "buttons": btns, "turn": turn, "slant": slant, "screen_own": screen_own.map(frac), "quad": quad.map(|q| q.map(|(x, y)| [x / w, y / h])) });
                         let mut up = ctx.live.phone.lock().unwrap();
                         if up.as_ref() != Some(&v) {
                             *up = Some(v.clone());

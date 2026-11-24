@@ -392,20 +392,198 @@ pub struct Read {
     pub pieces: Vec<Piece>,
     pub angle: f64,
     pub upright: Option<Vec<u8>>,
+    /// The screen itself, measured in the frame the pieces are in (upright when turned): its own size, not
+    /// the box round it tilted.
+    pub screen: Option<(u32, u32, u32, u32)>,
+    /// The screen's four corners in the frame as it is (see screen_quad), and the same corners in the frame
+    /// the pieces are in (turned upright with them): where each piece is on the screen, across and down.
+    pub quad: Option<[(f64, f64); 4]>,
+    pub quad_in_pieces: Option<[(f64, f64); 4]>,
+}
+
+impl Read {
+    /// Where a piece (its rect, in the frame the pieces are in) is on the screen: across and down, 0 to 1 —
+    /// its left, top, width and height as parts of the screen's.
+    pub fn on_screen(&self, r: (u32, u32, u32, u32)) -> Option<[f64; 4]> {
+        on_screen(self.quad_in_pieces?, r)
+    }
+}
+
+/// Where a box is on a screen with these corners (in the same frame): across and down, 0 to 1.
+pub fn on_screen(q: [(f64, f64); 4], r: (u32, u32, u32, u32)) -> Option<[f64; 4]> {
+    {
+        let (left, right) = ((q[0].0 + q[3].0) / 2.0, (q[1].0 + q[2].0) / 2.0);
+        let (top, bottom) = ((q[0].1 + q[1].1) / 2.0, (q[3].1 + q[2].1) / 2.0);
+        let (w, h) = (right - left, bottom - top);
+        if w < 8.0 || h < 8.0 {
+            return None;
+        }
+        Some([(r.0 as f64 - left) / w, (r.1 as f64 - top) / h, r.2 as f64 / w, r.3 as f64 / h])
+    }
 }
 
 pub fn read_screen_any(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u32, u32)) -> Read {
+    let quad = screen_quad(rgba, fw, fh, screen);
     let (pieces, angle) = read_screen_at(ocr, rgba, fw, fh, screen);
     if angle.abs() < 1.0 || angle.abs() > 35.0 {
-        return Read { pieces, angle, upright: None };
+        return Read { pieces, angle, upright: None, screen: Some(screen_edges(rgba, fw, fh, screen)), quad, quad_in_pieces: quad };
     }
     let up = upright(rgba, fw, fh, screen, angle);
     let (again, _) = read_screen_at(ocr, &up, fw, fh, screen);
     // (read upright, at least as much as before: else as read)
     if again.len() + 1 < pieces.len() {
-        return Read { pieces, angle, upright: None };
+        return Read { pieces, angle, upright: None, screen: None, quad, quad_in_pieces: quad };
     }
-    Read { pieces: again, angle, upright: Some(up) }
+    let edges = screen_edges(&up, fw, fh, screen);
+    // (the corners turned upright as the frame was: upright() takes each point from c + R(angle)(p - c), so a
+    // corner q is at c + R(-angle)(q - c) in it)
+    let (ccx, ccy) = (screen.0 as f64 + screen.2 as f64 / 2.0, screen.1 as f64 + screen.3 as f64 / 2.0);
+    let (sin, cos) = (-angle).to_radians().sin_cos();
+    let quad_in_pieces = quad.map(|q| q.map(|(x, y)| (ccx + (x - ccx) * cos - (y - ccy) * sin, ccy + (x - ccx) * sin + (y - ccy) * cos)));
+    Read { pieces: again, angle, upright: Some(up), screen: Some(edges), quad, quad_in_pieces }
+}
+
+/// The screen's four corners in the frame (top left, top right, bottom right, bottom left; frame pixels), as it
+/// is: turned, slanted, seen in perspective. The screen's light, reached from its middle (its text, bubbles
+/// and pictures are holes in it, its edges are not), and that light's far points each way. None when the light
+/// runs out to the box round it (a bright wall beside the phone) or is not a screen's shape.
+pub fn screen_quad(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32)) -> Option<[(f64, f64); 4]> {
+    let (bx, by, bw, bh) = b;
+    let (mx, my) = (bw / 10, bh / 16);
+    let (x0, y0) = (bx.saturating_sub(mx), by.saturating_sub(my));
+    let (x1, y1) = ((bx + bw + mx).min(fw - 1), (by + bh + my).min(fh - 1));
+    let step = 2u32;
+    let (gw, gh) = ((x1 - x0) / step + 1, (y1 - y0) / step + 1);
+    let lum = |x: u32, y: u32| {
+        let i = ((y.min(fh - 1) * fw + x.min(fw - 1)) * 4) as usize;
+        (rgba[i] as u32 * 3 + rgba[i + 1] as u32 * 6 + rgba[i + 2] as u32) / 10
+    };
+    // the screen's light: the brighter samples of its middle (its background, not its text)
+    let mut v: Vec<u32> = Vec::new();
+    for k in 1..12 {
+        for j in 1..8 {
+            v.push(lum(bx + bw * j / 8, by + bh * k / 12));
+        }
+    }
+    v.sort_unstable();
+    let light = v[v.len() * 3 / 4];
+    if light < 60 {
+        return None;
+    }
+    let t = light * 11 / 20;
+    let at = |gx: u32, gy: u32| lum(x0 + gx * step, y0 + gy * step) >= t;
+    // from the light nearest the middle
+    let (cx, cy) = ((gw / 2) as i32, (gh / 2) as i32);
+    let seed = (0..gw.max(gh) as i32 / 2).find_map(|r| {
+        (-r..=r).flat_map(|dy| (-r..=r).map(move |dx| (dx, dy))).find(|&(dx, dy)| {
+            let (x, y) = (cx + dx, cy + dy);
+            x >= 0 && y >= 0 && (x as u32) < gw && (y as u32) < gh && at(x as u32, y as u32)
+        })
+    })?;
+    let mut seen = vec![false; (gw * gh) as usize];
+    let start = ((cx + seed.0) as u32, (cy + seed.1) as u32);
+    let mut stack = vec![start];
+    seen[(start.1 * gw + start.0) as usize] = true;
+    let (mut tl, mut tr, mut br, mut bl) = ((f64::MAX, (0.0, 0.0)), (f64::MIN, (0.0, 0.0)), (f64::MIN, (0.0, 0.0)), (f64::MAX, (0.0, 0.0)));
+    let (mut edge_hit, mut n) = (0u32, 0u32);
+    while let Some((gx, gy)) = stack.pop() {
+        n += 1;
+        let (x, y) = ((x0 + gx * step) as f64, (y0 + gy * step) as f64);
+        if gx == 0 || gy == 0 || gx + 1 == gw || gy + 1 == gh {
+            edge_hit += 1;
+        }
+        if x + y < tl.0 {
+            tl = (x + y, (x, y));
+        }
+        if x + y > br.0 {
+            br = (x + y, (x, y));
+        }
+        if x - y > tr.0 {
+            tr = (x - y, (x, y));
+        }
+        if x - y < bl.0 {
+            bl = (x - y, (x, y));
+        }
+        for (dx, dy) in [(-1i32, 0i32), (1, 0), (0, -1), (0, 1)] {
+            let (nx, ny) = (gx as i32 + dx, gy as i32 + dy);
+            if nx < 0 || ny < 0 || nx as u32 >= gw || ny as u32 >= gh {
+                continue;
+            }
+            let i = (ny as u32 * gw + nx as u32) as usize;
+            if !seen[i] && at(nx as u32, ny as u32) {
+                seen[i] = true;
+                stack.push((nx as u32, ny as u32));
+            }
+        }
+    }
+    // (the light reaching round the box's edge for long: it is not the screen's alone)
+    if edge_hit > (gw + gh) / 4 {
+        return None;
+    }
+    let q = [tl.1, tr.1, br.1, bl.1];
+    // (a screen's shape: about as big as the box round it, taller than wide, its opposite sides alike)
+    let len = |a: (f64, f64), b: (f64, f64)| ((a.0 - b.0).powi(2) + (a.1 - b.1).powi(2)).sqrt();
+    let (top, left) = (len(q[0], q[1]), len(q[0], q[3]));
+    let (bottom, right) = (len(q[3], q[2]), len(q[1], q[2]));
+    let area = (n * step * step) as f64;
+    let boxa = (bw * bh) as f64;
+    if top < bw as f64 * 0.5 || left < bh as f64 * 0.5 || left < top || area < boxa * 0.5 || area > boxa * 1.2 || (top / bottom - 1.0).abs() > 0.25 || (left / right - 1.0).abs() > 0.25 {
+        return None;
+    }
+    Some(q)
+}
+
+/// The screen's own edges inside the box round it (frame pixels): from its middle outward along the middle
+/// row and column, as far as the screen's light goes (past its text and pictures: a run of dark is the phone's
+/// edge). Upright, the box round a tilted screen is bigger than the screen; this is the screen.
+pub fn screen_edges(rgba: &[u8], fw: u32, fh: u32, b: (u32, u32, u32, u32)) -> (u32, u32, u32, u32) {
+    let (bx, by, bw, bh) = b;
+    let lum = |x: u32, y: u32| {
+        let i = ((y.min(fh - 1) * fw + x.min(fw - 1)) * 4) as usize;
+        (rgba[i] as u32 * 3 + rgba[i + 1] as u32 * 6 + rgba[i + 2] as u32) / 10
+    };
+    let (cx, cy) = (bx + bw / 2, by + bh / 2);
+    // the screen's light: the median along the middle row's inner half
+    let mut v: Vec<u32> = (bx + bw / 4..bx + bw * 3 / 4).map(|x| lum(x, cy)).collect();
+    v.sort_unstable();
+    let light = v.get(v.len() / 2).copied().unwrap_or(200);
+    let dark = light / 2;
+    // (each edge: several rows or columns, the median: a picture or a bubble on one of them goes dark too)
+    let edge = |from: i32, to: i32, step: i32, at: &dyn Fn(i32) -> u32| -> i32 {
+        let mut i = from;
+        let mut run = 0;
+        let mut last_light = from;
+        while (step > 0 && i <= to) || (step < 0 && i >= to) {
+            if at(i) < dark {
+                run += 1;
+                if run >= 6 {
+                    break;
+                }
+            } else {
+                run = 0;
+                last_light = i;
+            }
+            i += step;
+        }
+        last_light
+    };
+    let med = |mut v: Vec<i32>| {
+        v.sort_unstable();
+        v[v.len() / 2]
+    };
+    let margin = (bw / 10) as i32;
+    let rows: Vec<u32> = (1..8).map(|k| by + bh * k / 8).collect();
+    let cols: Vec<u32> = (1..6).map(|k| bx + bw * k / 6).collect();
+    let (x0b, x1b) = (bx as i32 - margin, (bx + bw) as i32 + margin);
+    let (y0b, y1b) = (by as i32 - margin, (by + bh) as i32 + margin);
+    let left = med(rows.iter().map(|&y| edge(cx as i32, x0b.max(0), -1, &|x| lum(x as u32, y))).collect());
+    let right = med(rows.iter().map(|&y| edge(cx as i32, x1b.min(fw as i32 - 1), 1, &|x| lum(x as u32, y))).collect());
+    let top = med(cols.iter().map(|&x| edge(cy as i32, y0b.max(0), -1, &|y| lum(x, y as u32))).collect());
+    let bottom = med(cols.iter().map(|&x| edge(cy as i32, y1b.min(fh as i32 - 1), 1, &|y| lum(x, y as u32))).collect());
+    if right - left < bw as i32 / 2 || bottom - top < bh as i32 / 2 {
+        return b;
+    }
+    (left as u32, top as u32, (right - left + 1) as u32, (bottom - top + 1) as u32)
 }
 
 /// How far a reading's lines are turned (degrees, clockwise): each line of two words or more, from its first
@@ -701,6 +879,11 @@ fn read_screen_at(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u
         let x1 = (p.rect.0 + p.rect.2 + lh * 3).min(right);
         let area = (p.rect.0.saturating_sub(2), p.rect.1.saturating_sub(2), x1.saturating_sub(p.rect.0 - 2), p.rect.3 + lh + 4);
         p.emoji = crate::chat::emoji_in(rgba, fw, fh, area, p.look.bg, p.look.fg, lh);
+    }
+    // (a line right under a chat's title, closer than a bubble ever starts — one scrolled up under the title bar,
+    // cut in half by it: "services? Active duty?" read as "ACtjve 'f" — is no message to translate)
+    if let Some(t) = out.iter().find(|p| p.title).map(|p| p.rect) {
+        out.retain(|p| p.title || p.split.is_some() || !(p.rect.1 >= t.1 + t.3 && p.rect.1 < t.1 + t.3 + t.3 * 13 / 10 && p.rect.3 < t.3 * 8 / 5));
     }
     // ("Ok" read with a zero, "0k. There's some cash…": the word it is, so the line is found and translated)
     for p in &mut out {

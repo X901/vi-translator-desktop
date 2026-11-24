@@ -364,75 +364,160 @@ window.AS = (() => {
   const PHONE_BUTTON_AT = {};
   // the phone's tilt as last drawn (eased toward each reading's: renderPhone)
   const PHONE_TILT = { turn: 0, slant: 0, at: 0, side: null };
+  // where the second phone's screen corners were last drawn (eased toward each reading's: renderPhone)
+  const PHONE_QUAD = { q: null };
+  // The CSS matrix3d taking four points (an element's own, px) to four others (the page's): a perspective
+  // transform (homography), solved from the eight equations the four pairs give.
+  function matrix3d(src, dst) {
+    const A = [], bv = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); bv.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); bv.push(v);
+    }
+    // (Gaussian elimination with partial pivoting)
+    for (let c = 0; c < 8; c++) {
+      let m = c;
+      for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[m][c])) m = r;
+      [A[c], A[m]] = [A[m], A[c]]; [bv[c], bv[m]] = [bv[m], bv[c]];
+      if (Math.abs(A[c][c]) < 1e-12) return "none";
+      for (let r = 0; r < 8; r++) {
+        if (r === c) continue;
+        const f = A[r][c] / A[c][c];
+        for (let k = c; k < 8; k++) A[r][k] -= f * A[c][k];
+        bv[r] -= f * bv[c];
+      }
+    }
+    const h = bv.map((b, i) => b / A[i][i]);
+    // (column-major: x' = (h0 x + h1 y + h2) / w, y' = (h3 x + h4 y + h5) / w, w = h6 x + h7 y + 1)
+    const m = [h[0], h[3], 0, h[6], h[1], h[4], 0, h[7], 0, 0, 1, 0, h[2], h[5], 0, 1];
+    return `matrix3d(${m.map((n) => +n.toFixed(8)).join(",")})`;
+  }
   // the chat list's rows last drawn, by contact (or header), and when: held a moment when missed (renderPhone)
   const PHONE_ROWS = {};
 
-  function renderPhone(root, P) {
+  function renderPhone(root, P, fit) {
     root.innerHTML = "";
     if (P && P.chat) renderChat(root, P.chat);
     if (!P || !P.pieces || !P.pieces.length) return;
     const W = root.clientWidth, H = root.clientHeight;
     if (!W || !H) return;
     const [sx, sy, sw, sh] = [P.screen[0] * W, P.screen[1] * H, P.screen[2] * W, P.screen[3] * H];
-    // the panel: the phone's screen's own size, beside it (on the side with more room), its text the
-    // phone's size
+    // (the screen's four corners known: the second phone laid out flat at the screen's own size, each piece where
+    // it is on the screen, then put through the corners of the game's screen moved a phone's width aside — the
+    // same size, turn, slant and perspective as the phone in the hand)
+    const Q = P.quad && P.pieces.every((p) => p.uv) ? P.quad.map((c) => [c[0] * W, c[1] * H]) : null;
+    const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const qw = Q ? (dist(Q[0], Q[1]) + dist(Q[3], Q[2])) / 2 : 0, qh = Q ? (dist(Q[0], Q[3]) + dist(Q[1], Q[2])) / 2 : 0;
+    if (Q && !P._flat) {
+      P = Object.assign({}, P, {
+        _flat: true,
+        pieces: P.pieces.map((p) => Object.assign({}, p, { rect: [(p.uv[0] * qw) / W, (p.uv[1] * qh) / H, (p.uv[2] * qw) / W, (p.uv[3] * qh) / H] })),
+      });
+    }
+    // A second phone beside the game's, in the same world: the same screen size, held at the same angle, its
+    // dark body round it, its screen as lit as the game's (its colour measured there: dim at night).
     const gap = 0.012 * W;
-    const roomLeft = sx - gap * 2, roomRight = W - (sx + sw) - gap * 2;
+    // (the screen's own size, measured upright in the frame — the box round a tilted screen is bigger; else from
+    // that box and the turn)
+    let colW, th, panelTop;
+    if (Q) {
+      [colW, th, panelTop] = [qw, qh, 0];
+    } else if (P.screen_own) {
+      [colW, th, panelTop] = [P.screen_own[2] * W, P.screen_own[3] * H, P.screen_own[1] * H];
+    } else {
+      const tr = Math.abs(+P.turn || 0) > 0.3 ? (Math.abs(+P.turn) * Math.PI) / 180 : 0;
+      const [ct, st2] = [Math.cos(tr), Math.sin(tr)];
+      const c2 = ct * ct - st2 * st2;
+      [colW, th] = [sw, sh];
+      if (tr && c2 > 0.3) {
+        colW = (sw * ct - sh * st2) / c2;
+        th = (sh * ct - sw * st2) / c2;
+        if (!(colW > 0.3 * sw && th > 0.3 * sh)) [colW, th] = [sw, sh];
+      }
+      panelTop = sy + sh / 2 - th / 2;
+    }
+    // the phone's body round the screen: thin sides, a little more above (its earpiece) and below
+    const side = 0.045 * colW, topB = 0.09 * colW, botB = 0.1 * colW;
+    const roomLeft = sx - gap * 2 - 2 * side - (Q ? qw : 0), roomRight = W - (sx + sw) - gap * 2 - 2 * side - (Q ? qw : 0);
     // (the side it was on, unless the other has clearly more room: chosen anew each frame, the panel jumped
     // from one side of the phone to the other)
     const T0 = PHONE_TILT;
     const onLeft = T0.side === "left" ? roomLeft * 1.25 >= roomRight : T0.side === "right" ? roomLeft > roomRight * 1.25 : roomLeft >= roomRight;
     T0.side = onLeft ? "left" : "right";
-    // (exactly the phone screen's own size: the box found round a tilted screen is bigger than the screen; its
-    // width and height from that box and the screen's turn. Centred level with the phone's middle)
-    const tr = Math.abs(+P.turn || 0) > 0.3 ? (Math.abs(+P.turn) * Math.PI) / 180 : 0;
-    const [ct, st2] = [Math.cos(tr), Math.sin(tr)];
-    const c2 = ct * ct - st2 * st2;
-    let [tw, th] = [sw, sh];
-    if (tr && c2 > 0.3) {
-      tw = (sw * ct - sh * st2) / c2;
-      th = (sh * ct - sw * st2) / c2;
-      if (!(tw > 0.3 * sw && th > 0.3 * sh)) [tw, th] = [sw, sh];
-    }
-    const colW = tw;
-    const panelTop = sy + sh / 2 - th / 2;
-    const x = onLeft ? sx - gap - colW : sx + sw + gap;
+    const x = Q ? 0 : onLeft ? sx - gap - side - colW : sx + sw + gap + side;
     // (its text the phone's size; in a chat list no bigger than its rows allow: each row as tall as the phone's,
-    // the rows one for one with the phone's, the last one in the screen as on the phone)
+    // the rows one for one with the phone's; smaller again when what it shows doesn't fit — Arabic wraps to more
+    // lines than the English: `fit`)
     const ys = P.pieces.filter((p) => p.avatar || p.name).map((p) => p.rect[1] * H).sort((a, b) => a - b);
     const pitches = ys.slice(1).map((y, i) => y - ys[i]).filter((d) => d > 4).sort((a, b) => a - b);
     const pitch = pitches.length ? pitches[Math.floor(pitches.length / 2)] : 0;
-    const fs = Math.max(9, Math.min(Math.max(11, 0.04 * colW), P.list && pitch ? pitch / 4.3 : 1e9));
+    const fs = Math.max(8, Math.min(Math.max(11, 0.04 * colW), P.list && pitch ? pitch / 4.3 : 1e9) * (fit || 1));
     const pad = 0.5 * fs;
+    const body = document.createElement("div");
+    body.className = "phone-body";
+    root.appendChild(body);
+    const r0 = Math.max(6, 0.12 * colW);
+    Object.assign(body.style, {
+      position: "absolute",
+      left: `${x - side}px`,
+      top: `${panelTop - topB}px`,
+      width: `${colW + 2 * side}px`,
+      height: `${th + topB + botB}px`,
+      borderRadius: `${r0}px`,
+      background: "linear-gradient(135deg, #3a3b3f 0%, #1d1e21 45%, #0e0f11 100%)",
+      boxShadow: `0 ${0.04 * colW}px ${0.12 * colW}px rgba(0,0,0,0.55), inset 0 0 0 ${Math.max(1, 0.008 * colW)}px rgba(255,255,255,0.10)`,
+    });
+    // (its earpiece and camera above the screen, a pill below it)
+    const dot = (css) => {
+      const d = document.createElement("div");
+      Object.assign(d.style, { position: "absolute" }, css);
+      body.appendChild(d);
+    };
+    dot({ left: `${side + colW * 0.38}px`, top: `${topB * 0.38}px`, width: `${colW * 0.24}px`, height: `${Math.max(2, topB * 0.22)}px`, borderRadius: "9px", background: "#050506" });
+    dot({ left: `${side + colW * 0.66}px`, top: `${topB * 0.34}px`, width: `${Math.max(3, topB * 0.3)}px`, height: `${Math.max(3, topB * 0.3)}px`, borderRadius: "50%", background: "#0b0c10" });
+    dot({ left: `${side + colW * 0.42}px`, top: `${topB + th + botB * 0.38}px`, width: `${colW * 0.16}px`, height: `${Math.max(2, botB * 0.22)}px`, borderRadius: "9px", background: "#050506" });
     const panel = document.createElement("div");
     panel.className = "phone-panel";
-    root.appendChild(panel);
+    body.appendChild(panel);
     Object.assign(panel.style, {
       position: "absolute",
-      left: `${x}px`,
-      top: `${panelTop}px`,
+      left: `${side}px`,
+      top: `${topB}px`,
       width: `${colW}px`,
       height: `${th}px`,
       overflow: "hidden",
       background: P.screen_bg || "#f2f3f6",
-      // (square corners, as the phone's screen)
-      borderRadius: "0",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
-      opacity: "0.97",
+      borderRadius: `${Math.max(2, 0.025 * colW)}px`,
     });
-    // (held tilted, the panel as the phone: turned as its lines of text are (`turn`, degrees clockwise), its
-    // column of pictures slanting as theirs (`slant` more), round the phone screen's middle — one piece with
-    // the phone. Eased from one reading to the next: the hand sways, the panel follows it smoothly)
+    // (held tilted, the second phone as the first: turned as its lines of text are (`turn`, degrees clockwise),
+    // its column of pictures slanting as theirs (`slant` more), round the game phone screen's middle — the two
+    // held together. Eased from one reading to the next: the hand sways, it follows smoothly)
     const T = PHONE_TILT;
-    const k = T.at ? 0.35 : 1;
-    T.turn += ((+P.turn || 0) - T.turn) * k;
-    T.slant += ((+P.slant || 0) - T.slant) * k;
-    T.at = 1;
-    if (Math.abs(T.turn) > 0.3 || Math.abs(T.slant) > 0.3) {
+    if (!fit) {
+      const k = T.at ? 0.35 : 1;
+      T.turn += ((+P.turn || 0) - T.turn) * k;
+      T.slant += ((+P.slant || 0) - T.slant) * k;
+      T.at = 1;
+    }
+    if (Q) {
+      // (the game's screen corners moved along its own top edge by a phone's width and a gap: beside it, the same
+      // way up; eased from one reading to the next as the hand sways)
+      const ux = [(Q[1][0] - Q[0][0]) / qw, (Q[1][1] - Q[0][1]) / qw];
+      const shift = (qw + 2 * side + gap) * (onLeft ? -1 : 1);
+      const target = Q.map((c) => [c[0] + ux[0] * shift, c[1] + ux[1] * shift]);
+      const E = PHONE_QUAD;
+      if (!fit) {
+        const k = E.q ? 0.4 : 1;
+        E.q = target.map((c, i) => (E.q ? [E.q[i][0] + (c[0] - E.q[i][0]) * k, E.q[i][1] + (c[1] - E.q[i][1]) * k] : c));
+      }
+      const src = [[side, topB], [side + colW, topB], [side + colW, topB + th], [side, topB + th]];
+      Object.assign(body.style, { left: "0px", top: "0px", transformOrigin: "0 0", transform: matrix3d(src, E.q || target) });
+    } else if (Math.abs(T.turn) > 0.3 || Math.abs(T.slant) > 0.3) {
       const r = (d) => (d * Math.PI) / 180;
       const [a, b, c, d2] = [Math.cos(r(T.turn)), Math.sin(r(T.turn)), -Math.sin(r(T.turn + T.slant)), Math.cos(r(T.turn + T.slant))];
-      Object.assign(panel.style, {
-        transformOrigin: `${sx + sw / 2 - x}px ${th / 2}px`,
+      Object.assign(body.style, {
+        transformOrigin: `${sx + sw / 2 - (x - side)}px ${sy + sh / 2 - (panelTop - topB)}px`,
         transform: `matrix(${a.toFixed(4)}, ${b.toFixed(4)}, ${c.toFixed(4)}, ${d2.toFixed(4)}, 0, 0)`,
       });
     }
@@ -628,7 +713,9 @@ window.AS = (() => {
       if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
     }
-    // (the panel as tall as its rows need: Arabic lines a little taller than the phone's, the last row was cut)
+    // (what it shows runs past its screen's foot: drawn again with smaller text, a few times at most)
+    const over = (below - panelTop + pad) / th;
+    if (over > 1.02 && (fit || 1) > 0.55) return renderPhone(root, P, (fit || 1) * Math.max(0.55, Math.min(0.95, 1 / Math.sqrt(over))));
   }
 
   // ---- Game pages (a menu, a "mission failed" page …) ------------------------------------------
