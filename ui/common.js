@@ -375,6 +375,12 @@ window.AS = (() => {
   const PHONE_BOX = {};
   // the phone as last drawn, and when (renderPhone: held a moment when a frame has none)
   const PHONE_LAST = { P: null, at: 0 };
+  // a chat's header as last read, and when (renderPhone: kept a moment when a reading misses it)
+  const PHONE_TITLE = { p: null, at: 0 };
+  // each chat's pieces' words and kind as held, by where they are (renderPhone)
+  const PHONE_PIECE = {};
+  // the names each chat showed as cards in a message (renderPhone)
+  const PHONE_CARDS = {};
   // A box kept as first drawn: a reading near it (within 4 % of the screen's width each way) changes nothing, and a
   // different one changes it only when three readings in a row agree on it — a frame read once a little differently
   // (a photo missed, a bubble's colour) no longer moved it, and moved it back
@@ -436,6 +442,10 @@ window.AS = (() => {
       P = PHONE_LAST.P;
       again = true;
     } else if (!again) {
+      // (a chat's header missed by a reading — its short name — kept a moment: the chat's held places are found by it)
+      const tP = P.pieces.find((p) => p.title);
+      if (tP) [PHONE_TITLE.p, PHONE_TITLE.at] = [tP, Date.now()];
+      else if (!P.list && PHONE_TITLE.p && Date.now() - PHONE_TITLE.at < 1500) P = Object.assign({}, P, { pieces: [PHONE_TITLE.p].concat(P.pieces) });
       PHONE_LAST.P = P;
       PHONE_LAST.at = Date.now();
     }
@@ -673,7 +683,49 @@ window.AS = (() => {
       const r = PHONE_ROWS[k];
       return r.p.name && nowT - r.at <= 700 && q.rect[1] < r.p.rect[1] + r.p.rect[3] && r.p.rect[1] < q.rect[1] + q.rect[3];
     });
-    const pieces = P.list ? P.pieces.filter((q) => !overHeld(q)) : P.pieces.slice();
+    let pieces = P.list ? P.pieces.filter((q) => !overHeld(q)) : P.pieces.slice();
+    // (a chat's pieces: each one's words and kind — a label as "New message", a bubble — as first read at its place,
+    // until three readings in a row agree on others: "New message" read now and then as "message", and as a
+    // bubble, its Arabic changed and it jumped from the middle to the side and back)
+    if (Q && !P.list) {
+      const held = (PHONE_PIECE[chatId] = PHONE_PIECE[chatId] || []);
+      const tol = 0.05 * colW;
+      pieces = pieces.map((p) => {
+        if (p.title) return p;
+        const y = p.rect[1] * H;
+        let h = held.find((k) => Math.abs(k.y - y) <= tol);
+        if (!h) {
+          h = { y: y, ar: p.ar, label: !!p.label, hist: [] };
+          held.push(h);
+        }
+        h.y = y;
+        // (the words and kind it was read as most often over its last ten readings — a stray misreading, even its
+        // first, doesn't stay; the one shown now keeps a tie)
+        h.hist.push((p.label ? "L" : "B") + p.ar);
+        if (h.hist.length > 10) h.hist.shift();
+        const tally = {};
+        for (const k of h.hist) tally[k] = (tally[k] || 0) + 1;
+        const cur = (h.label ? "L" : "B") + h.ar;
+        let best = cur;
+        for (const k in tally) if (tally[k] > (tally[best] || 0)) best = k;
+        if (best !== cur) [h.label, h.ar] = [best[0] === "L", best.slice(1)];
+        h.p = Object.assign({}, p, { ar: h.ar, label: h.label });
+        h.at = Date.now();
+        h.seen = true;
+        return h.p;
+      });
+      // (one missed by this reading stays a moment where it was, unless another piece is there now)
+      const nowH = Date.now();
+      for (const h of held) {
+        if (!h.seen && h.p && nowH - h.at < 700) {
+          const [ty, tb] = [h.p.rect[1] * H, (h.p.rect[1] + h.p.rect[3]) * H];
+          if (!pieces.some((q) => !q.title && q.rect[1] * H < tb && ty < (q.rect[1] + q.rect[3]) * H)) pieces.push(h.p);
+        }
+        h.seen = false;
+      }
+      for (let i = held.length - 1; i >= 0; i--) if (nowH - held[i].at > 3000) held.splice(i, 1);
+      pieces.sort((a, b) => (a.title ? -1 : b.title ? 1 : a.rect[1] - b.rect[1]));
+    }
     const seenNow = new Set(pieces.map(rowKey));
     if (P.list) {
       for (const k in PHONE_ROWS) {
@@ -685,6 +737,25 @@ window.AS = (() => {
       }
       for (const p of pieces) if (p.name || p.label) PHONE_ROWS[rowKey(p)] = { p: p, at: nowT };
       pieces.sort((a, b) => a.rect[1] - b.rect[1]);
+    }
+    // (a card in a message — a place's or a shop's name kept as it is, "Three Sheets Liquor", right under the
+    // message's words: inside that message's bubble, as on the phone, not a message of its own)
+    const cardOf = new Map();
+    if (Q && !P.list) {
+      const latin = (t) => /^[\x20-\x7E]+$/.test(t || "") && (t || "").trim().split(/\s+/).length <= 5;
+      const msgs = pieces.filter((p) => !p.title && !p.label);
+      // (a card's line read as a label too — it has no bubble's colour of its own)
+      for (const c of pieces.filter((p) => !p.title)) {
+        if (!latin(c.ar)) continue;
+        const above = msgs.filter((m) => m !== c && !latin(m.ar) && (m.rect[1] + m.rect[3]) * H <= c.rect[1] * H + 0.2 * fs)
+          .sort((a, b) => (b.rect[1] + b.rect[3]) - (a.rect[1] + a.rect[3]))[0];
+        // (once a card in this chat, always: a reading a little apart from its message no longer made it a message)
+        const known = (PHONE_CARDS[chatId] = PHONE_CARDS[chatId] || new Set());
+        if (above && (known.has(c.ar) || c.rect[1] * H - (above.rect[1] + above.rect[3]) * H <= 3 * fs)) {
+          cardOf.set(c, above);
+          known.add(c.ar);
+        }
+      }
     }
     for (const p of pieces) {
       if (!p.ar && !(P.list && (p.name || p.avatar))) continue;
@@ -748,6 +819,10 @@ window.AS = (() => {
         bar.innerHTML = `<span style="color:#3d6fe0;font-size:${(1.6 * fs).toFixed(1)}px;line-height:1;flex:none;width:${(1.9 * fs).toFixed(1)}px">‹</span><b style="unicode-bidi:plaintext;direction:${dir()}">${esc(p.ar)}</b>${pic}`;
         panel.appendChild(bar);
         below = panelTop + bh;
+        continue;
+      }
+      if (cardOf.has(p) && p.cardBox !== undefined || cardOf.has(p)) {
+        // (drawn once its message's bubble is: see below, after the loop)
         continue;
       }
       const d = document.createElement("div");
@@ -822,6 +897,8 @@ window.AS = (() => {
       if (!!p.end !== S.end) { if (++S.other >= 3) { S.end = !!p.end; S.other = 0; } } else S.other = 0;
       let left = p.label ? x + (colW - d.offsetWidth) / 2 : S.end ? x + colW - pad - room - d.offsetWidth : x + pad;
       let top = Math.max(p.rect[1] * H - 0.4 * fs, below + 0.25 * fs);
+      // (a label's place kept as first drawn while readings stay near it: see holdBox)
+      if (Q && p.label) top = holdBox(chatId + "|label|" + p.ar, [top], colW)[0];
       if (Q && !p.label) {
         // (laid out on the screen's own shape: each bubble the game's bubble — its words' box and the phone's padding
         // round them, where it is on the screen, as wide and as tall — the Arabic fitted inside it. Kept while a new
@@ -839,6 +916,14 @@ window.AS = (() => {
             ph.taken = true;
           }
         }
+        for (const [c, owner] of cardOf) {
+          if (owner !== p) continue;
+          const cb = [c.rect[0] * W - 0.9 * fs, c.rect[1] * H - 0.55 * fs, c.rect[2] * W + 1.8 * fs, c.rect[3] * H + 1.1 * fs];
+          const [x0, x1] = [Math.min(bx[0], cb[0] - 0.5 * fs), Math.max(bx[0] + bx[2], cb[0] + cb[2] + 0.5 * fs)];
+          bx = [x0, bx[1], x1 - x0, cb[1] + cb[3] + 0.5 * fs - bx[1]];
+          d.dataset.photo = "1";
+          c.cardBox = cb;
+        }
         bx[0] = Math.max(0.3 * pad, bx[0]);
         if (bx[0] + bx[2] > colW - 0.3 * pad) bx[2] = colW - 0.3 * pad - bx[0];
         // (the character's own, to the right: as close to the right edge as the other person's are to the left.
@@ -847,6 +932,9 @@ window.AS = (() => {
         if (ownB && margins.left != null) bx[0] = Math.max(0.3 * pad, colW - margins.left - bx[2]);
         else if (!ownB && margins.left != null) bx[0] = margins.left;
         bx = holdBox(chatId + "|" + p.ar, bx, colW);
+        // (its words and emojis one flow inside it, the emojis among the words where they are: in the box's flex
+        // layout each picture was a block of its own, pushed to the bubble's side)
+        d.innerHTML = `<div style="min-width:0;max-width:100%">${d.innerHTML}</div>`;
         Object.assign(d.style, {
           width: `${bx[2]}px`, height: `${bx[3]}px`, maxWidth: "none", overflow: "hidden",
           display: "flex", alignItems: d.dataset.photo ? "flex-start" : "center", justifyContent: "flex-start",
@@ -883,6 +971,28 @@ window.AS = (() => {
       if (d._send) put(d._send, left + d.offsetWidth + 0.3 * fs, top + d.offsetHeight / 2 - 0.65 * fs);
       below = top + d.offsetHeight;
     }
+    // (each card inside its message's bubble: a light box with its name, as on the phone)
+    for (const [c] of cardOf) {
+      if (!c.cardBox) continue;
+      const cb = holdBox(chatId + "|card|" + c.ar, c.cardBox, colW);
+      const card = document.createElement("div");
+      Object.assign(card.style, {
+        position: "absolute", boxSizing: "border-box", width: `${cb[2]}px`, height: `${cb[3]}px`,
+        display: "flex", alignItems: "center", padding: `0 ${0.7 * fs}px`, direction: "ltr",
+        borderRadius: `${0.3 * fs}px`, background: "rgba(0,0,0,0.045)", border: "1px solid rgba(0,0,0,0.07)",
+        fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`, fontWeight: "700", fontSize: `${0.95 * fs}px`, color: "#2b2d34",
+        whiteSpace: "nowrap", overflow: "hidden",
+      });
+      // (its icon before its name, as on the phone: the picture found beside the name on the card's line)
+      const ic = (P.stickers || []).find((st) => {
+        const [iy, ih] = [st.uv[1] * qh, st.uv[3] * qh];
+        return iy < cb[1] + cb[3] && cb[1] < iy + ih && st.uv[0] * qw < c.rect[0] * W;
+      });
+      const iz = cb[3] * 0.72;
+      card.innerHTML = (ic ? `<img src="${ic.png}" style="width:${iz}px;height:${iz}px;object-fit:contain;flex:none;margin-right:${0.5 * fs}px">` : "") + `<span>${esc(c.ar)}</span>`;
+      panel.appendChild(card);
+      put(card, x + cb[0], panelTop + cb[1]);
+    }
     // (the chat's photos: left as empty space, in their place and size — the bubbles round them keep it. One with no
     // words above it on the screen — its message's words scrolled off — in a bubble of its own, as on the phone)
     if (Q) {
@@ -903,7 +1013,9 @@ window.AS = (() => {
       const otherBg = (P.pieces.find((p) => !p.title && !p.label && !isOwn(p)) || {}).bg || P.screen_bg || "#f4f4f6";
       for (const st of P.stickers) {
         const u = st.uv;
-        const [sx0, sy0, sw0, sh0] = [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh];
+        const [sy1, sy2] = [u[1] * qh, (u[1] + u[3]) * qh];
+        if (pieces.some((p) => !p.title && p.rect[1] * H < sy2 && sy1 < (p.rect[1] + p.rect[3]) * H)) continue;
+        const [sx0, sy0, sw0, sh0] = holdBox(chatId + "|sticker|" + Math.round((u[1] * qh) / (0.1 * colW)), [u[0] * qw, u[1] * qh, u[2] * qw, u[3] * qh], colW);
         const padS = 0.45 * fs;
         const bub = document.createElement("div");
         Object.assign(bub.style, {
