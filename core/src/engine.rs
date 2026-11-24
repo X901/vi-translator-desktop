@@ -1491,6 +1491,15 @@ impl Reader {
                                             rows.insert(k.clone(), (p.en.clone(), a.clone()));
                                             Some(a.clone())
                                         }
+                                        // (a clearly cleaner reading of it — more of its words real words: "Hey this is Joey from
+                                        // Coa..." for "Hev this is Jov from Co" — its translation in place of a misreading's)
+                                        (Some(k), Some(a)) if rows.get(k).is_some_and(|(en, _)| {
+                                            let real = |t: &str| t.split_whitespace().filter(|w| w.chars().filter(|c| c.is_alphabetic()).count() >= 3).count();
+                                            real(&p.en) > real(en) + 1
+                                        }) => {
+                                            rows.insert(k.clone(), (p.en.clone(), a.clone()));
+                                            Some(a.clone())
+                                        }
                                         (Some(k), _) => match rows.get(k) {
                                             Some((en, a)) if ocr::similar(en, &p.en) || {
                                                 // (most of its words the same: "hon my rum is be..." for "thnx hon my rum is be...")

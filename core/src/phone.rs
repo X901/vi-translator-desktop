@@ -1150,7 +1150,7 @@ fn read_screen_at(ocr: &Ocr, rgba: &[u8], fw: u32, fh: u32, screen: (u32, u32, u
     // (a chat's header — its first line, in the screen's top eighth, no list's rows round it — whether the reading
     // took it for one or not: its contact's picture to the right of the name, as the circle it is)
     if !out.iter().any(|p| p.avatar.is_some() && !p.title) {
-        if let Some(p) = out.first_mut().filter(|p| p.rect.1 < sy + sh / 8 && p.split.is_none() && p.en.split_whitespace().count() <= 5) {
+        if let Some(p) = out.first_mut().filter(|p| p.rect.1 < sy + sh / 14 && p.split.is_none() && p.en.split_whitespace().count() <= 5) {
             p.title = true;
             if p.avatar.is_none() {
                 let sbg = screen_bg(rgba, fw, fh, screen, p.rect.1, p.rect.1 + p.rect.3);

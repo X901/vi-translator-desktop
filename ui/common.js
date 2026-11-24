@@ -381,6 +381,8 @@ window.AS = (() => {
   const PHONE_PIECE = {};
   // the names each chat showed as cards in a message (renderPhone)
   const PHONE_CARDS = {};
+  // each chat's pieces' places at the last reading, and when it last scrolled (renderPhone)
+  const PHONE_SCROLL = { y: {}, at: 0 };
   // each card's icon once found, by chat and name (renderPhone)
   const PHONE_CARD_ICON = {};
   // A box kept as first drawn: a reading near it (within 4 % of the screen's width each way) changes nothing, and a
@@ -439,10 +441,13 @@ window.AS = (() => {
     root.innerHTML = "";
     if (P && P.chat) renderChat(root, P.chat);
     // (the phone not read for a moment — a frame it wasn't found in: the last one drawn stays up a little)
+    // (`replay`: the last phone drawn again — its text's size and everything as a reading's, only nothing measured
+    // anew: no easing, no scroll told)
+    let replay = false;
     if (!P || !P.pieces || !P.pieces.length) {
       if (!PHONE_LAST.P || Date.now() - PHONE_LAST.at > 700) return;
       P = PHONE_LAST.P;
-      again = true;
+      replay = true;
     } else if (!again) {
       // (a chat's header missed by a reading — its short name — kept a moment: the chat's held places are found by it)
       const tP = P.pieces.find((p) => p.title);
@@ -465,9 +470,13 @@ window.AS = (() => {
     if (Q && (!PHONE_QUAD.aspect || Math.abs(qh0 / qw0 - PHONE_QUAD.aspect) > PHONE_QUAD.aspect * 0.03)) PHONE_QUAD.aspect = qh0 / qw0;
     const qw = Q ? 360 : 0, qh = Q ? 360 * PHONE_QUAD.aspect : 0;
     if (Q && !P._flat) {
+      // (a chat's header is at the very top of its screen: a "title" lower down is a message's line cut by the header
+      // bar after a scroll — its words read as a name and spelt out — and is no piece to show; one header at most)
+      const tops = P.pieces.filter((p) => p.title && p.uv[1] <= 0.07).sort((a, b) => a.uv[1] - b.uv[1]);
+      const keepTitle = tops[0];
       P = Object.assign({}, P, {
         _flat: true,
-        pieces: P.pieces.map((p) => Object.assign({}, p, {
+        pieces: P.pieces.filter((p) => !p.title || p === keepTitle).map((p) => Object.assign({}, p, {
           rect: [(p.uv[0] * qw) / W, (p.uv[1] * qh) / H, (p.uv[2] * qw) / W, (p.uv[3] * qh) / H],
           box: p.box_uv ? [p.box_uv[0] * qw, p.box_uv[1] * qh, p.box_uv[2] * qw, p.box_uv[3] * qh] : null,
         })),
@@ -509,12 +518,36 @@ window.AS = (() => {
     // lines than the English: `fit`)
     const ys = P.pieces.filter((p) => p.avatar || p.name).map((p) => p.rect[1] * H).sort((a, b) => a - b);
     const pitches = ys.slice(1).map((y, i) => y - ys[i]).filter((d) => d > 4).sort((a, b) => a - b);
-    const pitch = pitches.length ? pitches[Math.floor(pitches.length / 2)] : 0;
+    const pitch0 = pitches.length ? pitches[Math.floor(pitches.length / 2)] : 0;
+    // (the rows' spacing held per list: measured anew each frame, the rows' height went from one size to another)
+    const pitch = pitch0 && Q ? holdBox((P.list ? "list" : "chat") + "|pitch", [pitch0], 360 * 2)[0] : pitch0;
     // (the size a chat settled on is kept: worked out anew each frame it came out a little different, and the
     // bubbles' words moved from line to line; it only gets smaller when what's shown no longer fits)
     // (by what it shows: the same chat with the same messages keeps its size; new messages, another chat, worked
     // out again from the phone's own size)
     const chatId = P.list ? "list" : ((P.pieces.find((p) => p.title) || {}).ar || "");
+    // (scrolling: the same pieces moved together since the last reading — the held places and words are let go,
+    // the screen followed as read; once it stops, they're held again from the readings then. A moment after a
+    // scroll stops, the layout is settled)
+    if (Q && !again && !replay) {
+      const prevY = PHONE_SCROLL.y[chatId] || {};
+      const nowY = {};
+      const shifts = [];
+      for (const p of P.pieces) {
+        if (p.title) continue;
+        const k = (p.name || "") + "|" + p.ar;
+        nowY[k] = p.rect[1] * H;
+        if (k in prevY) shifts.push(nowY[k] - prevY[k]);
+      }
+      PHONE_SCROLL.y[chatId] = nowY;
+      shifts.sort((a, b) => a - b);
+      const med = shifts.length ? shifts[Math.floor(shifts.length / 2)] : 0;
+      if (Math.abs(med) > 0.015 * qh) {
+        for (const k of Object.keys(PHONE_BOX)) if (k.startsWith(chatId + "|")) delete PHONE_BOX[k];
+        PHONE_PIECE[chatId] = [];
+        PHONE_SCROLL.at = Date.now();
+      }
+    }
     const chatKey = chatId + "|" + P.pieces.length + "|" + P.pieces.reduce((n, p) => n + (p.ar || "").length, 0);
     if (!again) fit = PHONE_FIT[chatKey] || 1;
     // (the phone's text is about 4.5 % of its screen's width: laid out on the screen's shape, the same share)
@@ -561,7 +594,7 @@ window.AS = (() => {
     // its column of pictures slanting as theirs (`slant` more), round the game phone screen's middle — the two
     // held together. Eased from one reading to the next: the hand sways, it follows smoothly)
     const T = PHONE_TILT;
-    if (!again) {
+    if (!again && !replay) {
       const k = T.at ? 0.35 : 1;
       T.turn += ((+P.turn || 0) - T.turn) * k;
       T.slant += ((+P.slant || 0) - T.slant) * k;
@@ -575,7 +608,7 @@ window.AS = (() => {
       const shift = (qw0 * (1 + (2 * side) / qw) + gap) * (onLeft ? -1 : 1);
       const target = Q.map((c) => [c[0] + ux[0] * shift, c[1] + ux[1] * shift]);
       const E = PHONE_QUAD;
-      if (!again) {
+      if (!again && !replay) {
         const k = E.q ? 0.4 : 1;
         E.q = target.map((c, i) => (E.q ? [E.q[i][0] + (c[0] - E.q[i][0]) * k, E.q[i][1] + (c[1] - E.q[i][1]) * k] : c));
       }
@@ -689,7 +722,7 @@ window.AS = (() => {
     // (a chat's pieces: each one's words and kind — a label as "New message", a bubble — as first read at its place,
     // until three readings in a row agree on others: "New message" read now and then as "message", and as a
     // bubble, its Arabic changed and it jumped from the middle to the side and back)
-    if (Q && !P.list) {
+    if (Q) {
       const held = (PHONE_PIECE[chatId] = PHONE_PIECE[chatId] || []);
       const tol = 0.05 * colW;
       pieces = pieces.map((p) => {
@@ -697,21 +730,25 @@ window.AS = (() => {
         const y = p.rect[1] * H;
         let h = held.find((k) => Math.abs(k.y - y) <= tol);
         if (!h) {
-          h = { y: y, ar: p.ar, label: !!p.label, hist: [] };
+          h = { y: y, ar: p.ar, label: !!p.label, name: p.name || "", hist: [] };
           held.push(h);
         }
         h.y = y;
         // (the words and kind it was read as most often over its last ten readings — a stray misreading, even its
         // first, doesn't stay; the one shown now keeps a tie)
-        h.hist.push((p.label ? "L" : "B") + p.ar);
+        // (a list's row: its contact's name too — "Shirley" read once as "my rum", the row's name was that)
+        h.hist.push((p.label ? "L" : "B") + p.ar + "\u0001" + (p.name || ""));
         if (h.hist.length > 10) h.hist.shift();
         const tally = {};
         for (const k of h.hist) tally[k] = (tally[k] || 0) + 1;
-        const cur = (h.label ? "L" : "B") + h.ar;
+        const cur = (h.label ? "L" : "B") + h.ar + "\u0001" + h.name;
         let best = cur;
         for (const k in tally) if (tally[k] > (tally[best] || 0)) best = k;
-        if (best !== cur) [h.label, h.ar] = [best[0] === "L", best.slice(1)];
-        h.p = Object.assign({}, p, { ar: h.ar, label: h.label });
+        if (best !== cur) {
+          const [w0, n0] = best.slice(1).split("\u0001");
+          [h.label, h.ar, h.name] = [best[0] === "L", w0, n0];
+        }
+        h.p = Object.assign({}, p, { ar: h.ar, label: h.label, name: h.name || null });
         h.at = Date.now();
         h.seen = true;
         return h.p;
@@ -761,6 +798,50 @@ window.AS = (() => {
     }
     for (const p of pieces) {
       if (!p.ar && !(P.list && (p.name || p.avatar))) continue;
+      if (P.list && Q) {
+        // (laid out as the phone's list: each row a card across the screen at its own place and height, the
+        // contact's picture on the left, the mark on the right, the name and the message's start between; the
+        // section headers with their icon, as the phone's)
+        const d = document.createElement("div");
+        // (each row's card as tall as the phone's: nearly all of the rows' spacing)
+        const rowH = pitch ? Math.max(pitch * 0.9, 2.6 * fs) : 3.4 * fs;
+        const cy = (p.rect[1] + p.rect[3] / 2) * H;
+        Object.assign(d.style, { position: "absolute", boxSizing: "border-box", direction: "ltr", fontFamily: `"Noto Sans Arabic Medium", ${fonts()}`, fontSize: `${fs}px`, lineHeight: "1.3" });
+        let bx;
+        if (p.name || p.avatar) {
+          // (placed by its name's line, which sits as high in every row — a row whose message is only an emoji has
+          // one line of words, and by the words' middle it rose into the row above)
+          const top0 = p.rect[1] * H - 0.27 * rowH;
+          bx = holdBox(chatId + "|row|" + Math.round(top0 / (0.08 * colW)), [0.03 * colW, top0, 0.94 * colW, rowH], colW);
+          const av = rowH * 0.72;
+          // (the card a little lighter than the screen, as the phone's rows are)
+          const card = "rgba(255,255,255,0.55)";
+          Object.assign(d.style, {
+            width: `${bx[2]}px`, height: `${bx[3]}px`, display: "flex", alignItems: "center", gap: `${0.55 * fs}px`,
+            padding: `0 ${0.55 * fs}px`, background: card, borderRadius: `${0.2 * fs}px`, boxShadow: "0 1px 2px rgba(0,0,0,0.12)",
+            border: p.edge ? `${Math.max(2, 0.12 * fs).toFixed(1)}px solid ${p.edge}` : "none",
+          });
+          const pic = p.avatar ? `<img src="${p.avatar}" style="width:${av}px;height:${av}px;border-radius:50%;object-fit:cover;flex:none">` : `<div style="width:${av}px;height:${av}px;border-radius:50%;background:#c9cad3;flex:none"></div>`;
+          const one = "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;unicode-bidi:plaintext";
+          const msg = p.ar ? withEmoji(p.ar, p.emoji) : p.preview ? `<img src="${p.preview}" style="height:${(0.95 * fs).toFixed(1)}px;vertical-align:middle">` : "&nbsp;";
+          const mark = p.badge ? `<img src="${p.badge}" style="height:${(1.1 * fs).toFixed(1)}px;flex:none;align-self:flex-start;margin-top:${(0.45 * fs).toFixed(1)}px">` : "";
+          d.innerHTML =
+            pic +
+            // (its words starting next to the picture, as on the phone)
+            `<div style="min-width:0;flex:1;direction:${dir()};text-align:left">` +
+            (p.name ? `<div style="${one};font-weight:700;color:#24252c">${esc(p.name)}</div>` : "") +
+            `<div style="${one};color:#6a6c77;font-size:${(0.92 * fs).toFixed(1)}px">${msg}</div></div>` +
+            mark;
+        } else {
+          bx = holdBox(chatId + "|head|" + p.ar, [p.rect[0] * W, cy - 0.7 * fs, 0, 0], colW);
+          Object.assign(d.style, { color: "#7a7c88", fontSize: `${0.9 * fs}px`, display: "flex", alignItems: "center", gap: `${0.35 * fs}px`, whiteSpace: "nowrap" });
+          d.innerHTML = (p.badge ? `<img src="${p.badge}" style="height:${(1.1 * fs).toFixed(1)}px;flex:none">` : "") + `<span style="direction:${dir()};unicode-bidi:plaintext">${esc(p.ar)}</span>`;
+        }
+        panel.appendChild(d);
+        put(d, x + bx[0], panelTop + bx[1]);
+        below = panelTop + bx[1] + d.offsetHeight;
+        continue;
+      }
       if (P.list) {
         // WhatUp's chat list, as on the phone: rows of the contact's picture, name and message's start (one
         // line, cut), the chosen row outlined; the section headers ("Suggested", "Messages") plain grey
@@ -958,7 +1039,8 @@ window.AS = (() => {
             ? `M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - th2} L${w + tw},${h} H${r} Q0,${h} 0,${h - r} V${r} Q0,0 ${r},0 Z`
             : `M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - r} Q${w},${h} ${w - r},${h} H${-tw} L0,${h - th2} V${r} Q0,0 ${r},0 Z`;
           const shape = document.createElement("div");
-          const m = tw + sw2 + 1;
+          // (its margin the same with an outline or without: the chosen bubble's outline, read now and then, moved it a pixel)
+          const m = tw + Math.max(1.5, 0.1 * fs) + 1;
           Object.assign(shape.style, { position: "absolute", width: `${w + 2 * m}px`, height: `${h + 2 * m}px`, pointerEvents: "none" });
           shape.innerHTML =
             `<svg width="${w + 2 * m}" height="${h + 2 * m}" style="display:block;overflow:visible">` +
