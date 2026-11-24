@@ -17,6 +17,8 @@ mod ocr_engine;
 mod overlay;
 mod picture_find;
 mod preview_shot;
+#[cfg(debug_assertions)]
+mod dev_debug;
 mod lan;
 mod updater;
 mod vcam;
@@ -240,6 +242,21 @@ fn app_version() -> &'static str {
 #[tauri::command]
 fn dev_build() -> bool {
     cfg!(debug_assertions)
+}
+
+/// Dev builds' debug server: a page's answer to an /eval (dev_debug.rs). Nothing in a release build.
+#[tauri::command]
+fn dev_report(id: String, value: serde_json::Value) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        dev_debug::report(id, value);
+        Ok(())
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = (id, value);
+        Err("dev builds only".into())
+    }
 }
 
 /// Whether this build has the free offline translator (not on Intel Macs: see Cargo.toml).
@@ -863,6 +880,81 @@ fn perf_status() -> serde_json::Value {
 
 /// `vi-translator --test-image shot.png [--area help]`: OCR + translate one screenshot and print the result.
 /// See `--read-video`: frames come from ffmpeg (raw RGBA on its stdout, never saved).
+/// `--phone-crops` (dev builds): the phone read in a saved frame, its pieces and their crops.
+#[cfg(debug_assertions)]
+fn phone_crops(file: &str, out: &str) -> anyhow::Result<()> {
+    use vi_translator_core::phone;
+    let img = image::open(file)?.to_rgba8();
+    let (w, h) = img.dimensions();
+    let rgba = img.as_raw();
+    std::fs::create_dir_all(out)?;
+    Ocr::init_thread();
+    let ocr = Ocr::new()?;
+    let scr = phone::find_screen(rgba, w, h)
+        .or_else(|| phone::find_screen_unsure(rgba, w, h))
+        .ok_or_else(|| anyhow::anyhow!("no phone screen found"))?;
+    println!("screen {scr:?}");
+    let read = phone::read_screen_any(&ocr, rgba, w, h, scr);
+    println!("turn {:.2} upright {} slant {:?}", read.angle, read.upright.is_some(), phone::tilt_of(&read.pieces));
+    let pieces = read.pieces;
+    let up_img = read.upright.map(|u| image::RgbaImage::from_raw(w, h, u).expect("frame size"));
+    let img = up_img.unwrap_or(img);
+    let rgba = img.as_raw();
+    let mut marked = img.clone();
+    let mut boxed = |r: (i32, i32, u32, u32), c: [u8; 4]| {
+        for t in 0..2i32 {
+            for xx in r.0..r.0 + r.2 as i32 {
+                for yy in [r.1 + t, r.1 + r.3 as i32 - 1 - t] {
+                    if xx >= 0 && yy >= 0 && (xx as u32) < w && (yy as u32) < h {
+                        marked.put_pixel(xx as u32, yy as u32, image::Rgba(c));
+                    }
+                }
+            }
+            for yy in r.1..r.1 + r.3 as i32 {
+                for xx in [r.0 + t, r.0 + r.2 as i32 - 1 - t] {
+                    if xx >= 0 && yy >= 0 && (xx as u32) < w && (yy as u32) < h {
+                        marked.put_pixel(xx as u32, yy as u32, image::Rgba(c));
+                    }
+                }
+            }
+        }
+    };
+    let save = |name: String, r: (u32, u32, u32, u32), o: (i32, i32, u32, u32), hh: u32| {
+        if let Some(png) = phone::part_png(rgba, w, h, r, o, hh) {
+            let _ = std::fs::write(std::path::Path::new(out).join(name), png);
+        }
+    };
+    for (i, p) in pieces.iter().enumerate() {
+        println!(
+            "{i}: rect {:?} name {:?} en {:?} label {} avatar {:?} badge {:?} preview {:?} emoji {}",
+            p.rect, p.name, p.en, p.look.label, p.avatar, p.badge, p.preview, p.emoji.len()
+        );
+        boxed((p.rect.0 as i32, p.rect.1 as i32, p.rect.2, p.rect.3), [255, 0, 0, 255]);
+        let at = |o: (i32, i32, u32, u32)| (p.rect.0 as i32 + o.0, p.rect.1 as i32 + o.1, o.2, o.3);
+        if let Some(a) = p.avatar {
+            boxed(at((a.0, a.1, a.2, a.2)), [0, 200, 255, 255]);
+            save(format!("{i:02}_avatar.png"), p.rect, (a.0, a.1, a.2, a.2), 56);
+        }
+        if let Some(b) = p.badge {
+            boxed(at(b), [0, 220, 0, 255]);
+            save(format!("{i:02}_badge.png"), p.rect, b, 28);
+        }
+        if let Some(b) = p.preview {
+            boxed(at(b), [255, 160, 0, 255]);
+            save(format!("{i:02}_preview.png"), p.rect, b, 28);
+        }
+        for (j, e) in p.emoji.iter().enumerate() {
+            boxed((e.0 as i32, e.1 as i32, e.2, e.3), [255, 0, 255, 255]);
+            save(format!("{i:02}_emoji{j}.png"), *e, (0, 0, e.2, e.3), 40);
+        }
+    }
+    let (sx, sy, sw, sh) = scr;
+    boxed((sx as i32, sy as i32, sw, sh), [255, 255, 0, 255]);
+    let cut = image::imageops::crop_imm(&marked, sx.saturating_sub(60), sy.saturating_sub(40), (sw + 120).min(w), (sh + 80).min(h)).to_image();
+    cut.save(std::path::Path::new(out).join("marked.png"))?;
+    Ok(())
+}
+
 fn read_video(file: &str, fps: f64, from: f64, to: f64) -> anyhow::Result<()> {
     use std::io::{Read, Write};
     let cfg = Config::load(&config_path());
@@ -1625,6 +1717,20 @@ fn main() {
         return;
     }
     // --test-snapshot <frame.png> [--service <id>]: a snapshot of a saved frame, its blocks printed
+    // --phone-crops <frame.png> <out dir> (dev builds): GTA VI's phone read in a saved frame, as the engine
+    // reads it: each piece printed, its crops (picture, mark, emoji) saved, and the frame with them drawn on
+    #[cfg(debug_assertions)]
+    if let Some(i) = args.iter().position(|a| a == "--phone-crops") {
+        let (Some(file), Some(out)) = (args.get(i + 1), args.get(i + 2)) else {
+            eprintln!("usage: --phone-crops <frame.png> <out dir>");
+            std::process::exit(2);
+        };
+        if let Err(e) = phone_crops(file, out) {
+            eprintln!("read-phone: {e:#}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if let Some(file) = args.iter().position(|a| a == "--test-snapshot").and_then(|i| args.get(i + 1)) {
         let run = || -> anyhow::Result<()> {
             let img = image::open(file)?.to_rgba8();
@@ -1719,7 +1825,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(hotkey::plugin())
         .manage(AppState { cfg: cfg.clone(), shared: shared.clone(), saver: saver.clone(), memory: memory.clone(), update: update.clone() })
-        .invoke_handler(tauri::generate_handler![app_version, dev_build, has_offline, memory_line, memory_probe, get_phone, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_browser_sign_in, ps5_login_url, ps5_sign_in_address, ps5_set_account, ps5_wake, ps5_set_sound, ps5_set_resolution, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
+        .invoke_handler(tauri::generate_handler![app_version, dev_build, dev_report, has_offline, memory_line, memory_probe, get_phone, update_status, install_update, lan_info, open_lan_page, find_tvs, connect_tv, list_tvs, remove_tv, list_langs, list_sources, window_still, find_picture, vcam_status, sound_inputs, sound_status, set_snap_hotkey, back_to_game, get_config, save_config, page_options, list_windows, list_screens, list_fonts, get_screen, frame_saver_status, open_frames_folder, save_preview, open_previews_folder, take_snapshot, save_snapshot_render, open_snapshots_folder, perf_status, memory_status, memory_clear, open_xbox, ps5_status, ps5_sign_in, ps5_browser_sign_in, ps5_login_url, ps5_sign_in_address, ps5_set_account, ps5_wake, ps5_set_sound, ps5_set_resolution, ps5_sign_out, ps5_find, ps5_link, ps5_forget, ps5_login_pin])
         .setup(move |app| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.set_title(&format!("VI Translator {}", env!("CARGO_PKG_VERSION")));
@@ -1757,6 +1863,13 @@ fn main() {
             {
                 let (s, c) = (shared.clone(), cfg.clone());
                 std::thread::spawn(move || capture::run_manager(s, c));
+            }
+            // (dev builds: the debug server for the live preview, dev_debug.rs)
+            #[cfg(debug_assertions)]
+            {
+                let (h, s) = (app.handle().clone(), shared.clone());
+                let out = pictures_dir().map(|p| p.join(FOLDER).join("dev-shots")).unwrap_or_else(|| data_dir().join("dev-shots"));
+                std::thread::spawn(move || dev_debug::run(h, s, data_dir(), out));
             }
             {
                 // the capture card's sound on the speakers (with a card as the source)

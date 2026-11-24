@@ -21,6 +21,12 @@ pub struct Area {
 }
 
 /// Capture the page, cut out the preview and save it in this run's folder (`base`/<date>): the file's path.
+/// A PNG of the whole page of this webview as it is drawn now (dev builds' debug server: dev_debug.rs).
+#[cfg(debug_assertions)]
+pub async fn capture_png(webview: &tauri::Webview) -> Result<Vec<u8>, String> {
+    capture(webview).await
+}
+
 pub async fn save(webview: &tauri::Webview, area: Area, base: &Path) -> Result<PathBuf, String> {
     let png = capture(webview).await?;
     let img = image::load_from_memory(&png).map_err(|e| format!("the page's picture: {e}"))?;
