@@ -1387,7 +1387,8 @@ window.AS = (() => {
             WebkitTextStroke: m.outline ? `${(fs * 0.06).toFixed(1)}px ${m.outline}` : "",
             paintOrder: m.outline ? "stroke fill" : "",
           },
-          `<span>${withIcons(m.ar, m.icons)}</span>`,
+          // (a line of dialogue: who says it first, in the game's colour for the name, as a subtitle's is)
+          `<span>${m.name ? `<span style="color:${esc(m.name_fg || "inherit")}">${esc(m.name)}:</span> ` : ""}${withIcons(m.ar, m.icons)}</span>`,
         );
         continue;
       }

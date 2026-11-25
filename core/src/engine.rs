@@ -1152,6 +1152,11 @@ impl Reader {
                     *ctx.live.screen_private.lock().unwrap() = layout.menu.iter().filter(|m| m.private).map(|m| [m.rect.x, m.rect.y, m.rect.w, m.rect.h]).collect();
                     layout.menu.retain(|m| !m.private);
                     for m in layout.menu.iter_mut() {
+                        // (a line of dialogue: its speaker's name as the language writes it, as a subtitle's is)
+                        let said = !m.name.is_empty();
+                        if said {
+                            m.name = speaker::name_in(&c.target_lang, &m.name, None);
+                        }
                         if m.fixed {
                             if m.ar.is_empty() {
                                 m.ar = m.en.clone();
@@ -1174,7 +1179,8 @@ impl Reader {
                         };
                         // a list item is one of the menu's known words, even when OCR garbled it (faint, greyed-out items)
                         // (also headings and short panel lines: the faint "Join Friends" title)
-                        if (m.item || m.heading || m.en.split_whitespace().count() <= 3) && !m.en.trim().starts_with('<') {
+                        // (not what someone says: "Kirk here." is no row of a menu, however alike)
+                        if !said && (m.item || m.heading || m.en.split_whitespace().count() <= 3) && !m.en.trim().starts_with('<') {
                             if let Some((en, ar)) = screens::menu_item_word(&m.en) {
                                 m.en = en.to_string();
                                 m.ar = ar.to_string();
