@@ -1754,7 +1754,9 @@ window.AS = (() => {
       width: "max-content",
       minWidth: `${r[2]}px`,
       minHeight: minH ? `${minH}px` : "",
-      maxWidth: `${Math.max(W * 0.92, r[2])}px`,
+      // (up to 60 % of the picture before it wraps, centred: the middle, where the game keeps its own
+      // subtitles. At 92 % a long one reached over GTA VI's map, bottom left)
+      maxWidth: `${Math.max(W * 0.6, r[2])}px`,
       boxSizing: "border-box",
     });
   }
