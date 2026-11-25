@@ -267,10 +267,14 @@ fn find_screen_at(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool) ->
 /// - a screen coloured by the light it's in — under a street lamp, at sunset, its white is (185, 162, 128),
 ///   55 between its most and least colour: no "colourless" light, and no screen was found (`tint`: 75 apart
 ///   at the most).
+/// - a screen dimmer still — in a dark room, a night club's light, its least colour 67 (half the picture's
+///   light, 55 %), 54 at 45 %: none of the above finds it. Last, when nothing else is a phone: the reader also
+///   wants the phone's buttons on the picture (engine.rs, `phone_whole`), a dim wall alone shows nothing.
 pub fn find_phone(rgba: &[u8], fw: u32, fh: u32) -> Option<(u32, u32, u32, u32)> {
     find_screen(rgba, fw, fh)
         .or_else(|| [175, 150, 130].iter().find_map(|&t| find_screen_as(rgba, fw, fh, t, true, true, 30)))
         .or_else(|| [140, 105, 80].iter().find_map(|&t| find_screen_as(rgba, fw, fh, t, true, true, 75)))
+        .or_else(|| [65, 52].iter().find_map(|&t| find_screen_as(rgba, fw, fh, t, true, false, 75)))
 }
 
 fn find_screen_as(rgba: &[u8], fw: u32, fh: u32, light_from: i32, sure: bool, body: bool, tint: i32) -> Option<(u32, u32, u32, u32)> {
@@ -1759,6 +1763,31 @@ pub fn steady(seen: &mut Vec<Seen>, read: Vec<Piece>, screen: (u32, u32, u32, u3
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_dim_screen_in_the_dark_is_a_phone() {
+        // a screen held up in a dark room, its least colour 74 (under every light find_screen tries), round it 20
+        let (w, h) = (1280u32, 720u32);
+        let mut f = vec![20u8; (w * h * 4) as usize];
+        for y in 110..610 {
+            for x in 500..800 {
+                let i = ((y * w + x) * 4) as usize;
+                f[i..i + 3].copy_from_slice(&[80, 78, 74]);
+            }
+        }
+        assert!(find_screen(&f, w, h).is_none(), "a screen this dim was found already");
+        let r = find_phone(&f, w, h).expect("the dim screen is a phone");
+        assert!(r.0.abs_diff(500) <= 6 && r.1.abs_diff(110) <= 6 && r.2.abs_diff(300) <= 12 && r.3.abs_diff(500) <= 12, "{r:?}");
+        // a dim light region as wide as it is tall is none
+        let mut wall = vec![20u8; (w * h * 4) as usize];
+        for y in 110..610 {
+            for x in 300..800 {
+                let i = ((y * w + x) * 4) as usize;
+                wall[i..i + 3].copy_from_slice(&[80, 78, 74]);
+            }
+        }
+        assert!(find_phone(&wall, w, h).is_none());
+    }
 
     #[test]
     fn ok_read_with_a_zero_is_ok() {
