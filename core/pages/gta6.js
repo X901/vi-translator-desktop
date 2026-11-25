@@ -6597,8 +6597,10 @@ function briefLines(f) {
     const help = name ? "" : helpText(en);
     return {
       en, ar: help, fixed: !!help, name, name_fg: nameFg, icons: [], lines: 2,
+      // (white, always: the game fades a line out at the column's top and bottom as it scrolls, and its
+      // translation came out grey. Only the speaker's name in its colour)
       rect: f.box(x0, ry0, x1 - x0, ry1 - ry0),
-      bg: backdrop(f, x0, ry0, x1, ry1, b) || hex(bg), fg: hex(fg),
+      bg: backdrop(f, x0, ry0, x1, ry1, b) || hex(bg), fg: "#ffffff",
       line_h: FONT.text, size: 1, font: textFont(), weight: 500,
       align: rtlLang() ? "right" : "left", wrap: "yes", item: false, right: false, missed: 0,
     };
