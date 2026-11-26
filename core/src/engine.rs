@@ -151,6 +151,18 @@ impl SizeLock {
         median
     }
 
+    /// This kind of text is `measured` tall now, locked at once: GTA VI's settings show "This is a subtitle." at
+    /// the size just picked (five lines in a row, the usual way, took minutes of a slow conversation).
+    fn set(&mut self, kind: &str, measured: f64) -> f64 {
+        if !Self::plausible(measured) {
+            return self.size(kind, measured);
+        }
+        self.drift.remove(kind);
+        self.locked.insert(kind.into(), measured);
+        self.store();
+        measured
+    }
+
     /// The picture now being read is `w`×`h`: sizes measured on a picture of another resolution are
     /// forgotten, and measured again on the next lines. True when they were.
     fn at_resolution(&mut self, w: u32, h: u32) -> bool {
@@ -295,6 +307,13 @@ static LINE_COLORS: std::sync::LazyLock<Mutex<HashMap<String, Vec<(String, Strin
 
 /// The same text (OCR's reading differences aside): for stacked lines (`la`, `lb`: their lines), the
 /// same lines one by one; else the whole text alike.
+/// GTA VI's settings' sample subtitle, "This is a subtitle.", shown at the size just picked (read at times
+/// without its "a").
+fn settings_sample(en: &str) -> bool {
+    let n: String = en.chars().filter(|c| c.is_alphanumeric()).collect::<String>().to_lowercase();
+    n == "thisisasubtitle" || n == "thisissubtitle"
+}
+
 fn same_text(a: &str, la: &[String], b: &str, lb: &[String]) -> bool {
     if !la.is_empty() && !lb.is_empty() {
         la.len() == lb.len() && la.iter().zip(lb).all(|(x, y)| ocr::similar(x, y))
@@ -1998,7 +2017,19 @@ impl Reader {
                     if !allowed && is_new && c.cover_look() {
                         set_cover(&*ctx.sink, &ctx.live, &area.id, None);
                     }
-                    if allowed && (((known || settled) && !same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines)) || recolor) {
+                    // GTA VI's settings' sample line, up while the player picks another subtitle size: the same
+                    // text, another size — sent again, its new size and box (the same text was never sent again,
+                    // and the translation stayed at the size the line first had)
+                    let resized = !recolor
+                        && settings_sample(&st.current)
+                        && same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines)
+                        && st.line_boxes.and_then(|b| b.0).is_some_and(|tb| {
+                            let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
+                            hs.sort_unstable();
+                            let now_h = hs.get(hs.len() / 2).map_or(0.0, |&h| h as f64 / fh as f64);
+                            now_h > 0.0 && (now_h / tb[3] - 1.0).abs() > SIZE_DRIFT
+                        });
+                    if allowed && (((known || settled) && !same_text(&st.candidate, &st.candidate_lines, &st.current, &st.current_lines)) || recolor || resized) {
                         // Stable new text: translate it once. Colours are measured now (and again for a
                         // moment if there were none: see `colors_until`).
                         let prev_lines = std::mem::take(&mut st.current_lines);
@@ -2088,8 +2119,8 @@ impl Reader {
                         let mut hs: Vec<u32> = words.iter().map(|w| w.rect.3).collect();
                         hs.sort_unstable();
                         let measured = hs.get(hs.len() / 2).map(|&h| h as f64 / fh as f64).unwrap_or(0.0);
-                        // same size for every line of this area
-                        let line_h = sizes.size(&area.id, measured);
+                        // same size for every line of this area (the game's settings' sample line: its new size at once)
+                        let line_h = if settings_sample(&en) { sizes.set(&area.id, measured) } else { sizes.size(&area.id, measured) };
                         st.current_start = Some(en_start);
                         // (the text seen there now has its seq: its translation takes its black box down)
                         {
@@ -2855,6 +2886,22 @@ mod size_lock_tests {
         // other kinds of text keep their own size
         assert_eq!(measured(&mut l, "help", 0.02), 0.02);
         assert_eq!(l.size("subtitles", 0.024), 0.025);
+    }
+
+    #[test]
+    fn the_settings_sample_line_locks_its_size_at_once() {
+        let mut l = SizeLock::default();
+        assert_eq!(measured(&mut l, "subtitles", 0.035), 0.035);
+        // (Large picked: half a line's drift on the way, then the sample line)
+        assert_eq!(l.size("subtitles", 0.053), 0.035);
+        assert_eq!(l.set("subtitles", 0.053), 0.053);
+        // back to Small: the next line has it
+        assert_eq!(l.set("subtitles", 0.034), 0.034);
+        assert_eq!(l.size("subtitles", 0.033), 0.034);
+        // (a failed reading changes nothing)
+        assert_eq!(l.set("subtitles", 0.0), 0.034);
+        assert!(settings_sample("This is a subtitle.") && settings_sample("This is subtitle."));
+        assert!(!settings_sample("Lucia: This is a subtitle, huh?") && !settings_sample("This is it."));
     }
 
     #[test]

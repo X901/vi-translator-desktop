@@ -2446,7 +2446,7 @@ async function drawLookPreviews(form) {
     const box = document.createElement("div");
     stage.appendChild(box);
     // (the game's size, as "Match the game's text size" gives it; the style's look otherwise)
-    const px = AS.matchedPx(Object.assign({}, area, { match_size: true }), tb[3], H);
+    const px = AS.matchedPx(Object.assign({}, area, { match_size: true }), tb[3], H, cover ? AS.COVER_MATCH : 0);
     AS.renderBox(box, [[text || LOOK_LINE, null]], L.style, H / 360, area.font_scale, L.placement, L.area, px);
     AS.placeAtText(box, L.placement, tb, tb[3], W, H, 0, 0, W, H, null, { min: AS.fxOf(cfg.fx_view || cfg.area_fx, area.id).cover_min });
   }

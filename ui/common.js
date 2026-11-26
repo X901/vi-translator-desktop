@@ -1653,10 +1653,14 @@ window.AS = (() => {
 
   // Font size (CSS px) that matches the game's English text: lineH is a fraction of the frame
   // height, frameH the frame's height in CSS px. Returns 0 when not matching (use the style size).
-  function matchedPx(area, lineH, frameH) {
+  function matchedPx(area, lineH, frameH, factor) {
     if (!area || area.match_size === false || !lineH) return 0;
-    return lineH * frameH * MATCH_FACTOR * (area.font_scale || 1);
+    return lineH * frameH * (factor || MATCH_FACTOR) * (area.font_scale || 1);
   }
+  // Over the game's text (the cover look): the Arabic as big as the English it hides, line for line. GTA VI's
+  // subtitles at 720p: a line read 25 px tall, 27 px from one line to the next; 0.92 × 1.18 ≈ 1.09 of the read
+  // height. (Matched as elsewhere, 1.2 and the style's 1.5 spacing, a line took 47 px: the box twice the English.)
+  const COVER_MATCH = 0.92, COVER_LINE = 1.18;
 
   // GTA's instructions box hugs its text with these margins (in English line heights, measured on
   // captured frames): ~0.65 left/top/bottom, ~1.2 right.
@@ -1679,7 +1683,7 @@ window.AS = (() => {
     if (!(opts && opts.more && opts.more[COVER] === true) || !tb || area.placement === "under_text") return { placement: area.placement, style, area };
     return {
       placement: "on_text",
-      style: Object.assign({}, style, { bg_color: "#000000", bg_opacity: 1 }),
+      style: Object.assign({}, style, { bg_color: "#000000", bg_opacity: 1, line_height: COVER_LINE }),
       area: Object.assign({}, area, { background: "" }),
     };
   }
@@ -1853,7 +1857,7 @@ window.AS = (() => {
     const tb = P.noBoxes ? null : steady(a.id + "|text", src.text_box);
     const gbox = P.noBoxes ? null : steady(a.id + "|game", src.game_box);
     const L = look(a, styleOf(a, baseStyle), opts, tb);
-    renderBox(box, has ? ev.segments : [], L.style, k, a.font_scale, L.placement, L.area, matchedPx(a, src.line_h, sizeH),
+    renderBox(box, has ? ev.segments : [], L.style, k, a.font_scale, L.placement, L.area, matchedPx(a, src.line_h, sizeH, L.placement === "on_text" ? COVER_MATCH : 0),
       { fadeMs: fx.fade_ms, empty: early, accent: fx.accent });
     if (atText(L.placement)) {
       placeAtText(box, L.placement, tb, src.line_h, P.W, P.H, P.ox, P.oy, P.areaW, P.areaH, gbox,
@@ -1868,7 +1872,9 @@ window.AS = (() => {
     }
     // (the same translation, drawn again: where it was; riding above stacked lines it moves with them)
     if (has && !P.ride) {
-      const key = ev.segments.map((s) => s[0]).join("") + "|" + P.W + "x" + P.H;
+      // (and at the same size: the game's settings show the same line at each subtitle size picked — its black
+      // box stayed as big as the first)
+      const key = ev.segments.map((s) => s[0]).join("") + "|" + P.W + "x" + P.H + "|" + ev.line_h;
       const was = placed[a.id];
       if (was && was.key === key) {
         for (const p of PLACE_KEYS) box.style[p] = was.style[p];
@@ -1918,5 +1924,5 @@ window.AS = (() => {
   // An area's text style: its own, else the profile's (areas from before had none of their own).
   const styleOf = (area, base) => (area && area.style) || base;
 
-  return { _phone: { PHONE_BOX: PHONE_BOX, PHONE_FIT: PHONE_FIT, PHONE_QUAD: PHONE_QUAD }, STEADY, steady, setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, placeUnderText, atText, placeAtText, look, COVER, fxOf, coverLook, drawLine, ridePlace, measureBox, renderPhone };
+  return { _phone: { PHONE_BOX: PHONE_BOX, PHONE_FIT: PHONE_FIT, PHONE_QUAD: PHONE_QUAD }, STEADY, steady, setLang, styleOf, esc, segHtml, rectFor, alignOf, anchor, renderBox, renderScreen, matchedPx, COVER_MATCH, placeUnderText, atText, placeAtText, look, COVER, fxOf, coverLook, drawLine, ridePlace, measureBox, renderPhone };
 })();
