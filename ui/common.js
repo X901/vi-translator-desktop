@@ -1763,6 +1763,23 @@ window.AS = (() => {
       maxWidth: `${Math.max(W * 0.6, r[2])}px`,
       boxSizing: "border-box",
     });
+    // (the English in two lines or more, the Arabic shorter: as many lines as it, filling the box that hides
+    // it — one line over two English ones was a tall black box with a line in its middle. Never more lines
+    // than the English: half as wide each left a word on a third)
+    const rows = Math.round(tb[3] / (lineH || tb[3]));
+    const t = box.firstElementChild;
+    // (not when it has lines of its own: two speakers' lines, one under the other)
+    if (rows >= 2 && t && !t.querySelector("br")) {
+      Object.assign(t.style, { width: "max-content", maxWidth: "none" });
+      const one = t.getBoundingClientRect().width;
+      const line = parseFloat(getComputedStyle(t).lineHeight) || lh;
+      const limit = Math.max(W * 0.6, r[2]);
+      Object.assign(t.style, { width: "", textWrap: "balance" });
+      for (let w = Math.ceil(one / rows); ; w += lh / 2) {
+        t.style.maxWidth = `${w}px`;
+        if (t.getBoundingClientRect().height <= rows * line + 1 || w >= limit) break;
+      }
+    }
   }
 
   // A read area's effects (Read Areas; the defaults when it has none of its own: config.rs AreaFx). `all`: the
